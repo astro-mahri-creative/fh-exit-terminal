@@ -44,6 +44,70 @@ mongoose.connect(process.env.MONGODB_URI, {
 
 // ==================== UTILITY FUNCTIONS ====================
 
+// Apply meta-game rules and return modifiers
+async function applyMetaGameRules(sessionCodes, universes) {
+  const rules = await MetaGameRule.find({ isActive: true }).sort({ priority: -1 });
+  const tierMultipliers = {}; // tier number -> multiplier
+  const bonusEffects = []; // { universe: 'all'|name, value: number }
+  let triggerCure = false;
+
+  for (const rule of rules) {
+    let condition, effect;
+    try {
+      condition = JSON.parse(rule.conditionDefinition);
+      effect = JSON.parse(rule.effectDefinition);
+    } catch (e) {
+      console.error(`Invalid JSON in rule ${rule.ruleName}:`, e);
+      continue;
+    }
+
+    let conditionMet = false;
+
+    if (rule.conditionType === 'universe_status') {
+      if (condition.any_universe_status) {
+        conditionMet = universes.some(u => u.status === condition.any_universe_status);
+      } else if (condition.universe_name && condition.status) {
+        const u = universes.find(u => u.name === condition.universe_name);
+        conditionMet = u?.status === condition.status;
+      }
+    } else if (rule.conditionType === 'code_combination') {
+      if (condition.required_codes) {
+        const enteredCodes = sessionCodes.map(sc => sc.codeId.code);
+        conditionMet = condition.required_codes.every(c => enteredCodes.includes(c));
+      }
+    } else if (rule.conditionType === 'case_threshold') {
+      const totalCases = universes.reduce((sum, u) => sum + u.currentCases, 0);
+      if (condition.total_cases_above !== undefined) conditionMet = totalCases >= condition.total_cases_above;
+      else if (condition.total_cases_below !== undefined) conditionMet = totalCases <= condition.total_cases_below;
+    } else if (rule.conditionType === 'phase_specific') {
+      const activePhase = await Phase.findOne({ isActive: true });
+      if (condition.phase_number !== undefined) {
+        conditionMet = activePhase?.phaseNumber === condition.phase_number;
+      }
+      if (conditionMet && condition.total_cases_below !== undefined) {
+        const totalCases = universes.reduce((sum, u) => sum + u.currentCases, 0);
+        conditionMet = totalCases <= condition.total_cases_below;
+      }
+    }
+
+    if (conditionMet) {
+      if (effect.multiplier && effect.applies_to === 'code_tiers' && effect.tiers) {
+        for (const tier of effect.tiers) {
+          tierMultipliers[tier] = (tierMultipliers[tier] || 1) * effect.multiplier;
+        }
+      }
+      if (effect.bonus_effect) {
+        bonusEffects.push(effect.bonus_effect);
+      }
+      if (effect.trigger_cure) {
+        triggerCure = true;
+      }
+    }
+  }
+
+  return { tierMultipliers, bonusEffects, triggerCure };
+}
+
 // Log analytics event
 async function logEvent(eventType, sessionId = null, userId = null, eventData = null) {
   try {
@@ -253,6 +317,7 @@ app.post('/api/session/start', async (req, res) => {
       success: true,
       session_token: sessionToken,
       session_id: session._id,
+      user_id: user_id.toLowerCase(),
       is_admin: userIdRecord.isAdmin,
       message: 'Session started'
     });
@@ -297,10 +362,19 @@ app.post('/api/codes/validate', async (req, res) => {
       });
     }
     
+    // Block code entry on finalized sessions
+    if (session.isComplete) {
+      return res.status(400).json({
+        success: false,
+        error: 'SESSION_ALREADY_FINALIZED',
+        message: 'This session has already been finalized'
+      });
+    }
+
     // Find code
-    const codeRecord = await Code.findOne({ 
+    const codeRecord = await Code.findOne({
       code: code.toUpperCase(),
-      isActive: true 
+      isActive: true
     });
     
     if (!codeRecord) {
@@ -379,6 +453,15 @@ app.post('/api/codes/finalize', async (req, res) => {
       });
     }
     
+    // Prevent double-finalization
+    if (session.isComplete) {
+      return res.status(400).json({
+        success: false,
+        error: 'SESSION_ALREADY_FINALIZED',
+        message: 'This session has already been finalized'
+      });
+    }
+
     // Check if codes entered
     if (session.totalCodesEntered === 0) {
       return res.status(400).json({
@@ -387,19 +470,19 @@ app.post('/api/codes/finalize', async (req, res) => {
         message: 'Please enter at least one code'
       });
     }
-    
+
     // Get all session codes
     const sessionCodes = await SessionCode.find({ sessionId: session._id })
       .populate('codeId');
-    
+
     // Get cure status
-    const cureStatus = await CureStatus.findOne();
-    const isCureActive = cureStatus?.isDiscovered || false;
-    
+    let cureStatus = await CureStatus.findOne();
+    let isCureActive = cureStatus?.isDiscovered || false;
+
     // Get all universes
     const universes = await Universe.find();
     const universeChanges = {};
-    
+
     // Initialize tracking
     universes.forEach(u => {
       universeChanges[u._id.toString()] = {
@@ -410,34 +493,56 @@ app.post('/api/codes/finalize', async (req, res) => {
         newCases: u.currentCases
       };
     });
-    
+
+    // Apply meta-game rules
+    const { tierMultipliers, bonusEffects, triggerCure } = await applyMetaGameRules(sessionCodes, universes);
+
+    // Trigger cure from meta-game rule if not already active
+    if (triggerCure && !isCureActive) {
+      if (!cureStatus) {
+        cureStatus = await CureStatus.create({
+          isDiscovered: true,
+          discoveredAt: new Date(),
+          discoveredBySessionId: session._id,
+          cureTriggerType: 'condition'
+        });
+      } else {
+        cureStatus.isDiscovered = true;
+        cureStatus.discoveredAt = new Date();
+        cureStatus.discoveredBySessionId = session._id;
+        cureStatus.cureTriggerType = 'condition';
+        await cureStatus.save();
+      }
+      isCureActive = true;
+    }
+
     // Process each code's effects
     for (const sessionCode of sessionCodes) {
       const code = sessionCode.codeId;
-      
+
       // Get all effects for this code
       const effects = await CodeEffect.find({ codeId: code._id });
-      
+
+      // Determine tier multiplier from meta-game rules
+      const tierMultiplier = tierMultipliers[code.tier] || 1;
+
       for (const effect of effects) {
         // Skip post-cure effects if cure not active
         if (effect.isPostCure && !isCureActive) continue;
-        
-        let effectValue = effect.effectValue;
-        
-        // TODO: Apply meta-game rules here (simplified for MVP)
-        
+
+        const effectValue = Math.floor(effect.effectValue * tierMultiplier);
+
         // Apply effect
         const universeId = effect.universeId.toString();
         if (universeChanges[universeId]) {
           universeChanges[universeId].change += effectValue;
         }
       }
-      
+
       // Check if this is a cure code
       if (code.isCureCode && !isCureActive) {
-        // Activate cure
         if (!cureStatus) {
-          await CureStatus.create({
+          cureStatus = await CureStatus.create({
             isDiscovered: true,
             discoveredAt: new Date(),
             discoveredBySessionId: session._id,
@@ -449,6 +554,21 @@ app.post('/api/codes/finalize', async (req, res) => {
           cureStatus.discoveredBySessionId = session._id;
           cureStatus.cureTriggerType = 'code';
           await cureStatus.save();
+        }
+        isCureActive = true;
+      }
+    }
+
+    // Apply bonus effects from meta-game rules
+    for (const bonus of bonusEffects) {
+      if (bonus.universe === 'all') {
+        for (const universeId in universeChanges) {
+          universeChanges[universeId].change += bonus.value;
+        }
+      } else {
+        const universe = universes.find(u => u.name === bonus.universe);
+        if (universe) {
+          universeChanges[universe._id.toString()].change += bonus.value;
         }
       }
     }

@@ -7,6 +7,7 @@ const {
   CodeEffect,
   UserId,
   Phase,
+  MetaGameRule,
   PhaxAlertMessage,
   CureStatus
 } = require('../models');
@@ -28,6 +29,7 @@ async function initDatabase() {
     await CodeEffect.deleteMany({});
     await UserId.deleteMany({});
     await Phase.deleteMany({});
+    await MetaGameRule.deleteMany({});
     await PhaxAlertMessage.deleteMany({});
     await CureStatus.deleteMany({});
 
@@ -179,7 +181,7 @@ async function initDatabase() {
       { code: 'PHDN', tier: 3, name: 'Denial Protocol', alignment: 'PHAX' },
 
       // Tier 4: FHEELS Hacking Operations (8 codes)
-      { code: 'LWME', tier: 4, name: 'Project Lasagna Breach', alignment: 'FHEELS' },
+      { code: 'LWME', tier: 4, name: 'Future Hooman Breach', alignment: 'FHEELS' },
       { code: 'BKDR', tier: 4, name: 'Backdoor Access', alignment: 'FHEELS' },
       { code: 'FHBR', tier: 4, name: 'Barrier Break', alignment: 'FHEELS' },
       { code: 'FHOV', tier: 4, name: 'Override Sequence', alignment: 'FHEELS' },
@@ -302,6 +304,35 @@ async function initDatabase() {
         }
       }
     }
+
+    // Initialize Meta-Game Rules
+    console.log('Creating meta-game rules...');
+    await MetaGameRule.create([
+      {
+        ruleName: 'Compromised Amplification',
+        conditionType: 'universe_status',
+        conditionDefinition: JSON.stringify({ any_universe_status: 'COMPROMISED' }),
+        effectDefinition: JSON.stringify({ multiplier: 2.0, applies_to: 'code_tiers', tiers: [4, 5] }),
+        isActive: true,
+        priority: 10
+      },
+      {
+        ruleName: 'Synergy Protocol',
+        conditionType: 'code_combination',
+        conditionDefinition: JSON.stringify({ required_codes: ['TECH', 'PHMX', 'CLRN'] }),
+        effectDefinition: JSON.stringify({ bonus_effect: { universe: 'all', value: -500 } }),
+        isActive: true,
+        priority: 5
+      },
+      {
+        ruleName: 'Phase 2 Cure Unlock',
+        conditionType: 'phase_specific',
+        conditionDefinition: JSON.stringify({ phase_number: 2, total_cases_below: 100000 }),
+        effectDefinition: JSON.stringify({ trigger_cure: true }),
+        isActive: true,
+        priority: 20
+      }
+    ]);
 
     // Initialize PHAX Alert Messages
     console.log('Creating PHAX alert messages...');

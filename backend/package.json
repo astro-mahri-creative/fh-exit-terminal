@@ -1,7 +1,7 @@
 {
   "name": "exit-terminal-backend",
   "version": "1.0.0",
-  "description": "Project Lasagna Exit Terminal API",
+  "description": "Future Hooman Exit Terminal API",
   "main": "server.js",
   "scripts": {
     "start": "node server.js",

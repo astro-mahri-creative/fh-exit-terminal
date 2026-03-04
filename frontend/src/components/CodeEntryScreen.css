@@ -4,89 +4,122 @@
   margin: 0 auto;
 }
 
+/* ── Header ── */
 .header {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  padding: 20px;
-  background: rgba(0, 102, 204, 0.2);
-  border-bottom: 2px solid #0066cc;
-  margin-bottom: 20px;
+  padding: 16px 24px;
+  background: var(--bg-surface);
+  border-bottom: 1px solid var(--border-dim);
+  margin-bottom: 24px;
 }
 
 .header h2 {
-  font-size: 1.8rem;
-  color: #00d4ff;
-  letter-spacing: 4px;
+  font-family: var(--font-mono);
+  font-size: 1rem;
+  font-weight: 700;
+  color: var(--text-primary);
+  letter-spacing: 0.3em;
+  text-transform: uppercase;
+}
+
+.header-right {
+  display: flex;
+  align-items: center;
+  gap: 16px;
 }
 
 .user-info {
-  font-size: 1rem;
-  color: rgba(255, 255, 255, 0.8);
+  font-family: var(--font-mono);
+  font-size: 0.8rem;
+  color: var(--phax-light);
+  letter-spacing: 0.12em;
 }
 
+.logout-button {
+  background: transparent;
+  border: 1px solid var(--border-mid);
+  color: var(--text-secondary);
+  padding: 7px 14px;
+  border-radius: var(--radius-md);
+  font-size: 0.7rem;
+  letter-spacing: 0.15em;
+  cursor: pointer;
+  transition: border-color 0.15s ease, color 0.15s ease;
+}
+
+.logout-button:hover {
+  border-color: var(--status-quarantined);
+  color: var(--status-quarantined);
+}
+
+/* ── Admin Controls ── */
 .admin-controls {
-  margin: 0 20px 20px;
-  padding: 15px;
-  background: rgba(255, 153, 0, 0.1);
-  border: 2px solid #ff9900;
-  border-radius: 8px;
+  margin: 0 24px 20px;
+  padding: 14px;
+  background: rgba(212, 137, 10, 0.06);
+  border: 1px solid var(--color-warning);
+  border-radius: var(--radius-md);
 }
 
 .admin-toggle {
-  background: #ff9900;
-  color: #000;
-  padding: 10px 20px;
-  border-radius: 4px;
-  font-size: 1rem;
+  background: var(--color-warning);
+  color: var(--bg-base);
+  padding: 8px 18px;
+  border-radius: var(--radius-md);
+  font-size: 0.8rem;
 }
 
 .admin-panel {
-  margin-top: 15px;
+  margin-top: 14px;
   display: flex;
   gap: 10px;
   flex-wrap: wrap;
 }
 
 .admin-button {
-  background: #0066cc;
-  color: #fff;
-  padding: 10px 20px;
-  border-radius: 4px;
-  font-size: 0.9rem;
+  background: var(--phax-blue);
+  color: var(--bg-base);
+  padding: 8px 16px;
+  border-radius: var(--radius-md);
+  font-size: 0.78rem;
 }
 
 .admin-button.danger {
-  background: #cc0000;
+  background: var(--color-error);
 }
 
 .new-user-id {
   width: 100%;
   padding: 10px;
-  background: rgba(0, 212, 255, 0.1);
-  border: 1px solid #00d4ff;
-  border-radius: 4px;
+  background: var(--bg-raised);
+  border: 1px solid var(--phax-light);
+  border-radius: var(--radius-md);
   margin-top: 10px;
-  font-size: 1.2rem;
+  font-size: 1.1rem;
+  color: var(--text-primary);
 }
 
+/* ── Main Layout ── */
 .main-content {
   display: grid;
   grid-template-columns: 2fr 1fr;
   gap: 20px;
-  padding: 0 20px;
+  padding: 0 24px;
   margin-bottom: 20px;
 }
 
+/* ── Code Input Panel ── */
 .code-input-section {
-  background: rgba(26, 26, 46, 0.8);
-  border: 2px solid #0066cc;
-  border-radius: 8px;
-  padding: 30px;
+  background: var(--bg-surface);
+  border: 1px solid var(--border-dim);
+  border-radius: var(--radius-lg);
+  padding: 32px;
 }
 
 .code-display {
-  margin-bottom: 30px;
+  margin-bottom: 32px;
 }
 
 .code-input-box {
@@ -97,42 +130,48 @@
 
 .code-char {
   display: inline-block;
-  width: 60px;
-  height: 80px;
-  line-height: 80px;
-  font-size: 3rem;
-  background: rgba(0, 212, 255, 0.1);
-  border: 3px solid #00d4ff;
-  border-radius: 8px;
+  width: 58px;
+  height: 76px;
+  line-height: 76px;
+  font-family: var(--font-mono);
+  font-size: 2.4rem;
+  font-weight: 700;
+  background: var(--bg-raised);
+  border: 1px solid var(--border-mid);
+  border-radius: var(--radius-md);
   text-align: center;
-  font-weight: bold;
+  color: var(--phax-light);
+  letter-spacing: 0;
 }
 
+/* ── Keyboard ── */
 .keyboard {
-  margin: 30px 0;
+  margin: 28px 0;
 }
 
 .keyboard-row {
   display: flex;
   justify-content: center;
-  gap: 8px;
-  margin-bottom: 8px;
+  gap: 7px;
+  margin-bottom: 7px;
 }
 
 .keyboard-key {
-  min-width: 50px;
-  height: 50px;
-  background: rgba(0, 102, 204, 0.3);
-  border: 2px solid #0066cc;
-  color: #ffffff;
-  font-size: 1.2rem;
-  border-radius: 4px;
-  transition: all 0.2s ease;
+  min-width: 48px;
+  height: 48px;
+  background: var(--bg-raised);
+  border: 1px solid var(--border-mid);
+  color: var(--text-primary);
+  font-family: var(--font-mono);
+  font-size: 1rem;
+  border-radius: var(--radius-md);
+  transition: background 0.1s ease, border-color 0.1s ease;
 }
 
 .keyboard-key:hover:not(:disabled) {
-  background: rgba(0, 102, 204, 0.6);
-  border-color: #00d4ff;
+  background: var(--bg-overlay);
+  border-color: var(--phax-blue);
+  color: var(--phax-light);
 }
 
 .keyboard-key:active:not(:disabled) {
@@ -140,166 +179,186 @@
 }
 
 .keyboard-key:disabled {
-  opacity: 0.3;
+  opacity: 0.25;
 }
 
 .clear-key {
-  width: 120px;
-  background: rgba(204, 0, 0, 0.3);
-  border-color: #cc0000;
+  min-width: 100px;
+  background: rgba(192, 48, 48, 0.08);
+  border-color: var(--color-error);
+  color: #e07070;
 }
 
 .clear-key:hover:not(:disabled) {
-  background: rgba(204, 0, 0, 0.6);
+  background: rgba(192, 48, 48, 0.18);
 }
 
+.backspace-key {
+  min-width: 72px;
+  background: rgba(212, 137, 10, 0.08);
+  border-color: var(--color-warning);
+  color: #e0a040;
+  font-size: 1.1rem;
+}
+
+.backspace-key:hover:not(:disabled) {
+  background: rgba(212, 137, 10, 0.18);
+}
+
+/* ── Activate Button ── */
 .activate-button {
   width: 100%;
-  background: linear-gradient(135deg, #00cc66 0%, #00ff88 100%);
-  color: #000;
-  font-size: 1.3rem;
-  padding: 16px;
-  border-radius: 8px;
-  letter-spacing: 2px;
+  background: var(--fheels-green);
+  color: var(--bg-base);
+  font-size: 0.95rem;
+  padding: 14px;
+  border-radius: var(--radius-md);
+  letter-spacing: 0.18em;
   margin-top: 20px;
 }
 
+/* ── Activated Codes Panel ── */
 .activated-codes-section {
-  background: rgba(26, 26, 46, 0.8);
-  border: 2px solid #0066cc;
-  border-radius: 8px;
+  background: var(--bg-surface);
+  border: 1px solid var(--border-dim);
+  border-radius: var(--radius-lg);
   padding: 20px;
   height: fit-content;
 }
 
 .activated-codes-section h3 {
-  color: #00d4ff;
-  font-size: 1.3rem;
+  font-family: var(--font-mono);
+  color: var(--phax-light);
+  font-size: 0.8rem;
+  font-weight: 700;
   margin-bottom: 20px;
   text-align: center;
-  letter-spacing: 2px;
+  letter-spacing: 0.25em;
+  text-transform: uppercase;
 }
 
 .codes-list {
   max-height: 400px;
   overflow-y: auto;
-  margin-bottom: 15px;
+  margin-bottom: 14px;
 }
 
 .no-codes {
   text-align: center;
-  color: rgba(255, 255, 255, 0.5);
-  padding: 20px;
-  font-style: italic;
+  color: var(--text-dim);
+  padding: 24px 20px;
+  font-size: 0.85rem;
 }
 
 .activated-code-item {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  padding: 12px;
-  background: rgba(0, 212, 255, 0.1);
-  border: 1px solid #00d4ff;
-  border-radius: 4px;
-  margin-bottom: 8px;
+  padding: 10px 12px;
+  background: var(--bg-raised);
+  border: 1px solid var(--border-faint);
+  border-radius: var(--radius-md);
+  margin-bottom: 6px;
 }
 
 .code-value {
-  font-size: 1.3rem;
-  font-weight: bold;
-  color: #00d4ff;
-  letter-spacing: 2px;
+  font-family: var(--font-mono);
+  font-size: 1.1rem;
+  font-weight: 700;
+  color: var(--phax-light);
+  letter-spacing: 0.15em;
 }
 
 .code-tier {
-  font-size: 0.9rem;
-  color: rgba(255, 255, 255, 0.7);
-  background: rgba(0, 102, 204, 0.3);
-  padding: 4px 8px;
-  border-radius: 4px;
+  font-size: 0.75rem;
+  color: var(--text-secondary);
+  background: var(--bg-base);
+  padding: 3px 8px;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--border-faint);
 }
 
 .code-count {
   text-align: center;
-  font-size: 1rem;
-  color: #00d4ff;
+  font-family: var(--font-mono);
+  font-size: 0.82rem;
+  color: var(--phax-light);
   padding: 10px;
-  background: rgba(0, 102, 204, 0.2);
-  border-radius: 4px;
+  background: var(--bg-raised);
+  border-radius: var(--radius-md);
+  letter-spacing: 0.1em;
 }
 
+/* ── Finalize Button ── */
 .finalize-button {
-  width: calc(100% - 40px);
-  margin: 0 20px 20px;
-  background: linear-gradient(135deg, #ff9900 0%, #ffaa00 100%);
-  color: #000;
-  font-size: 1.5rem;
-  padding: 20px;
-  border-radius: 8px;
-  letter-spacing: 2px;
-  box-shadow: 0 4px 15px rgba(255, 153, 0, 0.4);
+  width: calc(100% - 48px);
+  margin: 0 24px 24px;
+  background: var(--color-warning);
+  color: var(--bg-base);
+  font-size: 1.1rem;
+  padding: 18px;
+  border-radius: var(--radius-md);
+  letter-spacing: 0.18em;
 }
 
+/* ── Activation Overlay ── */
 .activation-overlay {
   position: fixed;
-  top: 0;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  background: rgba(0, 0, 0, 0.9);
+  inset: 0;
+  background: var(--bg-overlay);
   display: flex;
   align-items: center;
   justify-content: center;
   z-index: 1000;
-  animation: fadeIn 0.3s ease;
+  animation: fadeIn 0.2s ease;
 }
 
 @keyframes fadeIn {
   from { opacity: 0; }
-  to { opacity: 1; }
+  to   { opacity: 1; }
 }
 
 .activation-message {
-  font-size: 3rem;
-  color: #00ff88;
-  text-shadow: 0 0 30px rgba(0, 255, 136, 0.8);
-  letter-spacing: 4px;
-  animation: pulse 1s ease-in-out;
+  font-family: var(--font-mono);
+  font-size: 2.2rem;
+  font-weight: 700;
+  color: var(--fheels-light);
+  letter-spacing: 0.25em;
+  animation: pulse 0.8s ease-in-out;
 }
 
-/* Responsive design for tablets */
+/* ── Responsive ── */
 @media (max-width: 1024px) {
   .main-content {
     grid-template-columns: 1fr;
   }
-  
+
   .keyboard-key {
-    min-width: 45px;
-    height: 45px;
-    font-size: 1rem;
+    min-width: 44px;
+    height: 44px;
+    font-size: 0.9rem;
   }
-  
+
   .code-char {
     width: 50px;
-    height: 70px;
-    line-height: 70px;
-    font-size: 2.5rem;
+    height: 66px;
+    line-height: 66px;
+    font-size: 2rem;
   }
 }
 
 @media (max-width: 768px) {
   .header h2 {
-    font-size: 1.3rem;
+    font-size: 0.8rem;
   }
-  
+
   .keyboard-key {
-    min-width: 40px;
-    height: 40px;
-    font-size: 0.9rem;
-    gap: 5px;
+    min-width: 38px;
+    height: 38px;
+    font-size: 0.82rem;
   }
-  
+
   .activation-message {
-    font-size: 2rem;
+    font-size: 1.6rem;
   }
 }

@@ -1,4 +1,4 @@
-# Project Lasagna: Exit Terminal
+# Future Hooman: Exit Terminal
 
 A full-stack interactive web application for the Future Hooman art exhibit. Visitors enter codes discovered throughout the exhibit to see their impact on iFLU case numbers across interconnected universes.
 
@@ -43,8 +43,8 @@ A full-stack interactive web application for the Future Hooman art exhibit. Visi
 ### 1. Clone the Repository
 
 ```bash
-git clone https://github.com/YOUR_USERNAME/project-lasagna-exit-terminal.git
-cd project-lasagna-exit-terminal
+git clone https://github.com/YOUR_USERNAME/fh-exit-terminal.git
+cd fh-exit-terminal
 ```
 
 ### 2. Set Up MongoDB Atlas

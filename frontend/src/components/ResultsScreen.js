@@ -1,29 +1,52 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { emailService } from '../services/api';
 import './ResultsScreen.css';
+
+const RESET_TIMEOUT = 30;
 
 function ResultsScreen({ resultsData, sessionData, onReset }) {
   const [email, setEmail] = useState('');
   const [emailSent, setEmailSent] = useState(false);
   const [emailError, setEmailError] = useState('');
-  const [countdown, setCountdown] = useState(30);
+  const [countdown, setCountdown] = useState(RESET_TIMEOUT);
+  const intervalRef = useRef(null);
+  const countdownRef = useRef(RESET_TIMEOUT);
+
+  const startTimer = useCallback(() => {
+    if (intervalRef.current) clearInterval(intervalRef.current);
+    countdownRef.current = RESET_TIMEOUT;
+    setCountdown(RESET_TIMEOUT);
+    intervalRef.current = setInterval(() => {
+      countdownRef.current -= 1;
+      setCountdown(countdownRef.current);
+      if (countdownRef.current <= 0) {
+        clearInterval(intervalRef.current);
+        onReset();
+      }
+    }, 1000);
+  }, [onReset]);
+
+  const resetTimer = useCallback(() => {
+    startTimer();
+  }, [startTimer]);
 
   useEffect(() => {
-    const timer = setInterval(() => {
-      setCountdown(prev => Math.max(0, prev - 1));
-    }, 1000);
-
-    return () => clearInterval(timer);
-  }, []);
+    startTimer();
+    return () => {
+      if (intervalRef.current) clearInterval(intervalRef.current);
+    };
+  }, [startTimer]);
 
   const getStatusColor = (status) => {
+    // Clinical palette — matches CSS custom properties in App.css
+    // textColor: dark for light backgrounds, light for dark backgrounds
     const colors = {
-      'OPTIMIZED': { primary: '#C0C0C0', secondary: '#0066FF' },
-      'ACTIVE': { primary: '#808080', secondary: '#FFFFFF' },
-      'COMPROMISED': { primary: '#FFA500', secondary: '#00FF00' },
-      'QUARANTINED': { primary: '#FF0000', secondary: '#8B0000' },
-      'LIBERATED': { primary: '#8B4513', secondary: '#FFD700' },
-      'TRANSCENDENT': { primary: '#9370DB', secondary: '#00CED1' }
+      'OPTIMIZED':    { primary: '#b0bec5', secondary: '#78909c', textColor: '#0a0a0a' },
+      'ACTIVE':       { primary: '#9e9e9e', secondary: '#616161', textColor: '#0a0a0a' },
+      'COMPROMISED':  { primary: '#e6911a', secondary: '#a05c08', textColor: '#0a0a0a' },
+      'QUARANTINED':  { primary: '#c94040', secondary: '#7c1a1a', textColor: '#f0eeeb' },
+      'LIBERATED':    { primary: '#a0784a', secondary: '#5c3d20', textColor: '#f0eeeb' },
+      'TRANSCENDENT': { primary: '#9575cd', secondary: '#4527a0', textColor: '#f0eeeb' }
     };
     return colors[status] || colors.ACTIVE;
   };
@@ -51,7 +74,7 @@ function ResultsScreen({ resultsData, sessionData, onReset }) {
   };
 
   return (
-    <div className="results-screen">
+    <div className="results-screen" onClick={resetTimer} onKeyDown={resetTimer}>
       <div className="phax-alert">
         <div className="alert-icon">⚠️</div>
         <div className="alert-text">{resultsData.phax_alert}</div>
@@ -63,12 +86,12 @@ function ResultsScreen({ resultsData, sessionData, onReset }) {
           {resultsData.universes.map(universe => {
             const colors = getStatusColor(universe.status);
             return (
-              <div 
-                key={universe.id} 
+              <div
+                key={universe.id}
                 className="universe-card"
-                style={{ 
-                  borderColor: colors.primary,
-                  background: `linear-gradient(135deg, ${colors.primary}15, ${colors.secondary}10)`
+                style={{
+                  borderColor: colors.primary + '66',
+                  background: `linear-gradient(160deg, ${colors.primary}12, ${colors.secondary}08)`
                 }}
               >
                 <div className="universe-name">{universe.name}</div>
@@ -83,9 +106,9 @@ function ResultsScreen({ resultsData, sessionData, onReset }) {
                     </div>
                   )}
                 </div>
-                <div 
+                <div
                   className="universe-status"
-                  style={{ backgroundColor: colors.primary, color: '#fff' }}
+                  style={{ backgroundColor: colors.primary, color: colors.textColor }}
                 >
                   {universe.status}
                 </div>
@@ -124,7 +147,7 @@ function ResultsScreen({ resultsData, sessionData, onReset }) {
             <input
               type="email"
               value={email}
-              onChange={(e) => setEmail(e.target.value)}
+              onChange={(e) => { setEmail(e.target.value); resetTimer(); }}
               placeholder="Enter email address"
               className="email-input"
             />
