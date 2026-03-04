@@ -1,0 +1,132 @@
+.welcome-screen {
+  width: 100%;
+  max-width: 800px;
+  text-align: center;
+}
+
+.welcome-container {
+  background: rgba(26, 26, 46, 0.8);
+  border: 2px solid #0066cc;
+  border-radius: 8px;
+  padding: 60px 40px;
+  box-shadow: 0 10px 40px rgba(0, 0, 0, 0.5);
+}
+
+.logo-container {
+  margin-bottom: 40px;
+}
+
+.project-title {
+  font-size: 3rem;
+  font-weight: bold;
+  letter-spacing: 8px;
+  color: #00d4ff;
+  text-shadow: 0 0 20px rgba(0, 212, 255, 0.5);
+  margin-bottom: 10px;
+}
+
+.terminal-title {
+  font-size: 1.8rem;
+  color: #0066cc;
+  letter-spacing: 4px;
+  font-weight: normal;
+}
+
+.instructions {
+  font-size: 1.1rem;
+  color: rgba(255, 255, 255, 0.8);
+  margin-bottom: 40px;
+  line-height: 1.6;
+}
+
+.user-id-form {
+  margin-bottom: 40px;
+}
+
+.input-group {
+  margin-bottom: 20px;
+}
+
+.input-group label {
+  display: block;
+  font-size: 1rem;
+  color: #00d4ff;
+  margin-bottom: 10px;
+  text-transform: uppercase;
+  letter-spacing: 2px;
+}
+
+.user-id-input {
+  width: 300px;
+  font-size: 2rem;
+  text-align: center;
+  letter-spacing: 8px;
+  text-transform: lowercase;
+}
+
+.begin-button {
+  background: linear-gradient(135deg, #0066cc 0%, #00d4ff 100%);
+  color: #ffffff;
+  font-size: 1.5rem;
+  padding: 16px 60px;
+  border-radius: 8px;
+  letter-spacing: 4px;
+  margin-top: 20px;
+  box-shadow: 0 4px 15px rgba(0, 102, 204, 0.4);
+}
+
+.begin-button:hover:not(:disabled) {
+  background: linear-gradient(135deg, #0088ff 0%, #00ffff 100%);
+}
+
+.phax-branding {
+  margin-top: 60px;
+  padding-top: 30px;
+  border-top: 1px solid rgba(255, 255, 255, 0.2);
+}
+
+.phax-logo {
+  font-size: 2rem;
+  font-weight: bold;
+  color: #C0C0C0;
+  letter-spacing: 6px;
+  margin-bottom: 10px;
+}
+
+.phax-tagline {
+  font-size: 0.9rem;
+  color: rgba(255, 255, 255, 0.6);
+  letter-spacing: 2px;
+}
+
+/* Tablet optimization */
+@media (max-width: 1024px) {
+  .project-title {
+    font-size: 2.5rem;
+    letter-spacing: 6px;
+  }
+  
+  .terminal-title {
+    font-size: 1.5rem;
+  }
+  
+  .user-id-input {
+    width: 100%;
+    max-width: 300px;
+  }
+}
+
+@media (max-width: 768px) {
+  .welcome-container {
+    padding: 40px 20px;
+  }
+  
+  .project-title {
+    font-size: 2rem;
+  }
+  
+  .begin-button {
+    font-size: 1.2rem;
+    padding: 14px 40px;
+  }
+}
