@@ -1,0 +1,17 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "Backend API",
+      "runtimeExecutable": "node",
+      "runtimeArgs": ["backend/server.js"],
+      "port": 5000
+    },
+    {
+      "name": "Frontend",
+      "runtimeExecutable": "npm.cmd",
+      "runtimeArgs": ["start"],
+      "port": 3000
+    }
+  ]
+}
