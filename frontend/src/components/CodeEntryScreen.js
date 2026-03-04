@@ -1,8 +1,8 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { codeService, adminService } from '../services/api';
 import './CodeEntryScreen.css';
 
-function CodeEntryScreen({ sessionData, onFinalize }) {
+function CodeEntryScreen({ sessionData, onFinalize, onLogout }) {
   const [currentCode, setCurrentCode] = useState('');
   const [activatedCodes, setActivatedCodes] = useState([]);
   const [loading, setLoading] = useState(false);
@@ -20,17 +20,43 @@ function CodeEntryScreen({ sessionData, onFinalize }) {
     ['Z', 'X', 'C', 'V', 'B', 'N', 'M']
   ];
 
-  const handleKeyPress = (key) => {
-    if (currentCode.length < 4) {
-      setCurrentCode(currentCode + key);
-      setError('');
-    }
-  };
+  const handleKeyPress = useCallback((key) => {
+    if (loading) return;
+    setCurrentCode(prev => {
+      if (prev.length < 4) {
+        setError('');
+        return prev + key;
+      }
+      return prev;
+    });
+  }, [loading]);
+
+  const handleBackspace = useCallback(() => {
+    setCurrentCode(prev => prev.slice(0, -1));
+    setError('');
+  }, []);
 
   const handleClear = () => {
     setCurrentCode('');
     setError('');
   };
+
+  // Physical keyboard support
+  useEffect(() => {
+    const handlePhysicalKey = (e) => {
+      if (loading) return;
+      const key = e.key.toUpperCase();
+      if (/^[A-Z0-9]$/.test(key)) {
+        handleKeyPress(key);
+      } else if (e.key === 'Backspace') {
+        handleBackspace();
+      } else if (e.key === 'Delete') {
+        handleClear();
+      }
+    };
+    window.addEventListener('keydown', handlePhysicalKey);
+    return () => window.removeEventListener('keydown', handlePhysicalKey);
+  }, [loading, handleKeyPress, handleBackspace]);
 
   const handleActivateCode = async () => {
     if (currentCode.length !== 4) {
@@ -122,7 +148,10 @@ function CodeEntryScreen({ sessionData, onFinalize }) {
     <div className="code-entry-screen">
       <div className="header">
         <h2>TERMINAL CODE ENTRY</h2>
-        <div className="user-info">User: {sessionData.session_token.substring(5, 11)}</div>
+        <div className="header-right">
+          <div className="user-info">User: {sessionData.user_id}</div>
+          <button onClick={onLogout} className="logout-button">LOG OUT</button>
+        </div>
       </div>
 
       {isAdmin && (
@@ -178,6 +207,13 @@ function CodeEntryScreen({ sessionData, onFinalize }) {
             <div className="keyboard-row">
               <button onClick={handleClear} className="keyboard-key clear-key">
                 CLEAR
+              </button>
+              <button
+                onClick={handleBackspace}
+                className="keyboard-key backspace-key"
+                disabled={currentCode.length === 0}
+              >
+                &#9003;
               </button>
             </div>
           </div>

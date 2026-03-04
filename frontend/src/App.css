@@ -1,14 +1,87 @@
-* {
+/* ====================================================
+   EXIT TERMINAL — Future Hooman / PHAX Brand System
+   Clinical dark-mode aesthetic
+   ==================================================== */
+
+@import url('https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&family=Space+Grotesk:wght@400;500;600;700&display=swap');
+
+/* CSS Custom Properties */
+:root {
+  /* Backgrounds */
+  --bg-base:       #060606;
+  --bg-surface:    #0f0f0f;
+  --bg-raised:     #161616;
+  --bg-overlay:    rgba(0, 0, 0, 0.85);
+
+  /* Borders */
+  --border-faint:  #1c1c1c;
+  --border-dim:    #2a2a2a;
+  --border-mid:    #3d3d3d;
+
+  /* PHAX / Clinical palette */
+  --phax-blue:     #4477ee;
+  --phax-light:    #aac4ff;
+  --phax-silver:   #c0c8d8;
+
+  /* FHEELS / Organic palette */
+  --fheels-green:  #4a9e5c;
+  --fheels-light:  #8fcc88;
+
+  /* Status colors */
+  --status-optimized:  #b0bec5;
+  --status-active:     #9e9e9e;
+  --status-compromised:#e6911a;
+  --status-quarantined:#c94040;
+  --status-liberated:  #a0784a;
+  --status-transcendent: #9575cd;
+
+  /* Semantic */
+  --color-warning: #d4890a;
+  --color-error:   #c03030;
+  --color-success: #3a8f54;
+  --color-cure:    #2e9e7a;
+
+  /* Text */
+  --text-primary:   #f0eeeb;
+  --text-secondary: #777777;
+  --text-dim:       #444444;
+  --text-accent:    var(--phax-light);
+
+  /* Typography */
+  --font-mono:  'Space Mono', 'Courier New', monospace;
+  --font-sans:  'Space Grotesk', system-ui, -apple-system, sans-serif;
+
+  /* Spacing */
+  --radius-sm: 2px;
+  --radius-md: 4px;
+  --radius-lg: 6px;
+}
+
+/* Reset */
+*, *::before, *::after {
   margin: 0;
   padding: 0;
   box-sizing: border-box;
 }
 
+html {
+  font-size: 16px;
+}
+
 body {
-  font-family: 'Courier New', monospace;
-  background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
-  color: #ffffff;
+  font-family: var(--font-mono);
+  background-color: var(--bg-base);
+  color: var(--text-primary);
   overflow-x: hidden;
+  min-height: 100vh;
+  /* Subtle scanline texture */
+  background-image: repeating-linear-gradient(
+    0deg,
+    transparent,
+    transparent 2px,
+    rgba(255, 255, 255, 0.008) 2px,
+    rgba(255, 255, 255, 0.008) 4px
+  );
 }
 
 .App {
@@ -19,67 +92,76 @@ body {
   padding: 20px;
 }
 
-/* Common button styles */
+/* ===================== BUTTONS ===================== */
 button {
-  font-family: 'Courier New', monospace;
-  font-weight: bold;
+  font-family: var(--font-mono);
+  font-weight: 700;
   text-transform: uppercase;
+  letter-spacing: 0.1em;
   border: none;
   cursor: pointer;
-  transition: all 0.3s ease;
+  transition: background 0.15s ease, border-color 0.15s ease, opacity 0.15s ease;
 }
 
 button:hover:not(:disabled) {
-  transform: translateY(-2px);
-  box-shadow: 0 8px 16px rgba(0, 102, 255, 0.3);
+  filter: brightness(1.15);
+}
+
+button:active:not(:disabled) {
+  filter: brightness(0.9);
 }
 
 button:disabled {
-  opacity: 0.5;
+  opacity: 0.35;
   cursor: not-allowed;
 }
 
-/* Common input styles */
+/* ===================== INPUTS ===================== */
 input {
-  font-family: 'Courier New', monospace;
-  font-size: 1.2rem;
-  padding: 12px;
-  border: 2px solid #0066cc;
-  background: rgba(255, 255, 255, 0.1);
-  color: #ffffff;
-  border-radius: 4px;
+  font-family: var(--font-mono);
+  font-size: 1rem;
+  padding: 12px 14px;
+  background: var(--bg-raised);
+  color: var(--text-primary);
+  border: 1px solid var(--border-mid);
+  border-radius: var(--radius-md);
   outline: none;
-  transition: all 0.3s ease;
+  transition: border-color 0.15s ease;
 }
 
 input:focus {
-  border-color: #00d4ff;
-  background: rgba(255, 255, 255, 0.15);
-  box-shadow: 0 0 10px rgba(0, 212, 255, 0.3);
+  border-color: var(--phax-blue);
 }
 
 input::placeholder {
-  color: rgba(255, 255, 255, 0.5);
+  color: var(--text-dim);
 }
 
-/* Error messages */
+/* ===================== ERROR ===================== */
 .error-message {
-  background: rgba(255, 0, 0, 0.2);
-  border: 1px solid #ff0000;
-  color: #ff6666;
-  padding: 12px;
-  border-radius: 4px;
-  margin: 10px 0;
-  font-size: 0.9rem;
+  background: rgba(192, 48, 48, 0.12);
+  border: 1px solid var(--color-error);
+  color: #e07070;
+  padding: 10px 14px;
+  border-radius: var(--radius-md);
+  margin: 8px 0;
+  font-size: 0.85rem;
+  letter-spacing: 0.05em;
   text-align: center;
 }
 
-/* Loading states */
+/* ===================== ANIMATIONS ===================== */
 @keyframes pulse {
   0%, 100% { opacity: 1; }
-  50% { opacity: 0.5; }
+  50%       { opacity: 0.4; }
 }
 
-.loading {
-  animation: pulse 1.5s ease-in-out infinite;
+@keyframes slideIn {
+  from { opacity: 0; transform: translateY(-8px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes blink {
+  0%, 100% { opacity: 1; }
+  50%       { opacity: 0; }
 }

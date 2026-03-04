@@ -44,7 +44,7 @@ function WelcomeScreen({ onSessionStart }) {
     <div className="welcome-screen">
       <div className="welcome-container">
         <div className="logo-container">
-          <h1 className="project-title">PROJECT LASAGNA</h1>
+          <h1 className="project-title">FUTURE HOOMAN</h1>
           <h2 className="terminal-title">EXIT TERMINAL</h2>
         </div>
 
