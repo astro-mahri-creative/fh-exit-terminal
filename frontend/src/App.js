@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import './App.css';
 import WelcomeScreen from './components/WelcomeScreen';
 import CodeEntryScreen from './components/CodeEntryScreen';
@@ -25,26 +25,16 @@ function App() {
     setResultsData(null);
   };
 
-  // Auto-reset after 30 seconds on results screen
-  useEffect(() => {
-    if (screen === 'results') {
-      const timer = setTimeout(() => {
-        handleReset();
-      }, 30000);
-      
-      return () => clearTimeout(timer);
-    }
-  }, [screen]);
-
   return (
     <div className="App">
       {screen === 'welcome' && (
         <WelcomeScreen onSessionStart={handleSessionStart} />
       )}
       {screen === 'codeEntry' && sessionData && (
-        <CodeEntryScreen 
+        <CodeEntryScreen
           sessionData={sessionData}
           onFinalize={handleFinalize}
+          onLogout={handleReset}
         />
       )}
       {screen === 'results' && resultsData && (

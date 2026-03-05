@@ -1,44 +1,49 @@
 .welcome-screen {
   width: 100%;
-  max-width: 800px;
+  max-width: 560px;
   text-align: center;
 }
 
 .welcome-container {
-  background: rgba(26, 26, 46, 0.8);
-  border: 2px solid #0066cc;
-  border-radius: 8px;
-  padding: 60px 40px;
-  box-shadow: 0 10px 40px rgba(0, 0, 0, 0.5);
+  background: var(--bg-surface);
+  border: 1px solid var(--border-dim);
+  border-radius: var(--radius-lg);
+  padding: 56px 40px 48px;
 }
 
+/* ── Logo / Title ── */
 .logo-container {
-  margin-bottom: 40px;
+  margin-bottom: 48px;
 }
 
 .project-title {
-  font-size: 3rem;
-  font-weight: bold;
-  letter-spacing: 8px;
-  color: #00d4ff;
-  text-shadow: 0 0 20px rgba(0, 212, 255, 0.5);
-  margin-bottom: 10px;
+  font-family: var(--font-mono);
+  font-size: 2.6rem;
+  font-weight: 700;
+  letter-spacing: 0.28em;
+  color: var(--text-primary);
+  margin-bottom: 8px;
 }
 
 .terminal-title {
-  font-size: 1.8rem;
-  color: #0066cc;
-  letter-spacing: 4px;
-  font-weight: normal;
+  font-family: var(--font-mono);
+  font-size: 0.9rem;
+  color: var(--text-secondary);
+  letter-spacing: 0.25em;
+  text-transform: uppercase;
+  font-weight: 400;
 }
 
+/* ── Instructions ── */
 .instructions {
-  font-size: 1.1rem;
-  color: rgba(255, 255, 255, 0.8);
+  font-family: var(--font-sans);
+  font-size: 0.95rem;
+  color: var(--text-secondary);
   margin-bottom: 40px;
-  line-height: 1.6;
+  line-height: 1.7;
 }
 
+/* ── User ID Form ── */
 .user-id-form {
   margin-bottom: 40px;
 }
@@ -49,84 +54,85 @@
 
 .input-group label {
   display: block;
-  font-size: 1rem;
-  color: #00d4ff;
+  font-family: var(--font-mono);
+  font-size: 0.72rem;
+  color: var(--phax-light);
   margin-bottom: 10px;
   text-transform: uppercase;
-  letter-spacing: 2px;
+  letter-spacing: 0.18em;
 }
 
 .user-id-input {
-  width: 300px;
-  font-size: 2rem;
+  width: 280px;
+  font-size: 1.6rem;
   text-align: center;
-  letter-spacing: 8px;
+  letter-spacing: 0.35em;
   text-transform: lowercase;
+  border-color: var(--border-mid);
+}
+
+.user-id-input:focus {
+  border-color: var(--phax-blue);
 }
 
 .begin-button {
-  background: linear-gradient(135deg, #0066cc 0%, #00d4ff 100%);
-  color: #ffffff;
-  font-size: 1.5rem;
-  padding: 16px 60px;
-  border-radius: 8px;
-  letter-spacing: 4px;
+  background: var(--phax-blue);
+  color: var(--bg-base);
+  font-size: 0.9rem;
+  padding: 14px 52px;
+  border-radius: var(--radius-md);
+  letter-spacing: 0.2em;
   margin-top: 20px;
-  box-shadow: 0 4px 15px rgba(0, 102, 204, 0.4);
 }
 
-.begin-button:hover:not(:disabled) {
-  background: linear-gradient(135deg, #0088ff 0%, #00ffff 100%);
-}
-
+/* ── Branding footer ── */
 .phax-branding {
-  margin-top: 60px;
-  padding-top: 30px;
-  border-top: 1px solid rgba(255, 255, 255, 0.2);
+  margin-top: 52px;
+  padding-top: 28px;
+  border-top: 1px solid var(--border-faint);
 }
 
 .phax-logo {
-  font-size: 2rem;
-  font-weight: bold;
-  color: #C0C0C0;
-  letter-spacing: 6px;
-  margin-bottom: 10px;
+  font-family: var(--font-mono);
+  font-size: 1.1rem;
+  font-weight: 700;
+  color: var(--phax-silver);
+  letter-spacing: 0.4em;
+  margin-bottom: 6px;
 }
 
 .phax-tagline {
-  font-size: 0.9rem;
-  color: rgba(255, 255, 255, 0.6);
-  letter-spacing: 2px;
+  font-family: var(--font-sans);
+  font-size: 0.78rem;
+  color: var(--text-dim);
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
 }
 
-/* Tablet optimization */
+/* ── Responsive ── */
 @media (max-width: 1024px) {
   .project-title {
-    font-size: 2.5rem;
-    letter-spacing: 6px;
+    font-size: 2.2rem;
   }
-  
-  .terminal-title {
-    font-size: 1.5rem;
-  }
-  
+
   .user-id-input {
     width: 100%;
-    max-width: 300px;
+    max-width: 280px;
   }
 }
 
 @media (max-width: 768px) {
   .welcome-container {
-    padding: 40px 20px;
+    padding: 40px 24px;
   }
-  
+
   .project-title {
-    font-size: 2rem;
+    font-size: 1.8rem;
+    letter-spacing: 0.18em;
   }
-  
+
   .begin-button {
-    font-size: 1.2rem;
-    padding: 14px 40px;
+    font-size: 0.85rem;
+    padding: 12px 36px;
   }
 }
