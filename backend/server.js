@@ -23,8 +23,10 @@ const {
 const app = express();
 const PORT = process.env.PORT || 5000;
 
-// Trust proxy (required for Render/Heroku deployments)
-app.set('trust proxy', 1);
+// Only trust a single reverse proxy when explicitly enabled by deployment config.
+// This prevents clients from spoofing X-Forwarded-For when the app is accessed directly.
+const trustProxyEnabled = ['1', 'true'].includes(String(process.env.TRUST_PROXY).toLowerCase());
+app.set('trust proxy', trustProxyEnabled ? 1 : false);
 
 // Middleware
 app.use(cors());
