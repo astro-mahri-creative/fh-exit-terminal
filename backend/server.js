@@ -35,13 +35,29 @@ const limiter = rateLimit({
 });
 app.use('/api/', limiter);
 
-// MongoDB connection
-mongoose.connect(process.env.MONGODB_URI, {
-  useNewUrlParser: true,
-  useUnifiedTopology: true
-})
-.then(() => console.log('MongoDB connected'))
-.catch(err => console.error('MongoDB connection error:', err));
+// MongoDB connection with retry
+const connectWithRetry = () => {
+  console.log('Attempting MongoDB connection...');
+  mongoose.connect(process.env.MONGODB_URI, {
+    useNewUrlParser: true,
+    useUnifiedTopology: true,
+    serverSelectionTimeoutMS: 15000
+  })
+  .then(() => console.log('MongoDB connected'))
+  .catch(err => {
+    console.error('MongoDB connection error:', err.message);
+    console.log('Retrying in 5 seconds...');
+    setTimeout(connectWithRetry, 5000);
+  });
+};
+connectWithRetry();
+
+mongoose.connection.on('disconnected', () => {
+  console.log('MongoDB disconnected. Attempting reconnect...');
+});
+mongoose.connection.on('error', (err) => {
+  console.error('MongoDB error:', err.message);
+});
 
 // ==================== UTILITY FUNCTIONS ====================
 
