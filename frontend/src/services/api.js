@@ -31,10 +31,18 @@ export const codeService = {
     });
     return response.data;
   },
-  
-  finalize: async (sessionToken) => {
-    const response = await api.post('/codes/finalize', {
+
+  preview: async (sessionToken) => {
+    const response = await api.post('/codes/preview', {
       session_token: sessionToken
+    });
+    return response.data;
+  },
+
+  finalize: async (sessionToken, choice) => {
+    const response = await api.post('/codes/finalize', {
+      session_token: sessionToken,
+      choice
     });
     return response.data;
   }
@@ -57,16 +65,30 @@ export const adminService = {
     });
     return response.data;
   },
-  
+
   resetUniverses: async (sessionToken) => {
     const response = await api.post('/admin/reset-universes', {
       session_token: sessionToken
     });
     return response.data;
   },
-  
+
   getAnalytics: async (sessionToken) => {
     const response = await api.get('/admin/analytics', {
+      params: { session_token: sessionToken }
+    });
+    return response.data;
+  },
+
+  getUsers: async (sessionToken) => {
+    const response = await api.get('/admin/users', {
+      params: { session_token: sessionToken }
+    });
+    return response.data;
+  },
+
+  getCodes: async (sessionToken) => {
+    const response = await api.get('/admin/codes', {
       params: { session_token: sessionToken }
     });
     return response.data;

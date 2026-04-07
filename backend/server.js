@@ -1,4 +1,5 @@
-require('dotenv').config({ path: require('path').join(__dirname, '.env') });
+const path = require('path');
+require('dotenv').config({ path: path.join(__dirname, '.env') });
 const express = require('express');
 const mongoose = require('mongoose');
 const cors = require('cors');
@@ -438,11 +439,120 @@ app.post('/api/codes/validate', async (req, res) => {
   }
 });
 
+// POST /api/codes/preview - Calculate impact options without applying
+app.post('/api/codes/preview', async (req, res) => {
+  try {
+    const { session_token } = req.body;
+
+    const session = await Session.findOne({ sessionToken: session_token });
+    if (!session) {
+      return res.status(404).json({ success: false, error: 'INVALID_SESSION', message: 'Session not found' });
+    }
+    if (session.isComplete) {
+      return res.status(400).json({ success: false, error: 'SESSION_ALREADY_FINALIZED', message: 'This session has already been finalized' });
+    }
+    if (session.totalCodesEntered === 0) {
+      return res.status(400).json({ success: false, error: 'NO_CODES_ENTERED', message: 'Please enter at least one code' });
+    }
+
+    const sessionCodes = await SessionCode.find({ sessionId: session._id }).populate('codeId');
+    const universes = await Universe.find();
+    let cureStatus = await CureStatus.findOne();
+    let isCureActive = cureStatus?.isDiscovered || false;
+
+    const { tierMultipliers, bonusEffects, triggerCure } = await applyMetaGameRules(sessionCodes, universes);
+    if (triggerCure && !isCureActive) isCureActive = true;
+
+    // Split effects into negative (containment) and positive (proliferation)
+    const negativeChanges = {};
+    const positiveChanges = {};
+    universes.forEach(u => {
+      const id = u._id.toString();
+      negativeChanges[id] = { id: u._id, name: u.name, current_cases: u.currentCases, change: 0 };
+      positiveChanges[id] = { id: u._id, name: u.name, current_cases: u.currentCases, change: 0 };
+    });
+
+    for (const sessionCode of sessionCodes) {
+      const code = sessionCode.codeId;
+      const effects = await CodeEffect.find({ codeId: code._id });
+      const tierMultiplier = tierMultipliers[code.tier] || 1;
+
+      for (const effect of effects) {
+        if (effect.isPostCure && !isCureActive) continue;
+        const effectValue = Math.floor(effect.effectValue * tierMultiplier);
+        const universeId = effect.universeId.toString();
+        if (effectValue < 0 && negativeChanges[universeId]) {
+          negativeChanges[universeId].change += effectValue;
+        } else if (effectValue > 0 && positiveChanges[universeId]) {
+          positiveChanges[universeId].change += effectValue;
+        }
+      }
+    }
+
+    // Split bonus effects by sign
+    for (const bonus of bonusEffects) {
+      if (bonus.universe === 'all') {
+        for (const uid of Object.keys(negativeChanges)) {
+          if (bonus.value < 0) negativeChanges[uid].change += bonus.value;
+          else positiveChanges[uid].change += bonus.value;
+        }
+      } else {
+        const universe = universes.find(u => u.name === bonus.universe);
+        if (universe) {
+          const uid = universe._id.toString();
+          if (bonus.value < 0) negativeChanges[uid].change += bonus.value;
+          else positiveChanges[uid].change += bonus.value;
+        }
+      }
+    }
+
+    const netNegative = Object.values(negativeChanges).reduce((sum, u) => sum + u.change, 0);
+    const netPositive = Object.values(positiveChanges).reduce((sum, u) => sum + u.change, 0);
+
+    res.json({
+      success: true,
+      option_a: {
+        label: 'CONTAINMENT PROTOCOL',
+        description: 'Apply infection reduction effects',
+        universes: Object.values(negativeChanges).map(u => ({
+          ...u,
+          projected_cases: Math.max(0, u.current_cases + u.change)
+        })),
+        net_change: netNegative
+      },
+      option_b: {
+        label: 'PROLIFERATION VECTOR',
+        description: 'Apply infection increase effects',
+        universes: Object.values(positiveChanges).map(u => ({
+          ...u,
+          projected_cases: Math.max(0, u.current_cases + u.change)
+        })),
+        net_change: netPositive
+      },
+      cure_triggered: isCureActive,
+      total_codes_entered: session.totalCodesEntered
+    });
+
+  } catch (error) {
+    console.error('Error previewing codes:', error);
+    res.status(500).json({ success: false, error: 'SERVER_ERROR', message: 'Error previewing codes' });
+  }
+});
+
 // POST /api/codes/finalize - Process all codes and calculate impact
 app.post('/api/codes/finalize', async (req, res) => {
   try {
-    const { session_token } = req.body;
-    
+    const { session_token, choice } = req.body;
+
+    // Validate choice parameter
+    if (!choice || !['a', 'b'].includes(choice)) {
+      return res.status(400).json({
+        success: false,
+        error: 'INVALID_CHOICE',
+        message: 'Must specify choice: "a" (containment) or "b" (proliferation)'
+      });
+    }
+
     // Find session
     const session = await Session.findOne({ sessionToken: session_token });
     if (!session) {
@@ -452,7 +562,7 @@ app.post('/api/codes/finalize', async (req, res) => {
         message: 'Session not found'
       });
     }
-    
+
     // Prevent double-finalization
     if (session.isComplete) {
       return res.status(400).json({
@@ -516,7 +626,7 @@ app.post('/api/codes/finalize', async (req, res) => {
       isCureActive = true;
     }
 
-    // Process each code's effects
+    // Process each code's effects — only include effects matching the chosen option
     for (const sessionCode of sessionCodes) {
       const code = sessionCode.codeId;
 
@@ -531,6 +641,10 @@ app.post('/api/codes/finalize', async (req, res) => {
         if (effect.isPostCure && !isCureActive) continue;
 
         const effectValue = Math.floor(effect.effectValue * tierMultiplier);
+
+        // Only apply effects matching the chosen option
+        if (choice === 'a' && effectValue >= 0) continue;
+        if (choice === 'b' && effectValue <= 0) continue;
 
         // Apply effect
         const universeId = effect.universeId.toString();
@@ -559,8 +673,11 @@ app.post('/api/codes/finalize', async (req, res) => {
       }
     }
 
-    // Apply bonus effects from meta-game rules
+    // Apply bonus effects from meta-game rules — only matching sign
     for (const bonus of bonusEffects) {
+      if (choice === 'a' && bonus.value >= 0) continue;
+      if (choice === 'b' && bonus.value <= 0) continue;
+
       if (bonus.universe === 'all') {
         for (const universeId in universeChanges) {
           universeChanges[universeId].change += bonus.value;
@@ -929,6 +1046,101 @@ app.get('/api/admin/analytics', async (req, res) => {
       error: 'SERVER_ERROR',
       message: 'Error fetching analytics'
     });
+  }
+});
+
+// GET /api/admin/users - Get all user IDs alphabetically (admin only)
+app.get('/api/admin/users', async (req, res) => {
+  try {
+    const { session_token } = req.query;
+
+    const session = await Session.findOne({ sessionToken: session_token });
+    if (!session) {
+      return res.status(404).json({ success: false, error: 'INVALID_SESSION', message: 'Session not found' });
+    }
+
+    const adminUser = await UserId.findOne({ userId: session.userId });
+    if (!adminUser || !adminUser.isAdmin) {
+      return res.status(403).json({ success: false, error: 'UNAUTHORIZED', message: 'Admin access required' });
+    }
+
+    const users = await UserId.find().sort({ userId: 1 });
+
+    // Determine used vs unused: a user is "used" if they have any session
+    // with codes entered or an email address assigned
+    const sessions = await Session.find({
+      $or: [
+        { totalCodesEntered: { $gt: 0 } },
+        { emailAddress: { $exists: true, $ne: null, $ne: '' } }
+      ]
+    });
+    const usedUserIds = new Set(sessions.map(s => s.userId));
+
+    res.json({
+      success: true,
+      users: users.map(u => ({
+        user_id: u.userId,
+        is_admin: u.isAdmin,
+        last_used: u.lastUsedDate,
+        usage_count: u.usageCount,
+        has_activity: u.isAdmin || usedUserIds.has(u.userId)
+      }))
+    });
+
+  } catch (error) {
+    console.error('Error fetching users:', error);
+    res.status(500).json({ success: false, error: 'SERVER_ERROR', message: 'Error fetching users' });
+  }
+});
+
+// GET /api/admin/codes - Get all codes with their effects (admin only)
+app.get('/api/admin/codes', async (req, res) => {
+  try {
+    const { session_token } = req.query;
+
+    const session = await Session.findOne({ sessionToken: session_token });
+    if (!session) {
+      return res.status(404).json({ success: false, error: 'INVALID_SESSION', message: 'Session not found' });
+    }
+
+    const adminUser = await UserId.findOne({ userId: session.userId });
+    if (!adminUser || !adminUser.isAdmin) {
+      return res.status(403).json({ success: false, error: 'UNAUTHORIZED', message: 'Admin access required' });
+    }
+
+    const codes = await Code.find().sort({ tier: 1, code: 1 });
+    const effects = await CodeEffect.find().populate('universeId', 'name');
+
+    // Group effects by code ID
+    const effectsByCode = {};
+    for (const effect of effects) {
+      const codeId = effect.codeId.toString();
+      if (!effectsByCode[codeId]) effectsByCode[codeId] = [];
+      effectsByCode[codeId].push({
+        universe: effect.universeId?.name || 'Unknown',
+        effect_value: effect.effectValue,
+        effect_type: effect.effectType,
+        is_post_cure: effect.isPostCure
+      });
+    }
+
+    res.json({
+      success: true,
+      codes: codes.map(c => ({
+        code: c.code,
+        name: c.name,
+        tier: c.tier,
+        alignment: c.alignment,
+        description: c.description,
+        is_cure_code: c.isCureCode,
+        is_active: c.isActive,
+        effects: effectsByCode[c._id.toString()] || []
+      }))
+    });
+
+  } catch (error) {
+    console.error('Error fetching codes:', error);
+    res.status(500).json({ success: false, error: 'SERVER_ERROR', message: 'Error fetching codes' });
   }
 });
 

@@ -2,11 +2,13 @@ import React, { useState } from 'react';
 import './App.css';
 import WelcomeScreen from './components/WelcomeScreen';
 import CodeEntryScreen from './components/CodeEntryScreen';
+import ChoiceScreen from './components/ChoiceScreen';
 import ResultsScreen from './components/ResultsScreen';
 
 function App() {
-  const [screen, setScreen] = useState('welcome'); // 'welcome', 'codeEntry', 'results'
+  const [screen, setScreen] = useState('welcome'); // 'welcome', 'codeEntry', 'choice', 'results'
   const [sessionData, setSessionData] = useState(null);
+  const [choiceData, setChoiceData] = useState(null);
   const [resultsData, setResultsData] = useState(null);
 
   const handleSessionStart = (data) => {
@@ -14,7 +16,12 @@ function App() {
     setScreen('codeEntry');
   };
 
-  const handleFinalize = (data) => {
+  const handlePreview = (data) => {
+    setChoiceData(data);
+    setScreen('choice');
+  };
+
+  const handleChoiceConfirmed = (data) => {
     setResultsData(data);
     setScreen('results');
   };
@@ -22,6 +29,7 @@ function App() {
   const handleReset = () => {
     setScreen('welcome');
     setSessionData(null);
+    setChoiceData(null);
     setResultsData(null);
   };
 
@@ -33,12 +41,19 @@ function App() {
       {screen === 'codeEntry' && sessionData && (
         <CodeEntryScreen
           sessionData={sessionData}
-          onFinalize={handleFinalize}
+          onPreview={handlePreview}
           onLogout={handleReset}
         />
       )}
+      {screen === 'choice' && choiceData && (
+        <ChoiceScreen
+          choiceData={choiceData}
+          sessionData={sessionData}
+          onChoiceConfirmed={handleChoiceConfirmed}
+        />
+      )}
       {screen === 'results' && resultsData && (
-        <ResultsScreen 
+        <ResultsScreen
           resultsData={resultsData}
           sessionData={sessionData}
           onReset={handleReset}

@@ -1,0 +1,11 @@
+{
+  "permissions": {
+    "allow": [
+      "mcp__Claude_Preview__preview_start",
+      "Bash(npm install:*)",
+      "Bash(npx kill-port:*)",
+      "Bash(taskkill //f //fi \"WINDOWTITLE eq react-scripts\")",
+      "Bash(node backend/scripts/initDatabase.js)"
+    ]
+  }
+}

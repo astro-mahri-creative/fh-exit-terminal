@@ -1,0 +1,313 @@
+.choice-screen {
+  width: 100%;
+  max-width: 1400px;
+  margin: 0 auto;
+}
+
+/* ── Header ── */
+.choice-header {
+  text-align: center;
+  padding: 24px;
+  margin-bottom: 24px;
+}
+
+.choice-header h2 {
+  font-family: var(--font-mono);
+  font-size: 1.1rem;
+  font-weight: 700;
+  color: var(--text-primary);
+  letter-spacing: 0.3em;
+  text-transform: uppercase;
+  margin-bottom: 8px;
+}
+
+.choice-subtitle {
+  font-family: var(--font-sans);
+  font-size: 0.9rem;
+  color: var(--text-secondary);
+}
+
+/* ── Options Grid ── */
+.options-grid {
+  display: grid;
+  grid-template-columns: 1fr auto 1fr;
+  gap: 0;
+  padding: 0 24px;
+  align-items: stretch;
+}
+
+.options-divider {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0 20px;
+  font-family: var(--font-mono);
+  font-size: 0.85rem;
+  color: var(--text-dim);
+  letter-spacing: 0.15em;
+}
+
+/* ── Option Panels ── */
+.option-panel {
+  background: var(--bg-surface);
+  border: 1px solid var(--border-dim);
+  border-radius: var(--radius-lg);
+  padding: 28px 24px;
+  cursor: pointer;
+  transition: border-color 0.2s ease, box-shadow 0.2s ease;
+  display: flex;
+  flex-direction: column;
+}
+
+.option-panel:hover:not(.disabled) {
+  border-color: var(--border-mid);
+}
+
+.option-panel.disabled {
+  opacity: 0.35;
+  cursor: not-allowed;
+}
+
+.option-panel.disabled:hover {
+  border-color: var(--border-dim);
+  box-shadow: none;
+}
+
+.option-a {
+  border-color: rgba(68, 119, 238, 0.2);
+  background: linear-gradient(160deg, rgba(68, 119, 238, 0.06), transparent);
+}
+
+.option-a:hover,
+.option-a.selected {
+  border-color: var(--phax-blue);
+  box-shadow: 0 0 20px rgba(68, 119, 238, 0.1);
+}
+
+.option-b {
+  border-color: rgba(74, 158, 92, 0.2);
+  background: linear-gradient(160deg, rgba(74, 158, 92, 0.06), transparent);
+}
+
+.option-b:hover,
+.option-b.selected {
+  border-color: var(--fheels-green);
+  box-shadow: 0 0 20px rgba(74, 158, 92, 0.1);
+}
+
+.option-label {
+  font-family: var(--font-mono);
+  font-size: 0.7rem;
+  color: var(--text-dim);
+  letter-spacing: 0.25em;
+  margin-bottom: 8px;
+}
+
+.option-title {
+  font-family: var(--font-mono);
+  font-size: 0.95rem;
+  font-weight: 700;
+  letter-spacing: 0.2em;
+  margin-bottom: 6px;
+}
+
+.option-a .option-title { color: var(--phax-light); }
+.option-b .option-title { color: var(--fheels-light); }
+
+.option-description {
+  font-family: var(--font-sans);
+  font-size: 0.82rem;
+  color: var(--text-secondary);
+  margin-bottom: 20px;
+}
+
+/* ── Universe Rows ── */
+.option-universes {
+  flex: 1;
+  margin-bottom: 16px;
+}
+
+.option-universe-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 8px 10px;
+  background: var(--bg-raised);
+  border: 1px solid var(--border-faint);
+  border-radius: var(--radius-md);
+  margin-bottom: 4px;
+}
+
+.option-universe-row .universe-name {
+  font-family: var(--font-sans);
+  font-size: 0.8rem;
+  color: var(--text-primary);
+}
+
+.universe-delta {
+  font-family: var(--font-mono);
+  font-size: 0.85rem;
+  font-weight: 700;
+}
+
+.universe-delta.negative { color: var(--phax-light); }
+.universe-delta.positive { color: var(--fheels-light); }
+
+.no-effects {
+  text-align: center;
+  color: var(--text-dim);
+  padding: 24px 12px;
+  font-size: 0.82rem;
+}
+
+/* ── Net Change ── */
+.net-change {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 12px 14px;
+  background: var(--bg-raised);
+  border-radius: var(--radius-md);
+  margin-bottom: 16px;
+}
+
+.net-label {
+  font-family: var(--font-mono);
+  font-size: 0.7rem;
+  color: var(--text-secondary);
+  letter-spacing: 0.15em;
+}
+
+.net-value {
+  font-family: var(--font-mono);
+  font-size: 1.4rem;
+  font-weight: 700;
+}
+
+.net-change.negative .net-value { color: var(--phax-light); }
+.net-change.positive .net-value { color: var(--fheels-light); }
+
+/* ── Select Buttons ── */
+.select-button {
+  width: 100%;
+  padding: 14px;
+  border-radius: var(--radius-md);
+  font-size: 0.85rem;
+  letter-spacing: 0.18em;
+  color: var(--bg-base);
+}
+
+.select-a { background: var(--phax-blue); }
+.select-b { background: var(--fheels-green); }
+
+/* ── Codes Summary ── */
+.codes-summary {
+  text-align: center;
+  font-family: var(--font-mono);
+  font-size: 0.8rem;
+  color: var(--text-secondary);
+  padding: 20px 24px;
+  letter-spacing: 0.1em;
+}
+
+/* ── Confirmation Overlay ── */
+.confirmation-overlay {
+  position: fixed;
+  inset: 0;
+  background: var(--bg-overlay);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+  animation: fadeIn 0.2s ease;
+}
+
+.confirmation-dialog {
+  background: var(--bg-surface);
+  border: 1px solid var(--border-mid);
+  border-radius: var(--radius-lg);
+  padding: 36px 40px;
+  max-width: 440px;
+  width: 90%;
+  text-align: center;
+}
+
+.confirmation-dialog h3 {
+  font-family: var(--font-mono);
+  font-size: 0.95rem;
+  font-weight: 700;
+  color: var(--text-primary);
+  letter-spacing: 0.25em;
+  margin-bottom: 16px;
+}
+
+.confirm-option-name {
+  font-family: var(--font-mono);
+  font-size: 1.1rem;
+  font-weight: 700;
+  color: var(--color-warning);
+  letter-spacing: 0.15em;
+  margin-bottom: 10px;
+}
+
+.confirm-description {
+  font-family: var(--font-sans);
+  font-size: 0.88rem;
+  color: var(--text-secondary);
+  margin-bottom: 28px;
+}
+
+.confirm-buttons {
+  display: flex;
+  gap: 12px;
+}
+
+.confirm-button {
+  flex: 1;
+  padding: 14px;
+  border-radius: var(--radius-md);
+  font-size: 0.9rem;
+  letter-spacing: 0.15em;
+  color: var(--bg-base);
+}
+
+.confirm-a { background: var(--phax-blue); }
+.confirm-b { background: var(--fheels-green); }
+
+.cancel-button {
+  flex: 1;
+  padding: 14px;
+  border-radius: var(--radius-md);
+  font-size: 0.9rem;
+  letter-spacing: 0.15em;
+  background: transparent;
+  border: 1px solid var(--border-mid);
+  color: var(--text-secondary);
+}
+
+.cancel-button:hover:not(:disabled) {
+  border-color: var(--color-error);
+  color: #e07070;
+}
+
+/* ── Responsive ── */
+@media (max-width: 900px) {
+  .options-grid {
+    grid-template-columns: 1fr;
+    gap: 12px;
+  }
+
+  .options-divider {
+    padding: 8px 0;
+  }
+}
+
+@media (max-width: 768px) {
+  .choice-header h2 {
+    font-size: 0.9rem;
+  }
+
+  .net-value {
+    font-size: 1.1rem;
+  }
+}

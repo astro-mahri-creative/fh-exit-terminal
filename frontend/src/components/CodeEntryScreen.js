@@ -1,15 +1,15 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { codeService, adminService } from '../services/api';
+import { codeService } from '../services/api';
+import AdminPanel from './AdminPanel';
 import './CodeEntryScreen.css';
 
-function CodeEntryScreen({ sessionData, onFinalize, onLogout }) {
+function CodeEntryScreen({ sessionData, onPreview, onLogout }) {
   const [currentCode, setCurrentCode] = useState('');
   const [activatedCodes, setActivatedCodes] = useState([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [showActivation, setShowActivation] = useState(false);
   const [adminPanelOpen, setAdminPanelOpen] = useState(false);
-  const [newUserId, setNewUserId] = useState('');
 
   const isAdmin = sessionData.is_admin;
 
@@ -105,42 +105,18 @@ function CodeEntryScreen({ sessionData, onFinalize, onLogout }) {
     setError('');
 
     try {
-      const response = await codeService.finalize(sessionData.session_token);
-      
+      const response = await codeService.preview(sessionData.session_token);
+
       if (response.success) {
-        onFinalize(response);
+        onPreview(response);
       } else {
         setError(response.message || 'Error processing codes');
       }
     } catch (err) {
-      const errorMessage = err.response?.data?.message || 'Error finalizing codes';
+      const errorMessage = err.response?.data?.message || 'Error previewing codes';
       setError(errorMessage);
     } finally {
       setLoading(false);
-    }
-  };
-
-  const handleGenerateUserId = async () => {
-    try {
-      const response = await adminService.generateUserId(sessionData.session_token);
-      if (response.success) {
-        setNewUserId(response.user_id);
-      }
-    } catch (err) {
-      alert('Error generating user ID');
-    }
-  };
-
-  const handleResetUniverses = async () => {
-    if (window.confirm('WARNING: This will reset all universe data. Continue?')) {
-      try {
-        const response = await adminService.resetUniverses(sessionData.session_token);
-        if (response.success) {
-          alert('Universe statistics reset complete');
-        }
-      } catch (err) {
-        alert('Error resetting universes');
-      }
     }
   };
 
@@ -160,19 +136,7 @@ function CodeEntryScreen({ sessionData, onFinalize, onLogout }) {
             {adminPanelOpen ? '▼' : '▶'} ADMIN MODE
           </button>
           {adminPanelOpen && (
-            <div className="admin-panel">
-              <button onClick={handleGenerateUserId} className="admin-button">
-                Generate User ID
-              </button>
-              <button onClick={handleResetUniverses} className="admin-button danger">
-                Reset Universe Statistics
-              </button>
-              {newUserId && (
-                <div className="new-user-id">
-                  <strong>New User ID:</strong> {newUserId}
-                </div>
-              )}
-            </div>
+            <AdminPanel sessionData={sessionData} />
           )}
         </div>
       )}
