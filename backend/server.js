@@ -36,28 +36,34 @@ const limiter = rateLimit({
 app.use('/api/', limiter);
 
 // MongoDB connection with retry
-const connectWithRetry = () => {
-  console.log('Attempting MongoDB connection...');
-  mongoose.connect(process.env.MONGODB_URI, {
-    useNewUrlParser: true,
-    useUnifiedTopology: true,
-    serverSelectionTimeoutMS: 15000
+const MONGO_URI = process.env.MONGODB_URI;
+console.log('MONGODB_URI present:', !!MONGO_URI);
+console.log('MONGODB_URI prefix:', MONGO_URI ? MONGO_URI.substring(0, 20) + '...' : 'N/A');
+
+const connectWithRetry = (attempt = 1) => {
+  console.log(`MongoDB connection attempt ${attempt}...`);
+  mongoose.connect(MONGO_URI, {
+    serverSelectionTimeoutMS: 30000,
+    connectTimeoutMS: 30000,
+    socketTimeoutMS: 45000
   })
-  .then(() => console.log('MongoDB connected'))
+  .then(() => console.log('MongoDB connected successfully to:', mongoose.connection.host))
   .catch(err => {
-    console.error('MongoDB connection error:', err.message);
-    console.log('Retrying in 5 seconds...');
-    setTimeout(connectWithRetry, 5000);
+    console.error(`MongoDB connection attempt ${attempt} failed:`, err.message);
+    if (attempt < 5) {
+      const delay = Math.min(attempt * 5000, 20000);
+      console.log(`Retrying in ${delay / 1000}s...`);
+      setTimeout(() => connectWithRetry(attempt + 1), delay);
+    } else {
+      console.error('MongoDB connection failed after 5 attempts. Server running without DB.');
+    }
   });
 };
 connectWithRetry();
 
-mongoose.connection.on('disconnected', () => {
-  console.log('MongoDB disconnected. Attempting reconnect...');
-});
-mongoose.connection.on('error', (err) => {
-  console.error('MongoDB error:', err.message);
-});
+mongoose.connection.on('connected', () => console.log('MongoDB event: connected'));
+mongoose.connection.on('disconnected', () => console.log('MongoDB event: disconnected'));
+mongoose.connection.on('error', (err) => console.error('MongoDB event error:', err.message));
 
 // ==================== UTILITY FUNCTIONS ====================
 
