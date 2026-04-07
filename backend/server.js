@@ -260,7 +260,14 @@ function generateAlignmentNarrative(alignmentScore, totalCodes) {
 
 // Health check
 app.get('/api/health', (req, res) => {
-  res.json({ status: 'ok', message: 'Exit Terminal API running' });
+  const dbState = ['disconnected', 'connected', 'connecting', 'disconnecting'];
+  res.json({
+    status: 'ok',
+    message: 'Exit Terminal API running',
+    db_status: dbState[mongoose.connection.readyState] || 'unknown',
+    db_host: mongoose.connection.host || 'none',
+    env_uri_set: !!process.env.MONGODB_URI
+  });
 });
 
 // POST /api/session/start - Create new session
