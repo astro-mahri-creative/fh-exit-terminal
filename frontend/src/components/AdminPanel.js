@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { adminService } from '../services/api';
 import './AdminPanel.css';
 
@@ -11,15 +11,7 @@ function AdminPanel({ sessionData }) {
   const [expandedCode, setExpandedCode] = useState(null);
   const [userFilter, setUserFilter] = useState('all'); // 'all', 'used', 'unused'
 
-  useEffect(() => {
-    if (activeTab === 'users' && users.length === 0) {
-      loadUsers();
-    } else if (activeTab === 'codes' && codes.length === 0) {
-      loadCodes();
-    }
-  }, [activeTab]);
-
-  const loadUsers = async () => {
+  const loadUsers = useCallback(async () => {
     setLoading(true);
     try {
       const response = await adminService.getUsers(sessionData.session_token);
@@ -29,9 +21,9 @@ function AdminPanel({ sessionData }) {
     } finally {
       setLoading(false);
     }
-  };
+  }, [sessionData.session_token]);
 
-  const loadCodes = async () => {
+  const loadCodes = useCallback(async () => {
     setLoading(true);
     try {
       const response = await adminService.getCodes(sessionData.session_token);
@@ -41,7 +33,15 @@ function AdminPanel({ sessionData }) {
     } finally {
       setLoading(false);
     }
-  };
+  }, [sessionData.session_token]);
+
+  useEffect(() => {
+    if (activeTab === 'users' && users.length === 0) {
+      loadUsers();
+    } else if (activeTab === 'codes' && codes.length === 0) {
+      loadCodes();
+    }
+  }, [activeTab, users.length, codes.length, loadUsers, loadCodes]);
 
   const handleGenerateUserId = async () => {
     try {
