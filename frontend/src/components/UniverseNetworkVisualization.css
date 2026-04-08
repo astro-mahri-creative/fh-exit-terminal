@@ -77,27 +77,27 @@
 }
 
 .label-name {
-  font-size: 27px;
+  font-size: 46px;
   font-weight: 700;
-  letter-spacing: 0.14em;
+  letter-spacing: 0.12em;
   text-transform: uppercase;
-  text-shadow: 0 0 10px currentColor;
+  text-shadow: 0 0 12px currentColor;
   line-height: 1.1;
 }
 
 .label-cases {
-  font-size: 21px;
+  font-size: 34px;
   color: #8a8a8a;
   letter-spacing: 0.08em;
   line-height: 1.1;
 }
 
 .label-status {
-  font-size: 19px;
+  font-size: 30px;
   font-weight: 700;
   letter-spacing: 0.22em;
   text-transform: uppercase;
-  text-shadow: 0 0 8px currentColor;
+  text-shadow: 0 0 10px currentColor;
   line-height: 1.1;
 }
 

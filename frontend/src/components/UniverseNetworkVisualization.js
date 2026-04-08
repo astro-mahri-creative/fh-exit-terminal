@@ -9,23 +9,25 @@ import './UniverseNetworkVisualization.css';
 
 // ─── Configuration ─────────────────────────────────────────────────────────
 const CONFIG = {
-  autoRotateSpeed:     0.4,
-  cameraDistance:      18,
-  cameraFOV:           60,
-  bloomIntensity:      1.2,
-  bloomThreshold:      0.15,
-  bloomSmoothing:      0.9,
-  edgeOpacityMin:      0.08,
-  edgeOpacityMax:      0.38,
-  nodeRadiusMin:       0.28,
-  nodeRadiusMax:       1.1,
-  nodeSphereSegments:  28,
-  forceCharge:        -180,
-  forceLinkDistance:   6,
-  forceSimTicks:       260,
-  starCount:           1400,
-  starRadius:          60,
-  refreshIntervalMs:   30000,
+  autoRotateSpeed:      0.4,
+  cameraDistance:       18,
+  cameraFOV:            60,
+  bloomIntensity:       1.2,
+  bloomThreshold:       0.15,
+  bloomSmoothing:       0.9,
+  edgeOpacityMin:       0.10,
+  edgeOpacityMax:       0.42,
+  nodeRadiusMin:        0.55,   // enlarged
+  nodeRadiusMax:        2.0,    // enlarged
+  nodeSphereSegments:   32,
+  forceCharge:         -280,    // more repulsion to spread larger nodes apart
+  forceLinkDistance:    9,      // wider spacing
+  forceSimTicks:        300,
+  starCount:            1400,
+  starRadius:           60,
+  refreshIntervalMs:    30000,
+  // ~15% of the old per-edge count (was 4/edge); distributed across all edges
+  particlesPerEdgeFactor: 0.6,
 };
 
 const STATUS_COLORS = {
@@ -46,118 +48,28 @@ const STATUS_EMISSIVE = {
   TRANSCENDENT: 3.0,
 };
 
-// How far the label must be pushed right (in CSS px, pre-distanceFactor-scaling)
-// to clear the variant's visual extent. Indexed 0–3 matching UNIVERSE_VARIANTS order.
-// Formula: visual_extent_in_3d_units * ~12 + base_gap
+// Label offset in CSS px (pre Html distanceFactor scaling).
+// translateX is always screen-right because Html faces the camera.
+// These are generous — erring well clear of satellites and shells.
 const VARIANT_LABEL_OFFSET = [
-  // 0: Ringed  — outer ring at radius*2.2
-  (r) => Math.round(r * 26 + 6),
-  // 1: Crystal — wireframe at radius*1.15
-  (r) => Math.round(r * 14 + 6),
-  // 2: Nebula  — satellites out to radius*2.8
-  (r) => Math.round(r * 34 + 6),
-  // 3: Pulsing — outer shell at radius*1.3
-  (r) => Math.round(r * 16 + 6),
+  // 0: Nebula — satellites reach radius*2.8; use large clearance
+  (r) => Math.round(r * 95 + 55),
+  // 1: Pulsing — outer shell reaches radius*1.35; still generous
+  (r) => Math.round(r * 68 + 45),
 ];
 
-// ─── Universe Variants ─────────────────────────────────────────────────────
-
-// Variant 0: Ringed Planet — sphere + two tilted torus rings, counter-rotating
-function VariantRinged({ radius, color, emissive, isHovered }) {
-  const sphereRef = useRef();
-  const ring1Ref  = useRef();
-  const ring2Ref  = useRef();
-
-  useFrame((_, dt) => {
-    if (sphereRef.current) sphereRef.current.rotation.y  += 0.007 * dt * 60;
-    if (ring1Ref.current)  ring1Ref.current.rotation.z   += 0.004 * dt * 60;
-    if (ring2Ref.current)  ring2Ref.current.rotation.z   -= 0.003 * dt * 60;
-  });
-
-  const eI = isHovered ? emissive * 1.8 : emissive;
-
-  return (
-    <group>
-      <mesh ref={sphereRef}>
-        <sphereGeometry args={[radius, 32, 32]} />
-        <meshStandardMaterial
-          color={color} emissive={color} emissiveIntensity={eI}
-          roughness={0.25} metalness={0.3}
-        />
-      </mesh>
-
-      {/* Inner ring — closer, more opaque */}
-      <group rotation={[Math.PI / 2 + 0.38, 0, 0.28]}>
-        <mesh ref={ring1Ref}>
-          <torusGeometry args={[radius * 1.72, radius * 0.055, 8, 80]} />
-          <meshStandardMaterial
-            color={color} emissive={color} emissiveIntensity={eI * 0.65}
-            transparent opacity={0.72} roughness={0.45}
-          />
-        </mesh>
-      </group>
-
-      {/* Outer ring — wider, more transparent */}
-      <group rotation={[Math.PI / 2 + 0.65, 0.22, 0]}>
-        <mesh ref={ring2Ref}>
-          <torusGeometry args={[radius * 2.2, radius * 0.03, 6, 80]} />
-          <meshStandardMaterial
-            color={color} emissive={color} emissiveIntensity={eI * 0.38}
-            transparent opacity={0.42} roughness={0.5}
-          />
-        </mesh>
-      </group>
-    </group>
-  );
-}
-
-// Variant 1: Crystalline Geosphere — solid low-poly core + outer wireframe icosahedron
-function VariantCrystalline({ radius, color, emissive, isHovered }) {
-  const outerRef = useRef();
-  const innerRef = useRef();
-
-  useFrame((_, dt) => {
-    if (outerRef.current) outerRef.current.rotation.y += 0.006 * dt * 60;
-    if (innerRef.current) innerRef.current.rotation.y -= 0.010 * dt * 60;
-  });
-
-  const eI = isHovered ? emissive * 1.8 : emissive;
-
-  return (
-    <group>
-      {/* Outer wireframe cage */}
-      <mesh ref={outerRef}>
-        <icosahedronGeometry args={[radius * 1.15, 1]} />
-        <meshStandardMaterial
-          color={color} emissive={color} emissiveIntensity={eI * 0.55}
-          wireframe transparent opacity={0.52}
-        />
-      </mesh>
-
-      {/* Inner solid faceted core */}
-      <mesh ref={innerRef}>
-        <icosahedronGeometry args={[radius * 0.78, 0]} />
-        <meshStandardMaterial
-          color={color} emissive={color} emissiveIntensity={eI}
-          roughness={0.08} metalness={0.82}
-        />
-      </mesh>
-    </group>
-  );
-}
-
-// Variant 2: Nebula Cluster — core sphere + 3 satellites in tilted circular orbits
+// ─── Variant 0: Nebula Cluster ─────────────────────────────────────────────
+// Core sphere with faint atmosphere + 3 satellites in tilted circular orbits
 function VariantNebula({ radius, color, emissive, isHovered }) {
   const sat0 = useRef();
   const sat1 = useRef();
   const sat2 = useRef();
   const satRefs = [sat0, sat1, sat2];
 
-  // Pre-compute stable orbit basis vectors (no per-frame allocation)
   const specs = useMemo(() => {
     const makeOrbit = (axArr, speed, dist, size, t0) => {
-      const axis  = new THREE.Vector3(...axArr).normalize();
-      const tmp   = Math.abs(axis.y) < 0.9
+      const axis = new THREE.Vector3(...axArr).normalize();
+      const tmp  = Math.abs(axis.y) < 0.9
         ? new THREE.Vector3(0, 1, 0)
         : new THREE.Vector3(1, 0, 0);
       const u = tmp.clone().sub(axis.clone().multiplyScalar(tmp.dot(axis))).normalize();
@@ -165,9 +77,9 @@ function VariantNebula({ radius, color, emissive, isHovered }) {
       return { u, v, speed, dist, size, t: t0 };
     };
     return [
-      makeOrbit([1, 0.4, 0],    0.7,  radius * 2.1, radius * 0.28, 0),
-      makeOrbit([0.3, 1, 0.6],  0.45, radius * 2.6, radius * 0.20, 2.1),
-      makeOrbit([0.7, 0.1, 1],  0.9,  radius * 1.85,radius * 0.16, 4.2),
+      makeOrbit([1,   0.4, 0  ], 0.65, radius * 2.2, radius * 0.34, 0),
+      makeOrbit([0.3, 1,   0.6], 0.42, radius * 2.8, radius * 0.26, 2.1),
+      makeOrbit([0.7, 0.1, 1  ], 0.85, radius * 1.95,radius * 0.20, 4.2),
     ];
   }, [radius]);
 
@@ -190,19 +102,31 @@ function VariantNebula({ radius, color, emissive, isHovered }) {
 
   return (
     <group>
+      {/* Atmosphere glow — backside, large transparent shell */}
       <mesh>
-        <sphereGeometry args={[radius, 24, 24]} />
+        <sphereGeometry args={[radius * 1.48, 20, 20]} />
         <meshStandardMaterial
-          color={color} emissive={color} emissiveIntensity={eI}
-          roughness={0.3} metalness={0.2}
+          color={color} emissive={color} emissiveIntensity={eI * 0.22}
+          transparent opacity={0.10} roughness={1} side={THREE.BackSide}
         />
       </mesh>
+
+      {/* Core */}
+      <mesh>
+        <sphereGeometry args={[radius, 32, 32]} />
+        <meshStandardMaterial
+          color={color} emissive={color} emissiveIntensity={eI}
+          roughness={0.28} metalness={0.22}
+        />
+      </mesh>
+
+      {/* Orbiting satellites */}
       {specs.map((s, i) => (
         <mesh key={i} ref={satRefs[i]}>
-          <sphereGeometry args={[s.size, 10, 10]} />
+          <sphereGeometry args={[s.size, 12, 12]} />
           <meshStandardMaterial
             color={color} emissive={color}
-            emissiveIntensity={eI * (0.75 - i * 0.08)}
+            emissiveIntensity={eI * (0.80 - i * 0.08)}
             roughness={0.35}
           />
         </mesh>
@@ -211,18 +135,25 @@ function VariantNebula({ radius, color, emissive, isHovered }) {
   );
 }
 
-// Variant 3: Pulsing Energy Core — solid core + breathing semi-transparent shell
+// ─── Variant 1: Pulsing Energy Core ────────────────────────────────────────
+// Rotating solid core + two independent breathing shells at different phases
 function VariantPulsing({ radius, color, emissive, isHovered }) {
-  const shellRef = useRef();
-  const coreRef  = useRef();
-  const tRef     = useRef(0);
+  const coreRef   = useRef();
+  const shell1Ref = useRef();
+  const shell2Ref = useRef();
+  const tRef      = useRef(0);
 
   useFrame((_, dt) => {
     tRef.current += dt;
-    if (coreRef.current)  coreRef.current.rotation.y  += 0.012 * dt * 60;
-    if (shellRef.current) {
-      const s = 1 + Math.sin(tRef.current * 2.1) * 0.07;
-      shellRef.current.scale.setScalar(s);
+    const t = tRef.current;
+    if (coreRef.current)   coreRef.current.rotation.y   += 0.010 * dt * 60;
+    if (shell1Ref.current) {
+      const s1 = 1 + Math.sin(t * 2.0) * 0.08;
+      shell1Ref.current.scale.setScalar(s1);
+    }
+    if (shell2Ref.current) {
+      const s2 = 1 + Math.sin(t * 1.3 + 1.5) * 0.12;
+      shell2Ref.current.scale.setScalar(s2);
     }
   });
 
@@ -230,39 +161,52 @@ function VariantPulsing({ radius, color, emissive, isHovered }) {
 
   return (
     <group>
-      {/* Outer breathing shell */}
-      <mesh ref={shellRef}>
-        <sphereGeometry args={[radius * 1.3, 24, 24]} />
+      {/* Outer slow-breathing shell */}
+      <mesh ref={shell2Ref}>
+        <sphereGeometry args={[radius * 1.55, 20, 20]} />
         <meshStandardMaterial
-          color={color} emissive={color} emissiveIntensity={eI * 0.38}
-          transparent opacity={0.17}
-          roughness={0} metalness={0}
-          side={THREE.BackSide}
+          color={color} emissive={color} emissiveIntensity={eI * 0.20}
+          transparent opacity={0.10} roughness={0} side={THREE.BackSide}
         />
       </mesh>
 
-      {/* Inner solid core */}
+      {/* Inner faster-breathing shell */}
+      <mesh ref={shell1Ref}>
+        <sphereGeometry args={[radius * 1.3, 24, 24]} />
+        <meshStandardMaterial
+          color={color} emissive={color} emissiveIntensity={eI * 0.38}
+          transparent opacity={0.18} roughness={0} side={THREE.BackSide}
+        />
+      </mesh>
+
+      {/* Solid rotating core */}
       <mesh ref={coreRef}>
         <sphereGeometry args={[radius, 32, 32]} />
         <meshStandardMaterial
           color={color} emissive={color} emissiveIntensity={eI * 1.35}
-          roughness={0.06} metalness={0.5}
+          roughness={0.06} metalness={0.52}
         />
       </mesh>
     </group>
   );
 }
 
-const UNIVERSE_VARIANTS = [
-  VariantRinged,
-  VariantCrystalline,
-  VariantNebula,
-  VariantPulsing,
-];
+const UNIVERSE_VARIANTS = [VariantNebula, VariantPulsing];
 
-// ─── Animated Edge ─────────────────────────────────────────────────────────
+// ─── Edge — static line only (particles are managed globally) ──────────────
+function StaticEdge({ src, tgt, opacity }) {
+  return (
+    <Line
+      points={[src, tgt]}
+      color="#aac4ff"
+      lineWidth={0.55}
+      transparent
+      opacity={opacity * 0.28}
+    />
+  );
+}
 
-// Single energy particle travelling along an edge
+// ─── Single energy particle travelling along an edge ───────────────────────
 function EdgeParticle({ srcV, tgtV, speed, initialT, direction, color, opacity }) {
   const meshRef = useRef();
   const tRef    = useRef(initialT);
@@ -276,50 +220,62 @@ function EdgeParticle({ srcV, tgtV, speed, initialT, direction, color, opacity }
 
   return (
     <mesh ref={meshRef}>
-      <sphereGeometry args={[0.062, 5, 5]} />
+      <sphereGeometry args={[0.075, 5, 5]} />
       <meshStandardMaterial
-        color={color}
-        emissive={color}
-        emissiveIntensity={3.0}
-        transparent
-        opacity={opacity}
+        color={color} emissive={color}
+        emissiveIntensity={3.2}
+        transparent opacity={opacity}
       />
     </mesh>
   );
 }
 
-// Edge with static base line + bidirectional energy particles
-function AnimatedEdge({ src, tgt, color, opacity }) {
-  const srcV = useMemo(() => new THREE.Vector3(...src), [src]);
-  const tgtV = useMemo(() => new THREE.Vector3(...tgt), [tgt]);
+// ─── Global particle pool — ~15% of old per-edge count ─────────────────────
+// Particles are randomly distributed across all edges.
+// Each particle is colored by the universe it originates from.
+function NetworkParticles({ links, positions, universeColors }) {
+  const particles = useMemo(() => {
+    const validLinks = links.filter(l => {
+      const sid = typeof l.source === 'object' ? l.source.id : l.source;
+      const tid = typeof l.target === 'object' ? l.target.id : l.target;
+      return positions[sid] && positions[tid];
+    });
+    if (!validLinks.length) return [];
 
-  // Four particles: 2 forward, 2 reverse, each with distinct speed & phase
-  const particles = useMemo(() => [
-    { initialT: 0.08, speed: 0.30, direction:  1 },
-    { initialT: 0.58, speed: 0.18, direction:  1 },
-    { initialT: 0.32, speed: 0.24, direction: -1 },
-    { initialT: 0.78, speed: 0.14, direction: -1 },
-  ], []);
+    const count = Math.max(3, Math.round(validLinks.length * CONFIG.particlesPerEdgeFactor));
+    const result = [];
 
-  const particleOpacity = Math.min(0.95, opacity * 2.0);
+    for (let i = 0; i < count; i++) {
+      const link  = validLinks[Math.floor(Math.random() * validLinks.length)];
+      const srcId = typeof link.source === 'object' ? link.source.id : link.source;
+      const tgtId = typeof link.target === 'object' ? link.target.id : link.target;
+      const dir   = Math.random() > 0.5 ? 1 : -1;
+      const originId = dir === 1 ? srcId : tgtId;
+
+      result.push({
+        srcV:     new THREE.Vector3(...positions[srcId]),
+        tgtV:     new THREE.Vector3(...positions[tgtId]),
+        direction: dir,
+        speed:    0.08 + Math.random() * 0.30,
+        initialT: Math.random(),
+        color:    universeColors[originId] || '#aac4ff',
+      });
+    }
+    return result;
+  }, [links, positions, universeColors]);
 
   return (
     <>
-      <Line
-        points={[src, tgt]}
-        color={color}
-        lineWidth={0.5}
-        transparent
-        opacity={opacity * 0.3}
-      />
       {particles.map((p, i) => (
         <EdgeParticle
           key={i}
-          srcV={srcV}
-          tgtV={tgtV}
-          color={color}
-          opacity={particleOpacity}
-          {...p}
+          srcV={p.srcV}
+          tgtV={p.tgtV}
+          direction={p.direction}
+          speed={p.speed}
+          initialT={p.initialT}
+          color={p.color}
+          opacity={0.92}
         />
       ))}
     </>
@@ -330,28 +286,25 @@ function AnimatedEdge({ src, tgt, color, opacity }) {
 function UniverseNode({ position, universe, radius, interactive, onHover, isHovered }) {
   const color        = STATUS_COLORS[universe.status] || STATUS_COLORS.ACTIVE;
   const emissive     = STATUS_EMISSIVE[universe.status] || 1.0;
-  const variantIndex = (universe.displayOrder ?? 0) % 4;
+  const variantIndex = (universe.displayOrder ?? 0) % 2;
   const Variant      = UNIVERSE_VARIANTS[variantIndex];
-
-  // Label offset: translateX in CSS px (pre-distanceFactor scaling).
-  // Since Html always faces the camera, translateX is always screen-right.
   const labelOffsetPx = VARIANT_LABEL_OFFSET[variantIndex](radius);
 
   return (
     <group position={position}>
-      {/* Invisible hit-detection sphere — covers the whole variant's extent */}
+      {/* Invisible hit-detection sphere covering the full variant extent */}
       <mesh
         onPointerEnter={() => interactive && onHover(universe)}
         onPointerLeave={() => interactive && onHover(null)}
       >
-        <sphereGeometry args={[radius * 3.2, 8, 8]} />
+        <sphereGeometry args={[radius * 3.4, 8, 8]} />
         <meshBasicMaterial transparent opacity={0.001} depthWrite={false} />
       </mesh>
 
       <Variant radius={radius} color={color} emissive={emissive} isHovered={isHovered} />
 
-      {/* Label — always rendered to the screen-right of the node */}
-      <Html distanceFactor={14} zIndexRange={[1, 2]}>
+      {/* Label — always screen-right via CSS translateX */}
+      <Html distanceFactor={22} zIndexRange={[1, 2]}>
         <div
           className="universe-node-label"
           style={{
@@ -378,9 +331,9 @@ function NetworkScene({ networkData, interactive, onHover }) {
 
     const nodes = universes.map(u => ({
       id: u._id.toString(),
-      x: (Math.random() - 0.5) * 10,
-      y: (Math.random() - 0.5) * 10,
-      z: (Math.random() - 0.5) * 10,
+      x: (Math.random() - 0.5) * 12,
+      y: (Math.random() - 0.5) * 12,
+      z: (Math.random() - 0.5) * 12,
     }));
 
     const links = rawEdges
@@ -388,10 +341,10 @@ function NetworkScene({ networkData, interactive, onHover }) {
       .map(e => ({ source: e.source, target: e.target, weight: e.weight }));
 
     const sim = forceSimulation(nodes, 3)
-      .force('charge', forceManyBody().strength(CONFIG.forceCharge))
-      .force('link',   forceLink(links).id(d => d.id).distance(CONFIG.forceLinkDistance).strength(0.35))
-      .force('center', forceCenter())
-      .force('collide',forceCollide(2.0))
+      .force('charge',  forceManyBody().strength(CONFIG.forceCharge))
+      .force('link',    forceLink(links).id(d => d.id).distance(CONFIG.forceLinkDistance).strength(0.3))
+      .force('center',  forceCenter())
+      .force('collide', forceCollide(3.2))
       .stop();
 
     for (let i = 0; i < CONFIG.forceSimTicks; i++) sim.tick();
@@ -405,6 +358,14 @@ function NetworkScene({ networkData, interactive, onHover }) {
   }, [networkData]);
 
   const [hovered, setHovered] = useState(null);
+
+  // Must be called before any early return to respect hooks rules
+  const universeColors = useMemo(() => {
+    if (!layout) return {};
+    return Object.fromEntries(
+      layout.universes.map(u => [u._id.toString(), STATUS_COLORS[u.status] || STATUS_COLORS.ACTIVE])
+    );
+  }, [layout]);
 
   const handleHover = (u) => {
     setHovered(u ? u._id : null);
@@ -424,17 +385,24 @@ function NetworkScene({ networkData, interactive, onHover }) {
       <ambientLight intensity={0.08} />
       <pointLight position={[0, 0, 0]} intensity={0.6} color="#aac4ff" decay={2} />
 
-      {/* Animated edges */}
+      {/* Static edge lines */}
       {links.map((link, i) => {
-        const src = positions[typeof link.source === 'object' ? link.source.id : link.source];
-        const tgt = positions[typeof link.target === 'object' ? link.target.id : link.target];
+        const srcId = typeof link.source === 'object' ? link.source.id : link.source;
+        const tgtId = typeof link.target === 'object' ? link.target.id : link.target;
+        const src = positions[srcId];
+        const tgt = positions[tgtId];
         if (!src || !tgt) return null;
         const opacity = CONFIG.edgeOpacityMin +
           (link.weight / maxWeight) * (CONFIG.edgeOpacityMax - CONFIG.edgeOpacityMin);
-        return (
-          <AnimatedEdge key={i} src={src} tgt={tgt} color="#aac4ff" opacity={opacity} />
-        );
+        return <StaticEdge key={i} src={src} tgt={tgt} opacity={opacity} />;
       })}
+
+      {/* Global particle pool — sparse, color-coded by origin universe */}
+      <NetworkParticles
+        links={links}
+        positions={positions}
+        universeColors={universeColors}
+      />
 
       {/* Nodes */}
       {universes.map(u => {
@@ -461,10 +429,10 @@ function NetworkScene({ networkData, interactive, onHover }) {
 
 // ─── Main Component ─────────────────────────────────────────────────────────
 function UniverseNetworkVisualization({ mode = 'display', autoRotate = true, onClose }) {
-  const [networkData,      setNetworkData]      = useState(null);
-  const [loading,          setLoading]          = useState(true);
-  const [error,            setError]            = useState(null);
-  const [hoveredUniverse,  setHoveredUniverse]  = useState(null);
+  const [networkData,     setNetworkData]     = useState(null);
+  const [loading,         setLoading]         = useState(true);
+  const [error,           setError]           = useState(null);
+  const [hoveredUniverse, setHoveredUniverse] = useState(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -510,8 +478,8 @@ function UniverseNetworkVisualization({ mode = 'display', autoRotate = true, onC
             autoRotateSpeed={CONFIG.autoRotateSpeed}
             enableZoom={interactive}
             enablePan={false}
-            maxDistance={32}
-            minDistance={6}
+            maxDistance={38}
+            minDistance={8}
           />
           <Stars
             radius={CONFIG.starRadius}
