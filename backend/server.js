@@ -386,6 +386,45 @@ app.get('/api/universes', async (req, res) => {
   }
 });
 
+// GET /api/network - Universe network data with computed edges (public)
+app.get('/api/network', async (req, res) => {
+  try {
+    const [universes, effects] = await Promise.all([
+      Universe.find().sort({ displayOrder: 1 }),
+      CodeEffect.find().populate('codeId', 'code name alignment')
+    ]);
+
+    // Group effects by code to find co-affected universe pairs
+    const codeToUniverses = {};
+    effects.forEach(effect => {
+      const codeKey = effect.codeId._id.toString();
+      if (!codeToUniverses[codeKey]) codeToUniverses[codeKey] = [];
+      codeToUniverses[codeKey].push(effect.universeId.toString());
+    });
+
+    // Build weighted edges: universes connected when they share a code
+    const edgeMap = {};
+    Object.values(codeToUniverses).forEach(universeIds => {
+      for (let i = 0; i < universeIds.length; i++) {
+        for (let j = i + 1; j < universeIds.length; j++) {
+          const key = [universeIds[i], universeIds[j]].sort().join(':');
+          edgeMap[key] = (edgeMap[key] || 0) + 1;
+        }
+      }
+    });
+
+    const edges = Object.entries(edgeMap).map(([key, weight]) => {
+      const [source, target] = key.split(':');
+      return { source, target, weight };
+    });
+
+    res.json({ success: true, universes, edges });
+  } catch (error) {
+    console.error('Error fetching network data:', error);
+    res.status(500).json({ success: false, error: 'SERVER_ERROR', message: 'Error fetching network data' });
+  }
+});
+
 // POST /api/codes/validate - Validate and activate a code
 app.post('/api/codes/validate', async (req, res) => {
   try {

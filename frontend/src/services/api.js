@@ -23,6 +23,13 @@ export const universeService = {
   }
 };
 
+export const networkService = {
+  get: async () => {
+    const response = await api.get('/network');
+    return response.data;
+  }
+};
+
 export const codeService = {
   validate: async (sessionToken, code) => {
     const response = await api.post('/codes/validate', {

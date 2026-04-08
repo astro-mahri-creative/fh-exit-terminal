@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { sessionService } from '../services/api';
 import './WelcomeScreen.css';
 
-function WelcomeScreen({ onSessionStart }) {
+function WelcomeScreen({ onSessionStart, onViewNetwork }) {
   const [userId, setUserId] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
@@ -83,6 +83,12 @@ function WelcomeScreen({ onSessionStart }) {
           <div className="phax-logo">PHAX</div>
           <p className="phax-tagline">DIMENSIONAL CONTAINMENT OPERATIONS</p>
         </div>
+
+        {onViewNetwork && (
+          <button className="view-network-btn" onClick={onViewNetwork}>
+            VIEW DIMENSIONAL NETWORK
+          </button>
+        )}
       </div>
     </div>
   );

@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { emailService } from '../services/api';
+import UniverseNetworkVisualization from './UniverseNetworkVisualization';
 import './ResultsScreen.css';
 
 const FIRST_IDLE_TIMEOUT = 30;
@@ -9,6 +10,7 @@ function ResultsScreen({ resultsData, sessionData, onReset }) {
   const [email, setEmail] = useState('');
   const [emailSent, setEmailSent] = useState(false);
   const [emailError, setEmailError] = useState('');
+  const [showNetwork, setShowNetwork] = useState(false);
   const [countdown, setCountdown] = useState(FIRST_IDLE_TIMEOUT);
   const [idleThreshold, setIdleThreshold] = useState(FIRST_IDLE_TIMEOUT);
   const intervalRef = useRef(null);
@@ -101,9 +103,21 @@ function ResultsScreen({ resultsData, sessionData, onReset }) {
       </div>
 
       <div className="universe-map">
-        <h2>DIMENSIONAL NETWORK STATUS</h2>
-        <div className="universes-grid">
-          {resultsData.universes.map(universe => {
+        <div className="universe-map-header">
+          <h2>DIMENSIONAL NETWORK STATUS</h2>
+          <button
+            className="network-toggle-btn"
+            onClick={() => { setShowNetwork(v => !v); recordActivity(); }}
+          >
+            {showNetwork ? '[ GRID VIEW ]' : '[ NETWORK VIEW ]'}
+          </button>
+        </div>
+
+        {showNetwork ? (
+          <UniverseNetworkVisualization mode="interactive" autoRotate={true} />
+        ) : (
+          <div className="universes-grid">
+            {resultsData.universes.map(universe => {
             const colors = getStatusColor(universe.status);
             return (
               <div
@@ -136,7 +150,8 @@ function ResultsScreen({ resultsData, sessionData, onReset }) {
             );
           })}
         </div>
-        
+        )}
+
         {resultsData.cure_active && (
           <div className="cure-indicator">
             🧬 CURE PROTOCOL ACTIVE

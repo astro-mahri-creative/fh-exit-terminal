@@ -109,6 +109,26 @@
   text-transform: uppercase;
 }
 
+/* ── View Network button ── */
+.view-network-btn {
+  margin-top: 20px;
+  background: transparent;
+  border: 1px solid var(--border-faint);
+  color: var(--text-dim);
+  font-family: var(--font-mono);
+  font-size: 0.62rem;
+  letter-spacing: 0.2em;
+  padding: 8px 20px;
+  cursor: pointer;
+  border-radius: var(--radius-sm);
+  transition: border-color 0.2s, color 0.2s;
+}
+
+.view-network-btn:hover {
+  border-color: var(--phax-light);
+  color: var(--phax-light);
+}
+
 /* ── Responsive ── */
 @media (max-width: 1024px) {
   .project-title {

@@ -1,0 +1,161 @@
+/* ─── Container ─────────────────────────────────────────────────────────── */
+.universe-network-viz {
+  position: relative;
+  overflow: hidden;
+  background: var(--bg-base);
+}
+
+.universe-network-viz.mode-display {
+  position: fixed;
+  inset: 0;
+  z-index: 10;
+}
+
+.universe-network-viz.mode-interactive {
+  width: 100%;
+  height: 420px;
+  border: 1px solid var(--border-dim);
+  border-radius: var(--radius-md);
+}
+
+/* ─── Status messages ────────────────────────────────────────────────────── */
+.network-status {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-family: var(--font-mono);
+  font-size: 0.72rem;
+  letter-spacing: 0.18em;
+  color: var(--text-dim);
+  z-index: 2;
+}
+
+.network-status.error {
+  color: var(--color-error);
+}
+
+/* ─── Header (display mode) ─────────────────────────────────────────────── */
+.network-header {
+  position: absolute;
+  top: 28px;
+  left: 32px;
+  z-index: 5;
+  pointer-events: none;
+}
+
+.network-title {
+  font-family: var(--font-mono);
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.3em;
+  color: var(--phax-light);
+}
+
+.network-subtitle {
+  font-family: var(--font-mono);
+  font-size: 0.62rem;
+  letter-spacing: 0.2em;
+  color: var(--text-dim);
+  margin-top: 4px;
+}
+
+/* ─── Node labels (rendered inside Canvas via Html component) ─────────────── */
+.universe-node-label {
+  font-family: 'Space Mono', monospace;
+  font-size: 9px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  white-space: nowrap;
+  text-shadow: 0 0 8px currentColor;
+  transform: translateY(-6px);
+  pointer-events: none;
+}
+
+/* ─── Hover tooltip (interactive mode) ─────────────────────────────────── */
+.network-tooltip {
+  position: absolute;
+  bottom: 16px;
+  left: 16px;
+  background: var(--bg-surface);
+  border: 1px solid var(--border-mid);
+  border-radius: var(--radius-sm);
+  padding: 10px 14px;
+  z-index: 6;
+  pointer-events: none;
+}
+
+.tooltip-name {
+  font-family: var(--font-mono);
+  font-size: 0.72rem;
+  letter-spacing: 0.15em;
+  color: var(--text-primary);
+  margin-bottom: 4px;
+}
+
+.tooltip-cases {
+  font-family: var(--font-mono);
+  font-size: 0.65rem;
+  color: var(--text-secondary);
+  margin-bottom: 4px;
+}
+
+.tooltip-status {
+  font-family: var(--font-mono);
+  font-size: 0.62rem;
+  letter-spacing: 0.12em;
+  font-weight: 700;
+}
+
+/* ─── Close button ──────────────────────────────────────────────────────── */
+.network-close-btn {
+  position: absolute;
+  bottom: 28px;
+  right: 28px;
+  z-index: 6;
+  background: transparent;
+  border: 1px solid var(--border-dim);
+  color: var(--text-secondary);
+  font-family: var(--font-mono);
+  font-size: 0.7rem;
+  letter-spacing: 0.15em;
+  padding: 10px 18px;
+  cursor: pointer;
+  border-radius: var(--radius-sm);
+  transition: border-color 0.2s, color 0.2s;
+}
+
+.network-close-btn:hover {
+  border-color: var(--phax-light);
+  color: var(--phax-light);
+}
+
+/* ─── Display mode legend ───────────────────────────────────────────────── */
+.network-legend {
+  position: absolute;
+  bottom: 28px;
+  left: 32px;
+  z-index: 5;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  pointer-events: none;
+}
+
+.legend-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-family: var(--font-mono);
+  font-size: 0.62rem;
+  letter-spacing: 0.12em;
+  color: var(--text-secondary);
+}
+
+.legend-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}

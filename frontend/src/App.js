@@ -4,9 +4,10 @@ import WelcomeScreen from './components/WelcomeScreen';
 import CodeEntryScreen from './components/CodeEntryScreen';
 import ChoiceScreen from './components/ChoiceScreen';
 import ResultsScreen from './components/ResultsScreen';
+import NetworkScreen from './components/NetworkScreen';
 
 function App() {
-  const [screen, setScreen] = useState('welcome'); // 'welcome', 'codeEntry', 'choice', 'results'
+  const [screen, setScreen] = useState('welcome'); // 'welcome', 'codeEntry', 'choice', 'results', 'network'
   const [sessionData, setSessionData] = useState(null);
   const [choiceData, setChoiceData] = useState(null);
   const [resultsData, setResultsData] = useState(null);
@@ -36,7 +37,7 @@ function App() {
   return (
     <div className="App">
       {screen === 'welcome' && (
-        <WelcomeScreen onSessionStart={handleSessionStart} />
+      <WelcomeScreen onSessionStart={handleSessionStart} onViewNetwork={() => setScreen('network')} />
       )}
       {screen === 'codeEntry' && sessionData && (
         <CodeEntryScreen
@@ -58,6 +59,9 @@ function App() {
           sessionData={sessionData}
           onReset={handleReset}
         />
+      )}
+      {screen === 'network' && (
+        <NetworkScreen onBack={() => setScreen('welcome')} />
       )}
     </div>
   );
