@@ -5,6 +5,15 @@ const mongoose = require('mongoose');
 const cors = require('cors');
 const { v4: uuidv4 } = require('uuid');
 const rateLimit = require('express-rate-limit');
+const sgMail = require('@sendgrid/mail');
+
+// Initialize SendGrid
+if (process.env.SENDGRID_API_KEY) {
+  sgMail.setApiKey(process.env.SENDGRID_API_KEY);
+  console.log('SendGrid initialized');
+} else {
+  console.warn('SENDGRID_API_KEY not set — emails will be logged only');
+}
 
 const {
   Universe,
@@ -820,21 +829,97 @@ app.post('/api/email/send', async (req, res) => {
       .populate('codeId')
       .sort({ sequenceOrder: 1 });
     
-    const codes = sessionCodes.map(sc => sc.codeId.code).join(' ');
-    
-    // TODO: Implement actual email sending (SendGrid/AWS SES)
-    // For MVP, we'll just log it
-    console.log('Email would be sent to:', email);
-    console.log('Codes:', codes);
-    console.log('Alignment:', generateAlignmentNarrative(session.alignmentScore, session.totalCodesEntered));
-    
+    const codes = sessionCodes.map(sc => sc.codeId.code).join(', ');
+    const alignmentNarrative = generateAlignmentNarrative(session.alignmentScore, session.totalCodesEntered);
+
+    // Get universe data for the report
+    const universes = await Universe.find().sort({ displayOrder: 1 });
+
+    // Build email HTML
+    const universeRows = universes.map(u => `
+      <tr>
+        <td style="padding:8px 12px;border-bottom:1px solid #2a2a2a;color:#f0eeeb;font-family:monospace;">${u.name}</td>
+        <td style="padding:8px 12px;border-bottom:1px solid #2a2a2a;color:#f0eeeb;text-align:right;font-family:monospace;">${u.currentCases.toLocaleString()}</td>
+        <td style="padding:8px 12px;border-bottom:1px solid #2a2a2a;color:#9e9e9e;text-align:center;font-family:monospace;font-size:12px;">${u.status}</td>
+      </tr>
+    `).join('');
+
+    const scoreColor = session.alignmentScore < 0 ? '#aac4ff' : session.alignmentScore > 0 ? '#8fcc88' : '#9e9e9e';
+
+    const htmlContent = `
+    <div style="background:#060606;padding:32px;font-family:'Courier New',monospace;color:#f0eeeb;max-width:600px;margin:0 auto;">
+      <div style="border-bottom:1px solid #2a2a2a;padding-bottom:16px;margin-bottom:24px;">
+        <h1 style="font-size:14px;letter-spacing:0.3em;color:#aac4ff;margin:0;">PHAX TERMINAL REPORT</h1>
+        <p style="font-size:11px;color:#777;margin:4px 0 0;letter-spacing:0.15em;">FUTURE HOOMAN EXIT TERMINAL</p>
+      </div>
+
+      <div style="background:#0f0f0f;border:1px solid #2a2a2a;border-radius:4px;padding:20px;margin-bottom:20px;">
+        <p style="font-size:11px;color:#777;letter-spacing:0.15em;margin:0 0 8px;">ALIGNMENT NARRATIVE</p>
+        <p style="font-size:14px;line-height:1.7;color:#f0eeeb;margin:0;">${alignmentNarrative}</p>
+      </div>
+
+      <div style="display:flex;gap:24px;margin-bottom:20px;">
+        <div style="background:#0f0f0f;border:1px solid #2a2a2a;border-radius:4px;padding:16px;flex:1;text-align:center;">
+          <p style="font-size:10px;color:#777;letter-spacing:0.12em;margin:0 0 6px;">CODES ENTERED</p>
+          <p style="font-size:28px;font-weight:bold;color:#f0eeeb;margin:0;">${session.totalCodesEntered}</p>
+        </div>
+        <div style="background:#0f0f0f;border:1px solid #2a2a2a;border-radius:4px;padding:16px;flex:1;text-align:center;">
+          <p style="font-size:10px;color:#777;letter-spacing:0.12em;margin:0 0 6px;">ALIGNMENT SCORE</p>
+          <p style="font-size:28px;font-weight:bold;color:${scoreColor};margin:0;">${session.alignmentScore > 0 ? '+' : ''}${session.alignmentScore}</p>
+        </div>
+      </div>
+
+      <div style="background:#0f0f0f;border:1px solid #2a2a2a;border-radius:4px;padding:16px;margin-bottom:20px;">
+        <p style="font-size:10px;color:#777;letter-spacing:0.12em;margin:0 0 6px;">YOUR CODES</p>
+        <p style="font-size:14px;color:#aac4ff;letter-spacing:0.1em;margin:0;">${codes}</p>
+      </div>
+
+      <div style="background:#0f0f0f;border:1px solid #2a2a2a;border-radius:4px;overflow:hidden;margin-bottom:20px;">
+        <p style="font-size:10px;color:#777;letter-spacing:0.12em;padding:12px 12px 8px;margin:0;">DIMENSIONAL NETWORK STATUS</p>
+        <table style="width:100%;border-collapse:collapse;">
+          <thead>
+            <tr style="border-bottom:1px solid #3d3d3d;">
+              <th style="padding:6px 12px;text-align:left;font-size:10px;color:#444;letter-spacing:0.1em;">UNIVERSE</th>
+              <th style="padding:6px 12px;text-align:right;font-size:10px;color:#444;letter-spacing:0.1em;">CASES</th>
+              <th style="padding:6px 12px;text-align:center;font-size:10px;color:#444;letter-spacing:0.1em;">STATUS</th>
+            </tr>
+          </thead>
+          <tbody>${universeRows}</tbody>
+        </table>
+      </div>
+
+      <div style="border-top:1px solid #2a2a2a;padding-top:16px;text-align:center;">
+        <p style="font-size:10px;color:#444;letter-spacing:0.1em;margin:0;">FUTURE HOOMAN &mdash; PHAX DIMENSIONAL NETWORK</p>
+      </div>
+    </div>
+    `;
+
+    // Send email via SendGrid
+    if (process.env.SENDGRID_API_KEY) {
+      const msg = {
+        to: email,
+        from: {
+          email: process.env.EMAIL_FROM || 'team@futurehooman.com',
+          name: 'PHAX Terminal'
+        },
+        subject: `Your Exit Terminal Impact Report — Score: ${session.alignmentScore > 0 ? '+' : ''}${session.alignmentScore}`,
+        html: htmlContent
+      };
+
+      await sgMail.send(msg);
+      console.log('Email sent to:', email);
+    } else {
+      console.log('SendGrid not configured — email logged only');
+      console.log('Would send to:', email);
+    }
+
     // Update session
     session.emailAddress = email;
     session.emailSent = true;
     await session.save();
-    
+
     await logEvent('email_sent', session._id, session.userId, { email });
-    
+
     res.json({
       success: true,
       message: 'Impact report sent successfully'

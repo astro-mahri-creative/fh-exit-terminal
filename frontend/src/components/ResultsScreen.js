@@ -2,40 +2,60 @@ import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { emailService } from '../services/api';
 import './ResultsScreen.css';
 
-const RESET_TIMEOUT = 30;
+const FIRST_IDLE_TIMEOUT = 30;
+const SECOND_IDLE_TIMEOUT = 60;
 
 function ResultsScreen({ resultsData, sessionData, onReset }) {
   const [email, setEmail] = useState('');
   const [emailSent, setEmailSent] = useState(false);
   const [emailError, setEmailError] = useState('');
-  const [countdown, setCountdown] = useState(RESET_TIMEOUT);
+  const [countdown, setCountdown] = useState(FIRST_IDLE_TIMEOUT);
+  const [idleThreshold, setIdleThreshold] = useState(FIRST_IDLE_TIMEOUT);
   const intervalRef = useRef(null);
-  const countdownRef = useRef(RESET_TIMEOUT);
+  const countdownRef = useRef(FIRST_IDLE_TIMEOUT);
+  const lastActivityRef = useRef(Date.now());
 
-  const startTimer = useCallback(() => {
+  const startIdleTimer = useCallback(() => {
     if (intervalRef.current) clearInterval(intervalRef.current);
-    countdownRef.current = RESET_TIMEOUT;
-    setCountdown(RESET_TIMEOUT);
+
+    lastActivityRef.current = Date.now();
+    countdownRef.current = idleThreshold;
+    setCountdown(idleThreshold);
+
     intervalRef.current = setInterval(() => {
-      countdownRef.current -= 1;
-      setCountdown(countdownRef.current);
-      if (countdownRef.current <= 0) {
+      const now = Date.now();
+      const idleTime = Math.floor((now - lastActivityRef.current) / 1000);
+
+      setCountdown(Math.max(0, idleThreshold - idleTime));
+
+      if (idleTime >= idleThreshold) {
         clearInterval(intervalRef.current);
-        onReset();
+
+        // If this was the first idle timeout (30s), reset timer to 60s and continue
+        if (idleThreshold === FIRST_IDLE_TIMEOUT) {
+          setIdleThreshold(SECOND_IDLE_TIMEOUT);
+          lastActivityRef.current = Date.now();
+          countdownRef.current = SECOND_IDLE_TIMEOUT;
+          setCountdown(SECOND_IDLE_TIMEOUT);
+          startIdleTimer();
+        } else {
+          // Second idle timeout (60s) - auto reset back to home
+          onReset();
+        }
       }
     }, 1000);
-  }, [onReset]);
+  }, [idleThreshold, onReset]);
 
-  const resetTimer = useCallback(() => {
-    startTimer();
-  }, [startTimer]);
+  const recordActivity = useCallback(() => {
+    lastActivityRef.current = Date.now();
+  }, []);
 
   useEffect(() => {
-    startTimer();
+    startIdleTimer();
     return () => {
       if (intervalRef.current) clearInterval(intervalRef.current);
     };
-  }, [startTimer]);
+  }, [startIdleTimer]);
 
   const getStatusColor = (status) => {
     // Clinical palette — matches CSS custom properties in App.css
@@ -74,7 +94,7 @@ function ResultsScreen({ resultsData, sessionData, onReset }) {
   };
 
   return (
-    <div className="results-screen" onClick={resetTimer} onKeyDown={resetTimer}>
+    <div className="results-screen" onClick={recordActivity} onKeyDown={recordActivity}>
       <div className="phax-alert">
         <div className="alert-icon">⚠️</div>
         <div className="alert-text">{resultsData.phax_alert}</div>
@@ -147,7 +167,7 @@ function ResultsScreen({ resultsData, sessionData, onReset }) {
             <input
               type="email"
               value={email}
-              onChange={(e) => { setEmail(e.target.value); resetTimer(); }}
+              onChange={(e) => { setEmail(e.target.value); recordActivity(); }}
               placeholder="Enter email address"
               className="email-input"
             />
