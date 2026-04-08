@@ -72,12 +72,11 @@ function UniverseNode({ position, universe, radius, interactive, onHover, isHove
         />
       </mesh>
 
-      <Html center distanceFactor={14} zIndexRange={[1, 2]}>
-        <div
-          className="universe-node-label"
-          style={{ color, opacity: isHovered ? 1 : 0.72 }}
-        >
-          {universe.name}
+      <Html position={[radius + 0.55, 0, 0]} distanceFactor={14} zIndexRange={[1, 2]}>
+        <div className="universe-node-label" style={{ opacity: isHovered ? 1 : 0.88 }}>
+          <div className="label-name" style={{ color }}>{universe.name}</div>
+          <div className="label-cases">{universe.currentCases?.toLocaleString()} iFLU</div>
+          <div className="label-status" style={{ color }}>{universe.status}</div>
         </div>
       </Html>
     </group>
