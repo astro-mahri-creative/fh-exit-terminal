@@ -48,14 +48,34 @@ const STATUS_EMISSIVE = {
   TRANSCENDENT: 3.0,
 };
 
+// ─── Deterministic per-universe random helpers ─────────────────────────────
+// Stable hash from MongoDB ObjectId string → integer
+function hashId(id) {
+  let h = 0;
+  for (let i = 0; i < id.length; i++) {
+    h = (Math.imul(31, h) + id.charCodeAt(i)) | 0;
+  }
+  return Math.abs(h);
+}
+
+// Seeded LCG pseudo-random number generator — returns a function that
+// produces a new value in [0, 1) on each call, deterministic from seed.
+function seededRand(seed) {
+  let s = seed >>> 0;
+  return () => {
+    s = (Math.imul(1664525, s) + 1013904223) >>> 0;
+    return s / 0x100000000;
+  };
+}
+
 // Label offset in CSS px (pre Html distanceFactor scaling).
 // translateX is always screen-right because Html faces the camera.
 // These are generous — erring well clear of satellites and shells.
 const VARIANT_LABEL_OFFSET = [
   // 0: Nebula — satellites reach radius*2.8; use large clearance
   (r) => Math.round(r * 95 + 55),
-  // 1: Pulsing — outer shell reaches radius*1.35; still generous
-  (r) => Math.round(r * 68 + 45),
+  // 1: Pulsing — shells reach up to radius*1.75; generous clearance
+  (r) => Math.round(r * 88 + 48),
 ];
 
 // ─── Variant 0: Nebula Cluster ─────────────────────────────────────────────
@@ -77,9 +97,9 @@ function VariantNebula({ radius, color, emissive, isHovered }) {
       return { u, v, speed, dist, size, t: t0 };
     };
     return [
-      makeOrbit([1,   0.4, 0  ], 0.65, radius * 2.2, radius * 0.34, 0),
-      makeOrbit([0.3, 1,   0.6], 0.42, radius * 2.8, radius * 0.26, 2.1),
-      makeOrbit([0.7, 0.1, 1  ], 0.85, radius * 1.95,radius * 0.20, 4.2),
+      makeOrbit([1,   0.4, 0  ], 0.163, radius * 2.2, radius * 0.34, 0),
+      makeOrbit([0.3, 1,   0.6], 0.105, radius * 2.8, radius * 0.26, 2.1),
+      makeOrbit([0.7, 0.1, 1  ], 0.213, radius * 1.95,radius * 0.20, 4.2),
     ];
   }, [radius]);
 
@@ -136,48 +156,64 @@ function VariantNebula({ radius, color, emissive, isHovered }) {
 }
 
 // ─── Variant 1: Pulsing Energy Core ────────────────────────────────────────
-// Rotating solid core + two independent breathing shells at different phases
-function VariantPulsing({ radius, color, emissive, isHovered }) {
-  const coreRef   = useRef();
-  const shell1Ref = useRef();
-  const shell2Ref = useRef();
-  const tRef      = useRef(0);
+// Rotating solid core + 3–5 independently breathing shells.
+// Shell count and sizes are seeded from the universe ID for stable variation.
+function VariantPulsing({ radius, color, emissive, isHovered, seed }) {
+  const coreRef     = useRef();
+  const shellMeshes = useRef([]); // populated via callback refs — avoids variable hook count
+  const tRef        = useRef(0);
+
+  // Generate stable shell configs from universe ID seed
+  const shells = useMemo(() => {
+    const rand  = seededRand(hashId(seed || '0'));
+    const count = 3 + Math.floor(rand() * 3);           // 3, 4, or 5 shells
+    const maxR  = 1.50 + rand() * 0.25;                 // outermost shell: 1.50× – 1.75×
+    const minR  = 1.12;                                 // innermost shell always at 1.12×
+    return Array.from({ length: count }, (_, i) => {
+      const t = count === 1 ? 0 : i / (count - 1);
+      return {
+        sizeMult:     minR + t * (maxR - minR),         // evenly distributed radii
+        pulseSpeed:   1.0  + rand() * 1.3,              // each shell breathes at its own rate
+        pulseAmp:     0.05 + rand() * 0.08,             // subtle to moderate pulse depth
+        phaseOffset:  rand() * Math.PI * 2,             // de-sync phases
+        emissiveMult: Math.max(0.10, 0.34 - i * 0.06), // inner shells slightly brighter
+        opacity:      Math.max(0.04, 0.17 - i * 0.03), // inner shells slightly more opaque
+      };
+    });
+  }, [seed]);
 
   useFrame((_, dt) => {
     tRef.current += dt;
     const t = tRef.current;
-    if (coreRef.current)   coreRef.current.rotation.y   += 0.010 * dt * 60;
-    if (shell1Ref.current) {
-      const s1 = 1 + Math.sin(t * 2.0) * 0.08;
-      shell1Ref.current.scale.setScalar(s1);
-    }
-    if (shell2Ref.current) {
-      const s2 = 1 + Math.sin(t * 1.3 + 1.5) * 0.12;
-      shell2Ref.current.scale.setScalar(s2);
-    }
+    if (coreRef.current) coreRef.current.rotation.y += 0.010 * dt * 60;
+    shells.forEach((s, i) => {
+      const mesh = shellMeshes.current[i];
+      if (mesh) {
+        const sc = 1 + Math.sin(t * s.pulseSpeed + s.phaseOffset) * s.pulseAmp;
+        mesh.scale.setScalar(sc);
+      }
+    });
   });
 
   const eI = isHovered ? emissive * 1.8 : emissive;
 
   return (
     <group>
-      {/* Outer slow-breathing shell */}
-      <mesh ref={shell2Ref}>
-        <sphereGeometry args={[radius * 1.55, 20, 20]} />
-        <meshStandardMaterial
-          color={color} emissive={color} emissiveIntensity={eI * 0.20}
-          transparent opacity={0.10} roughness={0} side={THREE.BackSide}
-        />
-      </mesh>
-
-      {/* Inner faster-breathing shell */}
-      <mesh ref={shell1Ref}>
-        <sphereGeometry args={[radius * 1.3, 24, 24]} />
-        <meshStandardMaterial
-          color={color} emissive={color} emissiveIntensity={eI * 0.38}
-          transparent opacity={0.18} roughness={0} side={THREE.BackSide}
-        />
-      </mesh>
+      {/* Breathing shells — outermost to innermost so core renders on top */}
+      {[...shells].reverse().map((s, ri) => {
+        const i = shells.length - 1 - ri;
+        return (
+          <mesh key={i} ref={el => { shellMeshes.current[i] = el; }}>
+            <sphereGeometry args={[radius * s.sizeMult, 20, 20]} />
+            <meshStandardMaterial
+              color={color} emissive={color}
+              emissiveIntensity={eI * s.emissiveMult}
+              transparent opacity={s.opacity}
+              roughness={0} side={THREE.BackSide}
+            />
+          </mesh>
+        );
+      })}
 
       {/* Solid rotating core */}
       <mesh ref={coreRef}>
@@ -286,7 +322,8 @@ function NetworkParticles({ links, positions, universeColors }) {
 function UniverseNode({ position, universe, radius, interactive, onHover, isHovered }) {
   const color        = STATUS_COLORS[universe.status] || STATUS_COLORS.ACTIVE;
   const emissive     = STATUS_EMISSIVE[universe.status] || 1.0;
-  const variantIndex = (universe.displayOrder ?? 0) % 2;
+  const seed         = universe._id.toString();
+  const variantIndex = hashId(seed) % 2;   // deterministic but distributed random
   const Variant      = UNIVERSE_VARIANTS[variantIndex];
   const labelOffsetPx = VARIANT_LABEL_OFFSET[variantIndex](radius);
 
@@ -301,7 +338,7 @@ function UniverseNode({ position, universe, radius, interactive, onHover, isHove
         <meshBasicMaterial transparent opacity={0.001} depthWrite={false} />
       </mesh>
 
-      <Variant radius={radius} color={color} emissive={emissive} isHovered={isHovered} />
+      <Variant radius={radius} color={color} emissive={emissive} isHovered={isHovered} seed={seed} />
 
       {/* Label — always screen-right via CSS translateX */}
       <Html distanceFactor={22} zIndexRange={[1, 2]}>
