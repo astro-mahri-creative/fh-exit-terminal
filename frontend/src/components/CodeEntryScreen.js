@@ -230,7 +230,7 @@ function CodeEntryScreen({ sessionData, onPreview, onLogout }) {
       {showActivation && (
         <div className="activation-overlay">
           <div className="activation-message">
-            TERMINAL CODE ACTIVATED
+            IFLU SIGNATURE PROCESSING COMPLETED
           </div>
           {totalCodes !== null && (
             <div className="activation-count">
