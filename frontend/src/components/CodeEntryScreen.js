@@ -9,6 +9,8 @@ function CodeEntryScreen({ sessionData, onPreview, onLogout }) {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [showActivation, setShowActivation] = useState(false);
+  const [activationCount, setActivationCount] = useState(0);
+  const [totalCodes, setTotalCodes] = useState(null);
   const [adminPanelOpen, setAdminPanelOpen] = useState(false);
 
   const isAdmin = sessionData.is_admin;
@@ -71,9 +73,13 @@ function CodeEntryScreen({ sessionData, onPreview, onLogout }) {
       const response = await codeService.validate(sessionData.session_token, currentCode);
       
       if (response.success && response.valid) {
+        // Capture count from server response before showing overlay
+        setActivationCount(response.total_codes_entered ?? activatedCodes.length + 1);
+        if (response.total_codes) setTotalCodes(response.total_codes);
+
         // Show activation animation
         setShowActivation(true);
-        setTimeout(() => setShowActivation(false), 1500);
+        setTimeout(() => setShowActivation(false), 1800);
         
         // Add to activated codes
         setActivatedCodes([...activatedCodes, {
@@ -226,6 +232,12 @@ function CodeEntryScreen({ sessionData, onPreview, onLogout }) {
           <div className="activation-message">
             TERMINAL CODE ACTIVATED
           </div>
+          {totalCodes !== null && (
+            <div className="activation-count">
+              {activationCount} OF {totalCodes}
+              <span className="activation-count-label"> CODES ACTIVATED</span>
+            </div>
+          )}
         </div>
       )}
     </div>

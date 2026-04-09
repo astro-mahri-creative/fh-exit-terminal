@@ -307,8 +307,10 @@
   inset: 0;
   background: var(--bg-overlay);
   display: flex;
+  flex-direction: column;
   align-items: center;
   justify-content: center;
+  gap: 20px;
   z-index: 1000;
   animation: fadeIn 0.2s ease;
 }
@@ -325,6 +327,25 @@
   color: var(--fheels-light);
   letter-spacing: 0.25em;
   animation: pulse 0.8s ease-in-out;
+}
+
+.activation-count {
+  font-family: var(--font-mono);
+  font-size: 3.6rem;
+  font-weight: 700;
+  color: var(--text-primary);
+  letter-spacing: 0.06em;
+  line-height: 1;
+  text-align: center;
+}
+
+.activation-count-label {
+  display: block;
+  font-size: 1.0rem;
+  font-weight: 400;
+  color: var(--text-secondary);
+  letter-spacing: 0.22em;
+  margin-top: 8px;
 }
 
 /* ── Responsive ── */

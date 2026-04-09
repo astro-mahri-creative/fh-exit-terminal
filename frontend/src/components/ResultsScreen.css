@@ -188,6 +188,52 @@
   text-transform: uppercase;
 }
 
+/* Prominent code count banner */
+.codes-activated-banner {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  padding: 20px 24px 22px;
+  margin-bottom: 24px;
+  background: var(--bg-raised);
+  border: 1px solid var(--border-mid);
+  border-radius: var(--radius-md);
+}
+
+.codes-count-display {
+  font-family: var(--font-mono);
+  line-height: 1;
+}
+
+.codes-entered-num {
+  font-size: 4.4rem;
+  font-weight: 700;
+  color: var(--text-primary);
+}
+
+.codes-count-sep {
+  font-size: 2.0rem;
+  font-weight: 400;
+  color: var(--text-dim);
+  padding: 0 4px;
+}
+
+.codes-total-num {
+  font-size: 3.0rem;
+  font-weight: 700;
+  color: var(--text-secondary);
+}
+
+.codes-activated-label {
+  font-family: var(--font-mono);
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.32em;
+  color: var(--text-secondary);
+  text-transform: uppercase;
+}
+
 .alignment-narrative {
   font-family: var(--font-sans);
   font-size: 1rem;

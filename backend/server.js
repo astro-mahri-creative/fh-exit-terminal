@@ -497,12 +497,16 @@ app.post('/api/codes/validate', async (req, res) => {
       tier: codeRecord.tier
     });
     
+    const totalAvailableCodes = await Code.countDocuments({ isActive: true });
+
     res.json({
       success: true,
       valid: true,
       code: codeRecord.code,
       code_name: codeRecord.name,
       code_tier: codeRecord.tier,
+      total_codes_entered: session.totalCodesEntered,
+      total_codes: totalAvailableCodes,
       message: 'TERMINAL CODE ACTIVATED'
     });
     
@@ -810,7 +814,9 @@ app.post('/api/codes/finalize', async (req, res) => {
       totalCodes: session.totalCodesEntered,
       alignmentScore: totalAlignmentScore
     });
-    
+
+    const totalAvailableCodes = await Code.countDocuments({ isActive: true });
+
     res.json({
       success: true,
       universes: updatedUniverses.map(u => ({
@@ -825,6 +831,7 @@ app.post('/api/codes/finalize', async (req, res) => {
       alignment_narrative: alignmentNarrative,
       alignment_score: totalAlignmentScore,
       total_codes_entered: session.totalCodesEntered,
+      total_codes: totalAvailableCodes,
       cure_active: isCureActive
     });
     

@@ -161,6 +161,17 @@ function ResultsScreen({ resultsData, sessionData, onReset }) {
 
       <div className="impact-summary">
         <h3>YOUR IMPACT</h3>
+
+        {/* Prominent code count — top of impact report */}
+        <div className="codes-activated-banner">
+          <div className="codes-count-display">
+            <span className="codes-entered-num">{resultsData.total_codes_entered}</span>
+            <span className="codes-count-sep"> of </span>
+            <span className="codes-total-num">{resultsData.total_codes ?? '—'}</span>
+          </div>
+          <div className="codes-activated-label">CODES ACTIVATED</div>
+        </div>
+
         <p className="alignment-narrative">{resultsData.alignment_narrative}</p>
         <div className="stats">
           <div className="stat">
