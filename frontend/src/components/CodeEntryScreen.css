@@ -205,16 +205,39 @@
   background: rgba(212, 137, 10, 0.18);
 }
 
-/* ── Activate Button ── */
+/* ── Action Row (side-by-side Activate / Proceed) ── */
+.action-row {
+  display: flex;
+  gap: 16px;
+  padding: 0 24px 24px;
+}
+
 .activate-button {
-  width: 100%;
+  flex: 1;
+  min-height: 44px;
   background: var(--fheels-green);
   color: var(--bg-base);
   font-size: 0.95rem;
-  padding: 14px;
+  padding: 16px;
   border-radius: var(--radius-md);
   letter-spacing: 0.18em;
-  margin-top: 20px;
+}
+
+.proceed-button {
+  flex: 1;
+  min-height: 44px;
+  background: var(--color-warning);
+  color: var(--bg-base);
+  font-size: 0.95rem;
+  padding: 16px;
+  border-radius: var(--radius-md);
+  letter-spacing: 0.18em;
+}
+
+.activate-button:disabled,
+.proceed-button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
 }
 
 /* ── Activated Codes Panel ── */
@@ -289,16 +312,10 @@
   letter-spacing: 0.1em;
 }
 
-/* ── Finalize Button ── */
-.finalize-button {
-  width: calc(100% - 48px);
-  margin: 0 24px 24px;
-  background: var(--color-warning);
-  color: var(--bg-base);
-  font-size: 1.1rem;
-  padding: 18px;
-  border-radius: var(--radius-md);
-  letter-spacing: 0.18em;
+@media (max-width: 480px) {
+  .action-row {
+    flex-direction: column;
+  }
 }
 
 /* ── Activation Overlay ── */

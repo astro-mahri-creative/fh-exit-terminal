@@ -104,7 +104,7 @@ function ResultsScreen({ resultsData, sessionData, onReset }) {
 
       <div className="universe-map">
         <div className="universe-map-header">
-          <h2>DIMENSIONAL NETWORK STATUS</h2>
+          <h2>UNIVERSE NETWORK STATUS</h2>
           <button
             className="network-toggle-btn"
             onClick={() => { setShowNetwork(v => !v); recordActivity(); }}
@@ -154,7 +154,7 @@ function ResultsScreen({ resultsData, sessionData, onReset }) {
 
         {resultsData.cure_active && (
           <div className="cure-indicator">
-            🧬 CURE PROTOCOL ACTIVE
+            🧬 CURE PROTOCOL ACTIVE — iFLU cure discovered
           </div>
         )}
       </div>
@@ -218,7 +218,7 @@ function ResultsScreen({ resultsData, sessionData, onReset }) {
       </div>
 
       <div className="countdown">
-        Auto-reset in {countdown}s
+        Screen resets in {countdown}s
       </div>
     </div>
   );

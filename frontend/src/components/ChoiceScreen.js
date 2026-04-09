@@ -48,9 +48,9 @@ function ChoiceScreen({ choiceData, sessionData, onChoiceConfirmed }) {
   return (
     <div className="choice-screen">
       <div className="choice-header">
-        <h2>SELECT YOUR IMPACT VECTOR</h2>
+        <h2>SELECT YOUR IMPACT DIRECTION</h2>
         <p className="choice-subtitle">
-          Choose which effects to apply to the dimensional network
+          Choose how your iFLU codes affect each dimension
         </p>
       </div>
 
@@ -75,7 +75,7 @@ function ChoiceScreen({ choiceData, sessionData, onChoiceConfirmed }) {
               </div>
             ))}
             {optionA.universes.every(u => u.change === 0) && (
-              <div className="no-effects">No containment effects detected</div>
+              <div className="no-effects">No iFLU containment effects detected</div>
             )}
           </div>
 
@@ -87,7 +87,7 @@ function ChoiceScreen({ choiceData, sessionData, onChoiceConfirmed }) {
           </div>
 
           <button className="select-button select-a" disabled={loading || optionADisabled}>
-            {optionADisabled ? 'NO EFFECTS AVAILABLE' : 'SELECT CONTAINMENT'}
+            {optionADisabled ? 'NO EFFECTS AVAILABLE' : 'SELECT iFLU CONTAINMENT'}
           </button>
         </div>
 
@@ -113,7 +113,7 @@ function ChoiceScreen({ choiceData, sessionData, onChoiceConfirmed }) {
               </div>
             ))}
             {optionB.universes.every(u => u.change === 0) && (
-              <div className="no-effects">No proliferation effects detected</div>
+              <div className="no-effects">No iFLU proliferation effects detected</div>
             )}
           </div>
 
@@ -125,13 +125,13 @@ function ChoiceScreen({ choiceData, sessionData, onChoiceConfirmed }) {
           </div>
 
           <button className="select-button select-b" disabled={loading || optionBDisabled}>
-            {optionBDisabled ? 'NO EFFECTS AVAILABLE' : 'SELECT PROLIFERATION'}
+            {optionBDisabled ? 'NO EFFECTS AVAILABLE' : 'SELECT iFLU PROLIFERATION'}
           </button>
         </div>
       </div>
 
       <div className="codes-summary">
-        Codes entered: {choiceData.total_codes_entered}
+        Codes activated: {choiceData.total_codes_entered}
       </div>
 
       {showConfirmation && (

@@ -131,7 +131,7 @@ function CodeEntryScreen({ sessionData, onPreview, onLogout }) {
       <div className="header">
         <h2>TERMINAL CODE ENTRY</h2>
         <div className="header-right">
-          <div className="user-info">User: {sessionData.user_id}</div>
+          <div className="user-info">Your ID: {sessionData.user_id}</div>
           <button onClick={onLogout} className="logout-button">LOG OUT</button>
         </div>
       </div>
@@ -189,14 +189,6 @@ function CodeEntryScreen({ sessionData, onPreview, onLogout }) {
           </div>
 
           {error && <div className="error-message">{error}</div>}
-
-          <button 
-            onClick={handleActivateCode}
-            className="activate-button"
-            disabled={loading || currentCode.length !== 4}
-          >
-            {loading ? 'PROCESSING...' : 'ACTIVATE CODE'}
-          </button>
         </div>
 
         <div className="activated-codes-section">
@@ -214,18 +206,27 @@ function CodeEntryScreen({ sessionData, onPreview, onLogout }) {
             )}
           </div>
           <div className="code-count">
-            Count: {activatedCodes.length}
+            Codes activated: {activatedCodes.length}
           </div>
         </div>
       </div>
 
-      <button 
-        onClick={handleFinalize}
-        className="finalize-button"
-        disabled={loading || activatedCodes.length === 0}
-      >
-        {loading ? 'PROCESSING...' : 'FINALIZE TERMINAL CODE ENTRY'}
-      </button>
+      <div className="action-row">
+        <button
+          onClick={handleActivateCode}
+          className="activate-button"
+          disabled={loading || currentCode.length !== 4}
+        >
+          {loading ? 'PROCESSING...' : 'ACTIVATE CODE'}
+        </button>
+        <button
+          onClick={handleFinalize}
+          className="proceed-button"
+          disabled={loading || activatedCodes.length === 0}
+        >
+          {loading ? 'PROCESSING...' : 'PROCEED TO CHOICES'}
+        </button>
+      </div>
 
       {showActivation && (
         <div className="activation-overlay">

@@ -245,32 +245,32 @@ async function selectPhaxAlertMessage() {
 function generateAlignmentNarrative(alignmentScore, totalCodes) {
   const narratives = {
     strongPhax: [
-      "Your terminal codes have significantly reinforced PHAX containment protocols. Multiple dimensions show marked improvement in iFLU suppression. The system commends your contribution to stability.",
-      "Exceptional containment performance detected. Your code sequence has optimized dimensional stability across the network. PHAX operations enhanced."
+      "Your codes have greatly reinforced PHAX containment. Multiple universes show improved iFLU suppression. The system commends your contribution to stability.",
+      "Exceptional containment detected. Your codes have strengthened stability across the universe network. PHAX operations enhanced."
     ],
     moderatePhax: [
-      "Your codes have strengthened PHAX technological protocols. iFLU containment showing measurable improvement. System efficiency increased.",
-      "Containment protocols activated successfully. Your terminal sequence supports PHAX dimensional management objectives."
+      "Your codes have strengthened PHAX containment. iFLU levels are dropping. System efficiency increased.",
+      "Containment protocols activated. Your codes support PHAX objectives across multiple universes."
     ],
     slightPhax: [
-      "Minor PHAX protocol enhancement detected. Your codes contribute to system stability. Containment operations proceeding normally.",
-      "Your terminal codes align with standard PHAX containment measures. Modest dimensional stabilization achieved."
+      "Minor PHAX enhancement detected. Your codes contribute to system stability. Containment proceeding normally.",
+      "Your codes align with standard PHAX containment measures. Modest stabilization achieved."
     ],
     neutral: [
-      "Your code sequence shows balanced impact. No significant alignment detected. Dimensional network status unchanged.",
-      "Neutral terminal code configuration. PHAX and alternative systems equally affected. Network stability maintained."
+      "Your codes show balanced impact. No strong alignment toward either side. Universe network status unchanged.",
+      "Neutral code configuration. PHAX and FHEELS influences equally balanced. Network stability maintained."
     ],
     slightFheels: [
-      "Warning: Your codes show slight deviation from PHAX protocols. Minor iFLU proliferation detected. System monitoring increased.",
-      "Your terminal sequence indicates alternative alignment tendencies. iFLU containment showing minor irregularities."
+      "Warning: Your codes show slight deviation from PHAX protocols. Minor iFLU spread detected. Monitoring increased.",
+      "Your codes indicate alternative alignment tendencies. iFLU containment showing minor irregularities."
     ],
     moderateFheels: [
-      "Alert: Your code sequence has compromised containment protocols. iFLU proliferation accelerating in multiple dimensions. PHAX security review initiated.",
-      "Significant PHAX protocol deviation detected. Your codes have enabled increased iFLU spread. Unauthorized influence suspected."
+      "Alert: Your codes have weakened containment. iFLU is spreading faster across multiple universes. PHAX security review initiated.",
+      "Significant deviation from PHAX protocols detected. Your codes have enabled increased iFLU spread."
     ],
     strongFheels: [
-      "Critical Warning: Your terminal codes have severely compromised containment integrity. iFLU proliferation has accelerated dramatically across multiple dimensions. PHAX security protocols are under investigation.",
-      "Emergency Alert: Major system compromise detected. Your code sequence has caused catastrophic containment failure. Multiple dimensions now operating outside PHAX control."
+      "Critical Warning: Your codes have severely weakened containment. iFLU has spread dramatically across multiple universes. PHAX security protocols under investigation.",
+      "Emergency Alert: Major system compromise detected. Your codes have caused catastrophic containment failure. Multiple universes now operating outside PHAX control."
     ]
   };
   
@@ -445,7 +445,7 @@ app.post('/api/codes/validate', async (req, res) => {
       return res.status(400).json({
         success: false,
         error: 'SESSION_ALREADY_FINALIZED',
-        message: 'This session has already been finalized'
+        message: 'Your codes have already been processed'
       });
     }
 
@@ -530,7 +530,7 @@ app.post('/api/codes/preview', async (req, res) => {
       return res.status(404).json({ success: false, error: 'INVALID_SESSION', message: 'Session not found' });
     }
     if (session.isComplete) {
-      return res.status(400).json({ success: false, error: 'SESSION_ALREADY_FINALIZED', message: 'This session has already been finalized' });
+      return res.status(400).json({ success: false, error: 'SESSION_ALREADY_FINALIZED', message: 'Your codes have already been processed' });
     }
     if (session.totalCodesEntered === 0) {
       return res.status(400).json({ success: false, error: 'NO_CODES_ENTERED', message: 'Please enter at least one code' });
@@ -649,7 +649,7 @@ app.post('/api/codes/finalize', async (req, res) => {
       return res.status(400).json({
         success: false,
         error: 'SESSION_ALREADY_FINALIZED',
-        message: 'This session has already been finalized'
+        message: 'Your codes have already been processed'
       });
     }
 

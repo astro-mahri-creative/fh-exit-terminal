@@ -49,8 +49,8 @@ function WelcomeScreen({ onSessionStart, onViewNetwork }) {
         </div>
 
         <p className="instructions">
-          Enter your User ID to access<br/>
-          terminal code processing
+          Enter your 6-character User ID<br/>
+          to access the terminal
         </p>
 
         <form onSubmit={handleSubmit} className="user-id-form">
