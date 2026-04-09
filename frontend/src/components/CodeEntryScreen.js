@@ -9,9 +9,8 @@ function CodeEntryScreen({ sessionData, onPreview, onLogout }) {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [showActivation, setShowActivation] = useState(false);
-  const [activationCount, setActivationCount] = useState(0);
-  const [totalCodes, setTotalCodes] = useState(null);
   const [adminPanelOpen, setAdminPanelOpen] = useState(false);
+  const [showTransmitConfirm, setShowTransmitConfirm] = useState(false);
 
   const isAdmin = sessionData.is_admin;
 
@@ -73,10 +72,6 @@ function CodeEntryScreen({ sessionData, onPreview, onLogout }) {
       const response = await codeService.validate(sessionData.session_token, currentCode);
       
       if (response.success && response.valid) {
-        // Capture count from server response before showing overlay
-        setActivationCount(response.total_codes_entered ?? activatedCodes.length + 1);
-        if (response.total_codes) setTotalCodes(response.total_codes);
-
         // Show activation animation
         setShowActivation(true);
         setTimeout(() => setShowActivation(false), 1800);
@@ -220,11 +215,11 @@ function CodeEntryScreen({ sessionData, onPreview, onLogout }) {
           {loading ? 'PROCESSING...' : 'ACTIVATE CODE'}
         </button>
         <button
-          onClick={handleFinalize}
+          onClick={() => setShowTransmitConfirm(true)}
           className="proceed-button"
           disabled={loading || activatedCodes.length === 0}
         >
-          {loading ? 'PROCESSING...' : 'PROCEED TO CHOICES'}
+          {loading ? 'PROCESSING...' : 'TRANSMIT CODES'}
         </button>
       </div>
 
@@ -233,12 +228,34 @@ function CodeEntryScreen({ sessionData, onPreview, onLogout }) {
           <div className="activation-message">
             IFLU SIGNATURE PROCESSING COMPLETED
           </div>
-          {totalCodes !== null && (
-            <div className="activation-count">
-              {activationCount} OF {totalCodes}
-              <span className="activation-count-label"> CODES ACTIVATED</span>
+        </div>
+      )}
+
+      {showTransmitConfirm && (
+        <div className="transmit-confirm-overlay">
+          <div className="transmit-confirm-dialog">
+            <div className="transmit-confirm-title">CONFIRM TRANSMISSION</div>
+            <p className="transmit-confirm-text">
+              Have you activated all of your codes?
+            </p>
+            <div className="transmit-confirm-count">
+              {activatedCodes.length} code{activatedCodes.length !== 1 ? 's' : ''} activated
             </div>
-          )}
+            <div className="transmit-confirm-actions">
+              <button
+                className="transmit-confirm-back"
+                onClick={() => setShowTransmitConfirm(false)}
+              >
+                KEEP ENTERING CODES
+              </button>
+              <button
+                className="transmit-confirm-go"
+                onClick={() => { setShowTransmitConfirm(false); handleFinalize(); }}
+              >
+                TRANSMIT NOW
+              </button>
+            </div>
+          </div>
         </div>
       )}
     </div>

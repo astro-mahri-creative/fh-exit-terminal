@@ -86,7 +86,7 @@ function WelcomeScreen({ onSessionStart, onViewNetwork }) {
 
         {onViewNetwork && (
           <button className="view-network-btn" onClick={onViewNetwork}>
-            VIEW DIMENSIONAL NETWORK
+            ◈ EXPLORE THE DIMENSIONAL NETWORK
           </button>
         )}
       </div>

@@ -111,22 +111,32 @@
 
 /* ── View Network button ── */
 .view-network-btn {
-  margin-top: 20px;
-  background: transparent;
-  border: 1px solid var(--border-faint);
-  color: var(--text-dim);
+  margin-top: 24px;
+  background: rgba(68, 119, 238, 0.08);
+  border: 1px solid var(--phax-blue);
+  color: var(--phax-light);
   font-family: var(--font-mono);
-  font-size: 0.62rem;
-  letter-spacing: 0.2em;
-  padding: 8px 20px;
+  font-size: 0.82rem;
+  padding: 14px 28px;
+  letter-spacing: 0.16em;
   cursor: pointer;
-  border-radius: var(--radius-sm);
-  transition: border-color 0.2s, color 0.2s;
+  border-radius: var(--radius-md);
+  transition: background 0.2s, border-color 0.2s, color 0.2s, box-shadow 0.2s;
+  box-shadow: 0 0 12px rgba(68, 119, 238, 0.15);
+  animation: networkPulse 3s ease-in-out infinite;
+}
+
+@keyframes networkPulse {
+  0%, 100% { box-shadow: 0 0 12px rgba(68, 119, 238, 0.15); }
+  50% { box-shadow: 0 0 22px rgba(68, 119, 238, 0.3); }
 }
 
 .view-network-btn:hover {
+  background: rgba(68, 119, 238, 0.14);
   border-color: var(--phax-light);
-  color: var(--phax-light);
+  color: #fff;
+  box-shadow: 0 0 20px rgba(68, 119, 238, 0.3);
+  animation: none;
 }
 
 /* ── Responsive ── */
