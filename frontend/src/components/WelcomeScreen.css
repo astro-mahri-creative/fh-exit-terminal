@@ -3,13 +3,62 @@
   min-width: 480px;
   max-width: 700px;
   text-align: center;
+  position: relative;
+}
+
+/* Scanline overlay for welcome screen */
+.welcome-screen::before {
+  content: '';
+  position: fixed;
+  inset: 0;
+  background: repeating-linear-gradient(
+    0deg,
+    transparent,
+    transparent 2px,
+    rgba(68, 119, 238, 0.012) 2px,
+    rgba(68, 119, 238, 0.012) 4px
+  );
+  pointer-events: none;
+  z-index: 999;
 }
 
 .welcome-container {
   background: var(--bg-surface);
-  border: 1px solid var(--border-dim);
+  border: 1px dashed rgba(68, 119, 238, 0.15);
   border-radius: var(--radius-lg);
   padding: 56px 40px 48px;
+  position: relative;
+  animation: terminalBorderFlicker 14s ease-in-out infinite;
+}
+
+/* Corner brackets */
+.welcome-container::before,
+.welcome-container::after {
+  content: '';
+  position: absolute;
+  width: 14px;
+  height: 14px;
+  border-color: rgba(68, 119, 238, 0.25);
+  border-style: solid;
+  transition: border-color 0.3s;
+  pointer-events: none;
+}
+
+.welcome-container::before {
+  top: 8px;
+  left: 8px;
+  border-width: 1px 0 0 1px;
+}
+
+.welcome-container::after {
+  bottom: 8px;
+  right: 8px;
+  border-width: 0 1px 1px 0;
+}
+
+.welcome-container:hover::before,
+.welcome-container:hover::after {
+  border-color: rgba(68, 119, 238, 0.5);
 }
 
 /* ── Logo / Title ── */
@@ -24,6 +73,7 @@
   letter-spacing: 0.28em;
   color: var(--text-primary);
   margin-bottom: 8px;
+  animation: terminalGlitch 10s ease-in-out infinite;
 }
 
 .terminal-title {
@@ -33,6 +83,7 @@
   letter-spacing: 0.25em;
   text-transform: uppercase;
   font-weight: 400;
+  text-shadow: 0 0 4px rgba(68, 119, 238, 0.2);
 }
 
 /* ── Instructions ── */
@@ -60,8 +111,8 @@
   white-space: nowrap;
   width: fit-content;
   max-width: 92vw;
-  font-size: clamp(0.5rem, 2.8vw, 1.05rem);
-  letter-spacing: clamp(0.06em, 0.5vw, 0.18em);
+  font-size: clamp(0.5rem, 2.5vw, 1.05rem);
+  letter-spacing: clamp(0.04em, 0.35vw, 0.18em);
   box-sizing: border-box;
 }
 
@@ -121,23 +172,35 @@
   text-align: center;
   color: var(--phax-light);
   text-transform: lowercase;
+  transition: border-color 0.2s, box-shadow 0.2s;
+}
+
+.user-id-char:hover {
+  border-color: rgba(68, 119, 238, 0.4);
+  box-shadow: 0 0 8px rgba(68, 119, 238, 0.1);
 }
 
 .begin-button {
   background: var(--phax-blue);
   color: #ffffff;
-  font-size: 0.9rem;
-  padding: 14px 52px;
+  font-size: 1.3rem;
+  padding: 20px 72px;
   border-radius: var(--radius-md);
-  letter-spacing: 0.2em;
+  letter-spacing: 0.22em;
   margin-top: 20px;
+  box-shadow: 0 0 16px rgba(68, 119, 238, 0.25);
+  transition: box-shadow 0.2s, background 0.2s;
+}
+
+.begin-button:hover:not(:disabled) {
+  box-shadow: 0 0 20px rgba(68, 119, 238, 0.4);
 }
 
 /* ── Branding footer ── */
 .phax-branding {
   margin-top: 52px;
   padding-top: 28px;
-  border-top: 1px solid var(--border-faint);
+  border-top: 1px dashed rgba(68, 119, 238, 0.12);
 }
 
 .phax-logo {
@@ -147,6 +210,7 @@
   color: var(--phax-silver);
   letter-spacing: 0.4em;
   margin-bottom: 6px;
+  text-shadow: 0 0 4px rgba(68, 119, 238, 0.15);
 }
 
 .phax-tagline {
@@ -202,6 +266,10 @@
 }
 
 @media (max-width: 768px) {
+  .welcome-screen {
+    min-width: unset;
+  }
+
   .welcome-container {
     padding: 40px 24px;
   }
@@ -212,7 +280,7 @@
   }
 
   .begin-button {
-    font-size: 0.85rem;
-    padding: 12px 36px;
+    font-size: 1.1rem;
+    padding: 18px 56px;
   }
 }

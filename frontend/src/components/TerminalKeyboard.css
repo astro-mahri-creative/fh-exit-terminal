@@ -2,6 +2,7 @@
 .keyboard {
   margin: 28px auto;
   width: 90%;
+  max-width: 600px;
 }
 
 .keyboard-row {
@@ -89,8 +90,45 @@
 }
 
 @media (max-width: 768px) {
+  .keyboard {
+    width: 100%;
+    padding: 0 12px;
+    box-sizing: border-box;
+  }
+
+  .keyboard-row {
+    gap: 5px;
+    margin-bottom: 5px;
+  }
+
   .keyboard-key {
-    height: 44px;
+    height: 46px;
     font-size: 1.15rem;
+    border-radius: var(--radius-sm);
+  }
+}
+
+@media (max-width: 400px) {
+  .keyboard {
+    padding: 0 8px;
+  }
+
+  .keyboard-row {
+    gap: 4px;
+    margin-bottom: 4px;
+  }
+
+  .keyboard-key {
+    height: 42px;
+    font-size: 1rem;
+  }
+
+  .clear-key,
+  .backspace-key {
+    font-size: 0.85rem;
+  }
+
+  .special-key {
+    font-size: 1.3rem;
   }
 }

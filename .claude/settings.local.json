@@ -5,7 +5,21 @@
       "Bash(npm install:*)",
       "Bash(npx kill-port:*)",
       "Bash(taskkill //f //fi \"WINDOWTITLE eq react-scripts\")",
-      "Bash(node backend/scripts/initDatabase.js)"
+      "Bash(node backend/scripts/initDatabase.js)",
+      "WebFetch(domain:fh-exit-terminal.netlify.app)",
+      "WebFetch(domain:exit-terminal-api.onrender.com)",
+      "WebFetch(domain:fh-exit-terminal-api.onrender.com)",
+      "Bash(curl -s -o /dev/null -w \"%{http_code}\" https://fh-exit-terminal-api.onrender.com/api/health)",
+      "Bash(curl -s --max-time 60 https://fh-exit-terminal-api.onrender.com/api/health)",
+      "Bash(curl -s -X POST https://fh-exit-terminal-api.onrender.com/api/session/start -H \"Content-Type: application/json\" -d '{\"\"user_id\"\":\"\"admin2\"\"}')",
+      "Bash(curl -s https://fh-exit-terminal-api.onrender.com/api/universes)",
+      "Bash(curl -s https://fh-exit-terminal-api.onrender.com/api/health)",
+      "Bash(curl -s -X POST https://fh-exit-terminal-api.onrender.com/api/session/start -H \"Content-Type: application/json\" -d '{\"\"user_id\"\":\"\"admin1\"\"}')",
+      "Bash(curl -s -X POST https://fh-exit-terminal-api.onrender.com/api/codes/validate -H \"Content-Type: application/json\" -d '{\"\"session_token\"\":\"\"test\"\",\"\"code\"\":\"\"TECH\"\"}')",
+      "Bash(curl -s -X POST https://fh-exit-terminal-api.onrender.com/api/session/start -H \"Content-Type: application/json\" -d '{\"\"user_id\"\":\"\"admin2\"\"}' -w \"\\\\n\\\\nHTTP Status: %{http_code}\\\\nTime: %{time_total}s\")",
+      "Bash(node -e \"const mongoose = require\\(''./backend/node_modules/mongoose''\\); console.log\\(''Mongoose version:'', mongoose.version\\);\")",
+      "Bash(node -e \":*)",
+      "WebFetch(domain:app.sendgrid.com)"
     ]
   }
 }

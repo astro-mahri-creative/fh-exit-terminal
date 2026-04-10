@@ -2,6 +2,23 @@
   width: 100%;
   max-width: 1400px;
   margin: 0 auto;
+  position: relative;
+}
+
+/* Scanline overlay */
+.code-entry-screen::before {
+  content: '';
+  position: fixed;
+  inset: 0;
+  background: repeating-linear-gradient(
+    0deg,
+    transparent,
+    transparent 2px,
+    rgba(68, 119, 238, 0.012) 2px,
+    rgba(68, 119, 238, 0.012) 4px
+  );
+  pointer-events: none;
+  z-index: 999;
 }
 
 /* ── Header ── */
@@ -11,7 +28,7 @@
   align-items: center;
   padding: 16px 24px;
   background: var(--bg-surface);
-  border-bottom: 1px solid var(--border-dim);
+  border-bottom: 1px dashed rgba(68, 119, 238, 0.15);
   margin-bottom: 24px;
 }
 
@@ -22,6 +39,7 @@
   color: var(--text-primary);
   letter-spacing: 0.3em;
   text-transform: uppercase;
+  animation: terminalGlitch 12s ease-in-out infinite;
 }
 
 .header-right {
@@ -35,11 +53,12 @@
   font-size: 0.8rem;
   color: var(--phax-light);
   letter-spacing: 0.12em;
+  text-shadow: 0 0 4px rgba(68, 119, 238, 0.15);
 }
 
 .logout-button {
   background: transparent;
-  border: 1px solid var(--border-mid);
+  border: 1px dashed rgba(68, 119, 238, 0.2);
   color: var(--text-secondary);
   padding: 7px 14px;
   border-radius: var(--radius-md);
@@ -59,7 +78,7 @@
   margin: 0 24px 20px;
   padding: 14px;
   background: rgba(212, 137, 10, 0.06);
-  border: 1px solid var(--color-warning);
+  border: 1px dashed var(--color-warning);
   border-radius: var(--radius-md);
 }
 
@@ -113,9 +132,36 @@
 /* ── Code Input Panel ── */
 .code-input-section {
   background: var(--bg-surface);
-  border: 1px solid var(--border-dim);
+  border: 1px dashed rgba(68, 119, 238, 0.15);
   border-radius: var(--radius-lg);
   padding: 32px;
+  position: relative;
+  animation: terminalBorderFlicker 14s ease-in-out infinite;
+}
+
+/* Corner brackets on code input */
+.code-input-section::before,
+.code-input-section::after {
+  content: '';
+  position: absolute;
+  width: 12px;
+  height: 12px;
+  border-color: rgba(68, 119, 238, 0.25);
+  border-style: solid;
+  transition: border-color 0.3s;
+  pointer-events: none;
+}
+
+.code-input-section::before {
+  top: 6px;
+  left: 6px;
+  border-width: 1px 0 0 1px;
+}
+
+.code-input-section::after {
+  bottom: 6px;
+  right: 6px;
+  border-width: 0 1px 1px 0;
 }
 
 .code-display {
@@ -142,6 +188,12 @@
   text-align: center;
   color: var(--phax-light);
   letter-spacing: 0;
+  transition: border-color 0.2s, box-shadow 0.2s;
+}
+
+.code-char:hover {
+  border-color: rgba(68, 119, 238, 0.4);
+  box-shadow: 0 0 8px rgba(68, 119, 238, 0.1);
 }
 
 /* ── Action Row (side-by-side Activate / Proceed) ── */
@@ -159,6 +211,12 @@
   padding: 16px;
   border-radius: var(--radius-md);
   letter-spacing: 0.18em;
+  box-shadow: 0 0 10px rgba(74, 158, 92, 0.15);
+  transition: box-shadow 0.2s;
+}
+
+.activate-button:hover:not(:disabled) {
+  box-shadow: 0 0 18px rgba(74, 158, 92, 0.35);
 }
 
 .proceed-button {
@@ -170,6 +228,12 @@
   padding: 16px;
   border-radius: var(--radius-md);
   letter-spacing: 0.18em;
+  box-shadow: 0 0 10px rgba(212, 137, 10, 0.15);
+  transition: box-shadow 0.2s;
+}
+
+.proceed-button:hover:not(:disabled) {
+  box-shadow: 0 0 18px rgba(212, 137, 10, 0.35);
 }
 
 .activate-button:disabled,
@@ -181,10 +245,35 @@
 /* ── Activated Codes Panel ── */
 .activated-codes-section {
   background: var(--bg-surface);
-  border: 1px solid var(--border-dim);
+  border: 1px dashed rgba(68, 119, 238, 0.12);
   border-radius: var(--radius-lg);
   padding: 20px;
   height: fit-content;
+  position: relative;
+}
+
+/* Corner brackets on codes panel */
+.activated-codes-section::before,
+.activated-codes-section::after {
+  content: '';
+  position: absolute;
+  width: 10px;
+  height: 10px;
+  border-color: rgba(68, 119, 238, 0.2);
+  border-style: solid;
+  pointer-events: none;
+}
+
+.activated-codes-section::before {
+  top: 6px;
+  left: 6px;
+  border-width: 1px 0 0 1px;
+}
+
+.activated-codes-section::after {
+  bottom: 6px;
+  right: 6px;
+  border-width: 0 1px 1px 0;
 }
 
 .activated-codes-section h3 {
@@ -196,6 +285,7 @@
   text-align: center;
   letter-spacing: 0.25em;
   text-transform: uppercase;
+  text-shadow: 0 0 4px rgba(68, 119, 238, 0.15);
 }
 
 .codes-list {
@@ -218,8 +308,15 @@
   padding: 10px 12px;
   background: var(--bg-raised);
   border: 1px solid var(--border-faint);
+  border-left: 2px solid rgba(68, 119, 238, 0.2);
   border-radius: var(--radius-md);
   margin-bottom: 6px;
+  transition: border-left-color 0.2s, background 0.2s;
+}
+
+.activated-code-item:hover {
+  border-left-color: rgba(68, 119, 238, 0.5);
+  background: rgba(68, 119, 238, 0.03);
 }
 
 .code-value {
@@ -286,13 +383,14 @@
   line-height: 1.4;
   padding: 0 32px;
   max-width: 90vw;
+  text-shadow: 0 0 12px rgba(143, 204, 136, 0.3);
 }
 
 /* ── Transmit Confirmation Overlay ── */
 .transmit-confirm-overlay {
   position: fixed;
   inset: 0;
-  background: var(--bg-overlay);
+  background: rgba(0, 0, 0, 0.9);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -302,12 +400,30 @@
 
 .transmit-confirm-dialog {
   background: var(--bg-surface);
-  border: 1px solid var(--border-mid);
+  border: 1px dashed rgba(68, 119, 238, 0.2);
   border-radius: var(--radius-lg);
   padding: 32px 36px;
   max-width: 440px;
   width: 90%;
   text-align: center;
+  box-shadow: 0 0 30px rgba(68, 119, 238, 0.05);
+  position: relative;
+}
+
+/* Scanlines inside dialog */
+.transmit-confirm-dialog::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: var(--radius-lg);
+  background: repeating-linear-gradient(
+    0deg,
+    transparent,
+    transparent 3px,
+    rgba(68, 119, 238, 0.008) 3px,
+    rgba(68, 119, 238, 0.008) 6px
+  );
+  pointer-events: none;
 }
 
 .transmit-confirm-title {
@@ -317,6 +433,7 @@
   color: var(--color-warning);
   letter-spacing: 0.18em;
   margin-bottom: 16px;
+  text-shadow: 0 0 4px rgba(212, 137, 10, 0.2);
 }
 
 .transmit-confirm-text {
@@ -354,7 +471,7 @@
 
 .transmit-confirm-back {
   background: transparent;
-  border: 1px solid var(--border-mid);
+  border: 1px dashed rgba(68, 119, 238, 0.2);
   color: var(--text-secondary);
 }
 
@@ -367,6 +484,7 @@
   background: var(--color-warning);
   border: none;
   color: var(--bg-base);
+  box-shadow: 0 0 10px rgba(212, 137, 10, 0.2);
 }
 
 /* ── Responsive ── */

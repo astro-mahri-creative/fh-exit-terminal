@@ -150,6 +150,96 @@ input::placeholder {
   text-align: center;
 }
 
+/* ===================== SHARED HACKER AESTHETIC ===================== */
+
+/* Scanline overlay — applied per-screen via .terminal-scanlines */
+.terminal-scanlines::before {
+  content: '';
+  position: fixed;
+  inset: 0;
+  background: repeating-linear-gradient(
+    0deg,
+    transparent,
+    transparent 2px,
+    rgba(68, 119, 238, 0.012) 2px,
+    rgba(68, 119, 238, 0.012) 4px
+  );
+  pointer-events: none;
+  z-index: 999;
+}
+
+/* Corner bracket decorations — add to any panel */
+.terminal-panel {
+  position: relative;
+}
+
+.terminal-panel::before,
+.terminal-panel::after {
+  content: '';
+  position: absolute;
+  width: 12px;
+  height: 12px;
+  border-color: rgba(68, 119, 238, 0.25);
+  border-style: solid;
+  transition: border-color 0.3s;
+  pointer-events: none;
+}
+
+.terminal-panel::before {
+  top: 6px;
+  left: 6px;
+  border-width: 1px 0 0 1px;
+}
+
+.terminal-panel::after {
+  bottom: 6px;
+  right: 6px;
+  border-width: 0 1px 1px 0;
+}
+
+.terminal-panel:hover::before,
+.terminal-panel:hover::after {
+  border-color: rgba(68, 119, 238, 0.5);
+}
+
+/* Subtle header glitch — shared across non-choice screens */
+@keyframes terminalGlitch {
+  0%, 100% {
+    text-shadow: 0 0 4px rgba(68, 119, 238, 0.3);
+    transform: none;
+  }
+  2% {
+    text-shadow: -1px 0 rgba(68, 119, 238, 0.4), 1px 0 rgba(170, 196, 255, 0.3);
+    transform: translateX(0.5px);
+  }
+  4% {
+    text-shadow: 0 0 4px rgba(68, 119, 238, 0.3);
+    transform: none;
+  }
+  50% {
+    text-shadow: 0 0 6px rgba(68, 119, 238, 0.35);
+  }
+  52% {
+    text-shadow: 1px 0 rgba(68, 119, 238, 0.5), -1px 0 rgba(170, 196, 255, 0.2);
+    transform: translateX(-0.5px);
+  }
+  54% {
+    text-shadow: 0 0 4px rgba(68, 119, 238, 0.3);
+    transform: none;
+  }
+}
+
+/* Subtle border flicker for panels */
+@keyframes terminalBorderFlicker {
+  0%, 100% { border-style: dashed; opacity: 1; }
+  25%      { border-style: dashed; opacity: 1; }
+  25.5%    { opacity: 0.95; }
+  26%      { opacity: 1; }
+  70%      { border-style: dashed; opacity: 1; }
+  70.3%    { opacity: 0.97; }
+  71%      { opacity: 1; }
+}
+
 /* ===================== ANIMATIONS ===================== */
 @keyframes pulse {
   0%, 100% { opacity: 1; }

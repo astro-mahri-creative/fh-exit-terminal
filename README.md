@@ -2,25 +2,28 @@
 
 A full-stack interactive web application for the Future Hooman art exhibit. Visitors enter codes discovered throughout the exhibit to see their impact on iFLU case numbers across interconnected universes.
 
-## 🎮 Features
+## Features
 
 - **User Authentication**: 6-character user IDs with once-per-day usage enforcement
-- **Code Entry System**: On-screen keyboard with real-time validation
+- **Choice Screen**: Visitors choose between iFLU CONTAINMENT PROTOCOL or iFLU PROLIFERATION PROTOCOL before entering codes
+- **Code Entry System**: On-screen terminal keyboard with real-time validation and activation flash feedback
 - **Universe Tracking**: Persistent iFLU case numbers across 10 universes
+- **XDIM Topology View**: Animated 3D network visualization of universe interconnections shown on the results screen
 - **Dynamic Status Visualization**: Universe statuses change based on case thresholds
 - **PHAX Alert Messages**: Context-aware narrative feedback
 - **Alignment System**: PHAX vs FHEELS impact scoring
-- **Email Reports**: Send personalized impact summaries
+- **Impact Reports**: Personalized session summaries delivered via email (SendGrid)
 - **Admin Controls**: User ID generation and system reset
 - **Cure Mechanics**: Discoverable cure system that modifies code effects
+- **Idle Auto-Reset**: Two-stage idle detection resets the terminal for the next visitor
 
-## 🏗️ Tech Stack
+## Tech Stack
 
 ### Frontend
 - React 18
 - Axios for API calls
-- CSS3 with responsive design
-- Optimized for 8" tablets
+- CSS3 with hacker/terminal aesthetic
+- Optimized for 8" tablets (1280x800 / 1920x1200)
 
 ### Backend
 - Node.js + Express
@@ -30,20 +33,20 @@ A full-stack interactive web application for the Future Hooman art exhibit. Visi
 
 ### Deployment
 - Frontend: Netlify
-- Backend: Render/Railway (recommended)
+- Backend: Render
 - Database: MongoDB Atlas (free tier)
 
-## 📦 Quick Start
+## Setup
 
 ### Prerequisites
-- Node.js 16+ installed
+- Node.js 16+
 - MongoDB Atlas account (free tier)
 - Git
 
 ### 1. Clone the Repository
 
 ```bash
-git clone https://github.com/YOUR_USERNAME/fh-exit-terminal.git
+git clone https://github.com/astro-mahri-creative/fh-exit-terminal.git
 cd fh-exit-terminal
 ```
 
@@ -53,319 +56,173 @@ cd fh-exit-terminal
 2. Create a free cluster
 3. Create a database user
 4. Get your connection string
-5. Whitelist your IP (or use 0.0.0.0/0 for development)
+5. Whitelist your IP (or use `0.0.0.0/0` for development)
 
 ### 3. Backend Setup
 
 ```bash
 cd backend
-
-# Install dependencies
 npm install
-
-# Create .env file
 cp .env.example .env
-
 # Edit .env and add your MongoDB URI
-# MONGODB_URI=mongodb+srv://username:password@cluster.mongodb.net/exit-terminal
-
-# Initialize database with sample data
-npm run init-db
-
-# Start development server
+npm run init-db   # Initialize database with universes, codes, and user IDs
 npm run dev
 ```
 
-Backend will run on `http://localhost:5000`
+Backend runs on `http://localhost:5000`
 
 ### 4. Frontend Setup
 
 ```bash
-cd ../frontend
-
-# Install dependencies
+cd frontend
 npm install
-
-# Create .env file
 cp .env.example .env
-
-# Edit .env to point to your backend
-# REACT_APP_API_URL=http://localhost:5000/api
-
-# Start development server
+# Edit .env: REACT_APP_API_URL=http://localhost:5000/api
 npm start
 ```
 
-Frontend will run on `http://localhost:3000`
+Frontend runs on `http://localhost:3000`
 
-## 🚀 Deployment
+## Deployment
 
-### Backend Deployment (Render)
+### Backend (Render)
 
-1. Go to [Render.com](https://render.com)
-2. Sign up with GitHub
-3. Click "New +" → "Web Service"
-4. Connect your GitHub repository
-5. Configure:
-   - **Name**: exit-terminal-api
+1. Create a new Web Service on [Render](https://render.com), connected to this repo
+2. Configure:
    - **Root Directory**: `backend`
    - **Build Command**: `npm install`
    - **Start Command**: `npm start`
-   - **Environment**: Node
-6. Add Environment Variable:
-   - `MONGODB_URI`: Your MongoDB Atlas connection string
-7. Click "Create Web Service"
-8. Copy your service URL (e.g., `https://exit-terminal-api.onrender.com`)
+3. Add environment variable: `MONGODB_URI` (your MongoDB Atlas connection string)
 
-### Frontend Deployment (Netlify)
+### Frontend (Netlify)
 
-1. Go to [Netlify.com](https://www.netlify.com)
-2. Sign up with GitHub
-3. Click "Add new site" → "Import an existing project"
-4. Connect your GitHub repository
-5. Configure:
+1. Create a new site on [Netlify](https://www.netlify.com), connected to this repo
+2. Configure:
    - **Base directory**: `frontend`
    - **Build command**: `npm run build`
    - **Publish directory**: `frontend/build`
-6. Add Environment Variable:
-   - `REACT_APP_API_URL`: Your Render backend URL + `/api`
-   - Example: `https://exit-terminal-api.onrender.com/api`
-7. Click "Deploy site"
-8. Your site will be live at a Netlify URL
+3. Add environment variable: `REACT_APP_API_URL` (your Render backend URL + `/api`)
 
-### Custom Domain (Optional)
+SPA routing is handled via `netlify.toml` — no additional redirect configuration needed.
 
-In Netlify settings, you can add a custom domain for the frontend.
+## Remaining Setup
 
-## 🎯 Admin User IDs
+### Email / Impact Reports (SendGrid)
+
+The only component not yet configured for production is the email impact report feature. To enable it:
+
+1. Create a [SendGrid](https://sendgrid.com) account and generate an API key
+2. Verify a sender email address in SendGrid
+3. Add the following environment variables to your Render backend service:
+   - `SENDGRID_API_KEY` — your SendGrid API key
+   - `SENDGRID_FROM_EMAIL` — your verified sender address
+
+Once set, visitors can enter their email on the results screen to receive a personalized impact summary.
+
+## Admin User IDs
 
 After running `npm run init-db`, the following admin user IDs are created:
 
-- `admin1`
-- `admin2`
-- `admin3`
-- `fhadmn`
-- `phaxad`
+- `admin1`, `admin2`, `admin3`, `fhadmn`, `phaxad`
 
-20 random visitor user IDs are also generated. Check the console output after database initialization.
+20 random visitor user IDs are also generated — check the console output after initialization.
 
-## 🎮 Using the Application
+## Using the Application
 
-### For Visitors
+### Visitors
 
 1. Enter your 6-character user ID on the welcome screen
-2. Enter codes discovered in the exhibit using the on-screen keyboard
-3. Click "ACTIVATE CODE" after each code
-4. When finished, click "FINALIZE TERMINAL CODE ENTRY"
-5. View your impact on the universe map
-6. Optionally enter email to receive impact report
-7. System auto-resets after 30 seconds
+2. Choose a protocol: **iFLU CONTAINMENT** or **iFLU PROLIFERATION**
+3. Enter codes from the exhibit using the on-screen keyboard
+4. Click **TRANSMIT** after each code
+5. When finished, click **FINALIZE TERMINAL CODE ENTRY**
+6. View your impact on the XDIM Topology View
+7. Optionally enter your email to receive an impact report
+8. Terminal auto-resets after idle timeout
 
-### For Admins
+### Admins
 
 1. Log in with an admin user ID
 2. Admin controls appear on the code entry screen
-3. **Generate User ID**: Creates new visitor user IDs
-4. **Reset Universe Statistics**: Resets all data for new phase
+3. **Generate User ID** — creates new visitor IDs
+4. **Reset Universe Statistics** — resets all data for a new phase
 
-## 📊 Database Management
+## Database Management
 
-### Reinitialize Database
-
-To reset all data and repopulate with fresh sample data:
+To reset all data and repopulate:
 
 ```bash
 cd backend
 npm run init-db
 ```
 
-This will:
-- Clear all existing data
-- Create 10 universes with random case numbers
-- Create 50+ codes across all tiers
-- Generate PHAX alert messages
-- Create admin and visitor user IDs
-- Set up initial phase
+This clears existing data and creates: 10 universes, 50+ codes across all tiers, PHAX alert messages, admin and visitor user IDs, and an initial phase.
 
-### Backup Database
-
-Use MongoDB Atlas built-in backup features or:
-
-```bash
-mongodump --uri="YOUR_MONGODB_URI"
-```
-
-## 🔧 Configuration
+## Configuration
 
 ### Backend Environment Variables
 
 ```
-MONGODB_URI=mongodb+srv://...          # Required
+MONGODB_URI=mongodb+srv://...           # Required
 PORT=5000                               # Optional (default: 5000)
+SENDGRID_API_KEY=SG....                 # Required for email impact reports
+SENDGRID_FROM_EMAIL=you@yourdomain.com  # Required for email impact reports
 ```
 
 ### Frontend Environment Variables
 
 ```
-REACT_APP_API_URL=http://localhost:5000/api  # Required
+REACT_APP_API_URL=http://localhost:5000/api
 ```
 
-## 🎨 Customization
+## Troubleshooting
 
-### Update Universe Names
+**Backend won't start** — Check MongoDB URI and ensure your IP is whitelisted in Atlas.
 
-Edit `backend/scripts/initDatabase.js`:
+**Frontend can't connect** — Verify `REACT_APP_API_URL` and check for CORS errors in the browser console.
 
-```javascript
-const universeData = [
-  { name: 'Your Universe Name', initCases: 45230 },
-  // ... add more
-];
-```
+**Database init fails** — Verify MongoDB connection and that the database is empty or ready to clear.
 
-Then run `npm run init-db`
+**Codes not validating** — Ensure codes exist in the database (`npm run init-db`) and `isActive` is `true`.
 
-### Update PHAX Messages
+**Render cold starts** — The backend includes retry logic for MongoDB connections on Render's free tier. First request after inactivity may be slow.
 
-Add/edit messages in `backend/scripts/initDatabase.js`:
+## Security
 
-```javascript
-const messagesData = [
-  { text: 'Your custom message', trigger: 'condition_name' },
-  // ... add more
-];
-```
-
-### Add Codes
-
-Add codes in `backend/scripts/initDatabase.js`:
-
-```javascript
-const codesData = [
-  { code: 'ABCD', tier: 1, name: 'Code Name', alignment: 'PHAX' },
-  // ... add more
-];
-```
-
-Then define effects in `codeEffectsData` section.
-
-## 🐛 Troubleshooting
-
-### Backend won't start
-- Check MongoDB URI is correct
-- Ensure IP is whitelisted in MongoDB Atlas
-- Verify Node.js version (16+)
-
-### Frontend can't connect to backend
-- Check `REACT_APP_API_URL` in `.env`
-- Verify backend is running
-- Check for CORS errors in console
-
-### Database initialization fails
-- Verify MongoDB connection
-- Check for sufficient permissions
-- Ensure database is empty or ready to be cleared
-
-### Codes not validating
-- Check if codes exist in database
-- Run `npm run init-db` to populate sample codes
-- Verify `isActive` is true for codes
-
-## 📱 Tablet Optimization
-
-The app is optimized for 8" tablets (1280x800 or 1920x1200):
-- Large touch targets (44px minimum)
-- On-screen keyboard
-- Responsive layout
-- No hover-dependent interactions
-- Auto-reset functionality
-
-## 🔒 Security Notes
-
-### Production Checklist
-
-- [ ] Change all admin user IDs
-- [ ] Enable MongoDB authentication
+Production checklist:
+- [ ] Rotate all admin user IDs
 - [ ] Whitelist specific IPs in MongoDB Atlas
-- [ ] Set up rate limiting (already configured)
-- [ ] Use HTTPS (automatic with Netlify/Render)
-- [ ] Add email service credentials for SendGrid
-- [ ] Set up monitoring and logging
-- [ ] Regular database backups
+- [ ] Add SendGrid credentials for email reports
+- [ ] Rate limiting is pre-configured
+- [ ] HTTPS is automatic via Netlify and Render
 
-## 📈 Analytics
-
-Session data and analytics are logged automatically:
-- Session starts
-- Code entries
-- Code validation errors
-- Email sends
-- Admin actions
-
-Query analytics via admin endpoint:
-```
-GET /api/admin/analytics?session_token=ADMIN_SESSION_TOKEN
-```
-
-## 🤝 Contributing
-
-1. Fork the repository
-2. Create a feature branch
-3. Make your changes
-4. Test thoroughly
-5. Submit a pull request
-
-## 📄 License
-
-Copyright © 2026 Future Hooman. All rights reserved.
-
-## 🆘 Support
-
-For issues or questions:
-- Create a GitHub issue
-- Contact: [your-email@example.com]
-
----
-
-## 📚 API Documentation
-
-### Core Endpoints
+## API Reference
 
 **POST /api/session/start**
 ```json
-Request: { "user_id": "abc123" }
-Response: { 
-  "success": true, 
-  "session_token": "sess_...", 
-  "is_admin": false 
-}
+{ "user_id": "abc123" }
+→ { "success": true, "session_token": "sess_...", "is_admin": false }
 ```
 
 **POST /api/codes/validate**
 ```json
-Request: { "session_token": "sess_...", "code": "TECH" }
-Response: { 
-  "success": true, 
-  "valid": true, 
-  "code": "TECH",
-  "code_tier": 1
-}
+{ "session_token": "sess_...", "code": "TECH" }
+→ { "success": true, "valid": true, "code": "TECH", "code_tier": 1 }
 ```
 
 **POST /api/codes/finalize**
 ```json
-Request: { "session_token": "sess_..." }
-Response: { 
-  "success": true,
-  "universes": [...],
-  "phax_alert": "...",
-  "alignment_narrative": "...",
-  "alignment_score": -950
-}
+{ "session_token": "sess_..." }
+→ { "success": true, "universes": [...], "phax_alert": "...", "alignment_score": -950 }
+```
+
+**GET /api/health**
+```json
+{ "status": "ok", "message": "Exit Terminal API running", "db_status": "connected" }
 ```
 
 Full API documentation in `exit-terminal-functional-spec.md`
 
 ---
 
-Built with ❤️ for Future Hooman
+Copyright © 2026 Future Hooman. All rights reserved.
