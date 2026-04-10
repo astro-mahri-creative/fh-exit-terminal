@@ -49,8 +49,8 @@ function WelcomeScreen({ onSessionStart, onViewNetwork }) {
         </div>
 
         <p className="instructions">
-          Enter your 6-character User ID<br/>
-          to access the terminal
+          Login with your User ID to access the<br/>
+          <span className="terminal-name">EXPERIMENTAL iFLU TRACKING TERMINAL</span>
         </p>
 
         <form onSubmit={handleSubmit} className="user-id-form">
@@ -75,7 +75,7 @@ function WelcomeScreen({ onSessionStart, onViewNetwork }) {
             className="begin-button"
             disabled={loading || userId.length !== 6}
           >
-            {loading ? 'CONNECTING...' : 'BEGIN'}
+            {loading ? 'CONNECTING...' : 'LOGIN'}
           </button>
         </form>
 

@@ -1,5 +1,6 @@
 .welcome-screen {
   width: 100%;
+  min-width: 480px;
   max-width: 560px;
   text-align: center;
 }
@@ -38,9 +39,43 @@
 .instructions {
   font-family: var(--font-sans);
   font-size: 0.95rem;
+  font-weight: 600;
   color: var(--text-secondary);
   margin-bottom: 40px;
-  line-height: 1.7;
+  line-height: 1.9;
+}
+
+.terminal-name {
+  display: inline-block;
+  font-family: var(--font-mono, 'Courier New', monospace);
+  font-size: 1.05rem;
+  font-weight: 700;
+  color: #f5a623;
+  letter-spacing: 0.18em;
+  margin-top: 4px;
+  border: 1px solid rgba(245, 166, 35, 0.3);
+  padding: 4px 12px;
+  background: rgba(245, 166, 35, 0.05);
+  animation: amberPulse 2.5s ease-in-out infinite;
+  white-space: nowrap;
+  width: fit-content;
+  max-width: 92vw;
+  font-size: clamp(0.5rem, 2.8vw, 1.05rem);
+  letter-spacing: clamp(0.06em, 0.5vw, 0.18em);
+  box-sizing: border-box;
+}
+
+@keyframes amberPulse {
+  0%, 100% {
+    text-shadow: 0 0 4px rgba(245, 166, 35, 0.4), 0 0 8px rgba(245, 166, 35, 0.2);
+    border-color: rgba(245, 166, 35, 0.2);
+    box-shadow: 0 0 4px rgba(245, 166, 35, 0.1);
+  }
+  50% {
+    text-shadow: 0 0 8px rgba(245, 166, 35, 0.8), 0 0 20px rgba(245, 166, 35, 0.4), 0 0 30px rgba(245, 166, 35, 0.2);
+    border-color: rgba(245, 166, 35, 0.5);
+    box-shadow: 0 0 12px rgba(245, 166, 35, 0.2);
+  }
 }
 
 /* ── User ID Form ── */
