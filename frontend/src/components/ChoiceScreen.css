@@ -43,9 +43,21 @@
 
 .choice-subtitle {
   font-family: var(--font-mono);
-  font-size: 0.78rem;
-  color: rgba(0, 255, 65, 0.45);
-  letter-spacing: 0.12em;
+  font-size: clamp(0.55rem, 1.2vw, 0.78rem);
+  color: var(--color-warning);
+  letter-spacing: 0.1em;
+  white-space: nowrap;
+  animation: warningFlicker 3s ease-in-out infinite;
+}
+
+@keyframes warningFlicker {
+  0%, 100% { opacity: 1; }
+  48%       { opacity: 1; }
+  50%       { opacity: 0.4; }
+  52%       { opacity: 1; }
+  78%       { opacity: 1; }
+  80%       { opacity: 0.6; }
+  82%       { opacity: 1; }
 }
 
 /* ── Options Grid ── */

@@ -48,9 +48,9 @@ function ChoiceScreen({ choiceData, sessionData, onChoiceConfirmed }) {
   return (
     <div className="choice-screen">
       <div className="choice-header">
-        <h2>SELECT YOUR IMPACT DIRECTION</h2>
+        <h2>AWAITING OPERATOR DIRECTIVE</h2>
         <p className="choice-subtitle">
-          Choose how your iFLU codes affect each dimension
+          PROTOCOL SELECTION WARNING · SINGULAR VECTOR REQUIREMENT NOT MET
         </p>
       </div>
 
@@ -146,7 +146,7 @@ function ChoiceScreen({ choiceData, sessionData, onChoiceConfirmed }) {
               {selectedOption.label}
             </p>
             <p className="confirm-description">
-              Net impact: <strong>{selectedChoice === 'a' ? '' : '+'}{selectedOption.net_change.toLocaleString()}</strong> cases across all dimensions
+              Net impact: <strong>{selectedChoice === 'a' ? '' : '+'}{selectedOption.net_change.toLocaleString()}</strong> cases across XDIM network
             </p>
             <div className="confirm-buttons">
               <button
