@@ -61,6 +61,8 @@ function ChoiceScreen({ choiceData, sessionData, onChoiceConfirmed }) {
           className={`option-panel option-a ${selectedChoice === 'a' ? 'selected' : ''} ${optionADisabled ? 'disabled' : ''}`}
           onClick={() => !loading && !optionADisabled && handleSelect('a')}
         >
+          <span className="hack-flash hack-flash-top">SYS_OVERRIDE::ACTIVE</span>
+          <span className="hack-flash hack-flash-bottom">BACKDOOR_v2.7.1</span>
           <div className="option-label">OPTION A</div>
           <h3 className="option-title">{optionA.label}</h3>
           <p className="option-description">{optionA.description}</p>
@@ -70,7 +72,7 @@ function ChoiceScreen({ choiceData, sessionData, onChoiceConfirmed }) {
               <div key={u.id} className="option-universe-row">
                 <span className="universe-name">{u.name}</span>
                 <span className="universe-delta negative">
-                  {u.change.toLocaleString()}
+                  {u.change.toLocaleString()} <span className="unit-label">cases</span>
                 </span>
               </div>
             ))}
@@ -80,9 +82,9 @@ function ChoiceScreen({ choiceData, sessionData, onChoiceConfirmed }) {
           </div>
 
           <div className="net-change negative">
-            <span className="net-label">NET IMPACT</span>
+            <span className="net-label">NET iFLU IMPACT</span>
             <span className="net-value">
-              {optionA.net_change.toLocaleString()}
+              {optionA.net_change.toLocaleString()} <span className="unit-label">cases</span>
             </span>
           </div>
 
@@ -99,6 +101,8 @@ function ChoiceScreen({ choiceData, sessionData, onChoiceConfirmed }) {
           className={`option-panel option-b ${selectedChoice === 'b' ? 'selected' : ''} ${optionBDisabled ? 'disabled' : ''}`}
           onClick={() => !loading && !optionBDisabled && handleSelect('b')}
         >
+          <span className="hack-flash hack-flash-top">XPLOIT_CHANNEL::OPEN</span>
+          <span className="hack-flash hack-flash-bottom">FHEELS_INJECT_0x4F</span>
           <div className="option-label">OPTION B</div>
           <h3 className="option-title">{optionB.label}</h3>
           <p className="option-description">{optionB.description}</p>
@@ -108,7 +112,7 @@ function ChoiceScreen({ choiceData, sessionData, onChoiceConfirmed }) {
               <div key={u.id} className="option-universe-row">
                 <span className="universe-name">{u.name}</span>
                 <span className="universe-delta positive">
-                  +{u.change.toLocaleString()}
+                  +{u.change.toLocaleString()} <span className="unit-label">cases</span>
                 </span>
               </div>
             ))}
@@ -118,9 +122,9 @@ function ChoiceScreen({ choiceData, sessionData, onChoiceConfirmed }) {
           </div>
 
           <div className="net-change positive">
-            <span className="net-label">NET IMPACT</span>
+            <span className="net-label">NET iFLU IMPACT</span>
             <span className="net-value">
-              +{optionB.net_change.toLocaleString()}
+              +{optionB.net_change.toLocaleString()} <span className="unit-label">cases</span>
             </span>
           </div>
 

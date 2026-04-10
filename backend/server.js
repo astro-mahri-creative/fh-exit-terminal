@@ -593,7 +593,7 @@ app.post('/api/codes/preview', async (req, res) => {
     res.json({
       success: true,
       option_a: {
-        label: 'CONTAINMENT PROTOCOL',
+        label: 'iFLU CONTAINMENT PROTOCOL',
         description: 'Apply infection reduction effects',
         universes: Object.values(negativeChanges).map(u => ({
           ...u,
@@ -602,7 +602,7 @@ app.post('/api/codes/preview', async (req, res) => {
         net_change: netNegative
       },
       option_b: {
-        label: 'PROLIFERATION VECTOR',
+        label: 'iFLU PROLIFERATION PROTOCOL',
         description: 'Apply infection increase effects',
         universes: Object.values(positiveChanges).map(u => ({
           ...u,

@@ -103,8 +103,8 @@
 
 /* ── Main Layout ── */
 .main-content {
-  display: grid;
-  grid-template-columns: 2fr 1fr;
+  display: flex;
+  flex-direction: column;
   gap: 20px;
   padding: 0 24px;
   margin-bottom: 20px;
@@ -209,7 +209,6 @@
 .action-row {
   display: flex;
   gap: 16px;
-  padding: 0 24px 24px;
 }
 
 .activate-button {
@@ -344,6 +343,10 @@
   color: var(--fheels-light);
   letter-spacing: 0.25em;
   animation: pulse 0.8s ease-in-out;
+  text-align: center;
+  line-height: 1.4;
+  padding: 0 32px;
+  max-width: 90vw;
 }
 
 /* ── Transmit Confirmation Overlay ── */
@@ -459,6 +462,7 @@
   }
 
   .activation-message {
-    font-size: 1.6rem;
+    font-size: 1.4rem;
+    padding: 0 24px;
   }
 }

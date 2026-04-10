@@ -2,6 +2,23 @@
   width: 100%;
   max-width: 1400px;
   margin: 0 auto;
+  position: relative;
+}
+
+/* Faint scanline overlay — borrowed PHAX display, signal degraded */
+.choice-screen::before {
+  content: '';
+  position: fixed;
+  inset: 0;
+  background: repeating-linear-gradient(
+    0deg,
+    transparent,
+    transparent 2px,
+    rgba(0, 255, 65, 0.015) 2px,
+    rgba(0, 255, 65, 0.015) 4px
+  );
+  pointer-events: none;
+  z-index: 999;
 }
 
 /* ── Header ── */
@@ -9,22 +26,26 @@
   text-align: center;
   padding: 24px;
   margin-bottom: 24px;
+  border-bottom: 1px dashed rgba(0, 255, 65, 0.15);
 }
 
 .choice-header h2 {
   font-family: var(--font-mono);
   font-size: 1.1rem;
   font-weight: 700;
-  color: var(--text-primary);
+  color: #00ff41;
   letter-spacing: 0.3em;
   text-transform: uppercase;
   margin-bottom: 8px;
+  text-shadow: 0 0 6px rgba(0, 255, 65, 0.4);
+  animation: headerGlitch 8s ease-in-out infinite;
 }
 
 .choice-subtitle {
-  font-family: var(--font-sans);
-  font-size: 0.9rem;
-  color: var(--text-secondary);
+  font-family: var(--font-mono);
+  font-size: 0.78rem;
+  color: rgba(0, 255, 65, 0.45);
+  letter-spacing: 0.12em;
 }
 
 /* ── Options Grid ── */
@@ -43,24 +64,54 @@
   padding: 0 20px;
   font-family: var(--font-mono);
   font-size: 0.85rem;
-  color: var(--text-dim);
+  color: rgba(0, 255, 65, 0.3);
   letter-spacing: 0.15em;
 }
 
-/* ── Option Panels ── */
+/* ── Option Panels — PHAX architecture, infiltrated styling ── */
 .option-panel {
   background: var(--bg-surface);
-  border: 1px solid var(--border-dim);
+  border: 1px dashed rgba(0, 255, 65, 0.15);
   border-radius: var(--radius-lg);
   padding: 28px 24px;
   cursor: pointer;
   transition: border-color 0.2s ease, box-shadow 0.2s ease;
   display: flex;
   flex-direction: column;
+  position: relative;
+}
+
+/* Corner bracket decorations — hacked terminal frame */
+.option-panel::before,
+.option-panel::after {
+  content: '';
+  position: absolute;
+  width: 12px;
+  height: 12px;
+  border-color: rgba(0, 255, 65, 0.3);
+  border-style: solid;
+  transition: border-color 0.3s;
+}
+
+.option-panel::before {
+  top: 6px;
+  left: 6px;
+  border-width: 1px 0 0 1px;
+}
+
+.option-panel::after {
+  bottom: 6px;
+  right: 6px;
+  border-width: 0 1px 1px 0;
 }
 
 .option-panel:hover:not(.disabled) {
-  border-color: var(--border-mid);
+  border-color: rgba(0, 255, 65, 0.35);
+}
+
+.option-panel:hover:not(.disabled)::before,
+.option-panel:hover:not(.disabled)::after {
+  border-color: rgba(0, 255, 65, 0.6);
 }
 
 .option-panel.disabled {
@@ -69,38 +120,61 @@
 }
 
 .option-panel.disabled:hover {
-  border-color: var(--border-dim);
+  border-color: rgba(0, 255, 65, 0.15);
   box-shadow: none;
 }
 
+/* Option A — still uses PHAX blue but filtered through the hack */
 .option-a {
   border-color: rgba(68, 119, 238, 0.2);
-  background: linear-gradient(160deg, rgba(68, 119, 238, 0.06), transparent);
+  background: linear-gradient(160deg, rgba(68, 119, 238, 0.04), rgba(0, 255, 65, 0.01));
 }
 
 .option-a:hover,
 .option-a.selected {
   border-color: var(--phax-blue);
-  box-shadow: 0 0 20px rgba(68, 119, 238, 0.1);
+  box-shadow: 0 0 20px rgba(68, 119, 238, 0.1), inset 0 0 30px rgba(0, 255, 65, 0.02);
 }
 
+.option-a::before,
+.option-a::after {
+  border-color: rgba(68, 119, 238, 0.25);
+}
+
+.option-a:hover:not(.disabled)::before,
+.option-a:hover:not(.disabled)::after {
+  border-color: rgba(68, 119, 238, 0.5);
+}
+
+/* Option B — FHEELS green merges with the hack aesthetic */
 .option-b {
   border-color: rgba(74, 158, 92, 0.2);
-  background: linear-gradient(160deg, rgba(74, 158, 92, 0.06), transparent);
+  background: linear-gradient(160deg, rgba(74, 158, 92, 0.04), rgba(0, 255, 65, 0.01));
 }
 
 .option-b:hover,
 .option-b.selected {
   border-color: var(--fheels-green);
-  box-shadow: 0 0 20px rgba(74, 158, 92, 0.1);
+  box-shadow: 0 0 20px rgba(74, 158, 92, 0.1), inset 0 0 30px rgba(0, 255, 65, 0.02);
+}
+
+.option-b::before,
+.option-b::after {
+  border-color: rgba(74, 158, 92, 0.25);
+}
+
+.option-b:hover:not(.disabled)::before,
+.option-b:hover:not(.disabled)::after {
+  border-color: rgba(74, 158, 92, 0.5);
 }
 
 .option-label {
   font-family: var(--font-mono);
-  font-size: 0.7rem;
-  color: var(--text-dim);
-  letter-spacing: 0.25em;
+  font-size: 0.65rem;
+  color: rgba(0, 255, 65, 0.35);
+  letter-spacing: 0.3em;
   margin-bottom: 8px;
+  text-transform: uppercase;
 }
 
 .option-title {
@@ -121,7 +195,7 @@
   margin-bottom: 20px;
 }
 
-/* ── Universe Rows ── */
+/* ── Dimension Rows — data readout styling ── */
 .option-universes {
   flex: 1;
   margin-bottom: 16px;
@@ -132,16 +206,24 @@
   justify-content: space-between;
   align-items: center;
   padding: 8px 10px;
-  background: var(--bg-raised);
-  border: 1px solid var(--border-faint);
+  background: rgba(0, 255, 65, 0.02);
+  border: 1px solid rgba(0, 255, 65, 0.06);
+  border-left: 2px solid rgba(0, 255, 65, 0.15);
   border-radius: var(--radius-md);
   margin-bottom: 4px;
+  transition: background 0.15s, border-color 0.15s;
+}
+
+.option-panel:hover .option-universe-row {
+  background: rgba(0, 255, 65, 0.03);
+  border-left-color: rgba(0, 255, 65, 0.25);
 }
 
 .option-universe-row .universe-name {
-  font-family: var(--font-sans);
-  font-size: 0.8rem;
+  font-family: var(--font-mono);
+  font-size: 0.78rem;
   color: var(--text-primary);
+  letter-spacing: 0.04em;
 }
 
 .universe-delta {
@@ -153,11 +235,24 @@
 .universe-delta.negative { color: var(--phax-light); }
 .universe-delta.positive { color: var(--fheels-light); }
 
+.unit-label {
+  font-weight: 400;
+  font-size: 0.7em;
+  opacity: 0.6;
+  letter-spacing: 0.08em;
+  margin-left: 2px;
+}
+
+
+
+
 .no-effects {
   text-align: center;
-  color: var(--text-dim);
+  color: rgba(0, 255, 65, 0.25);
   padding: 24px 12px;
   font-size: 0.82rem;
+  font-family: var(--font-mono);
+  letter-spacing: 0.08em;
 }
 
 /* ── Net Change ── */
@@ -166,7 +261,8 @@
   justify-content: space-between;
   align-items: center;
   padding: 12px 14px;
-  background: var(--bg-raised);
+  background: rgba(0, 255, 65, 0.03);
+  border: 1px solid rgba(0, 255, 65, 0.08);
   border-radius: var(--radius-md);
   margin-bottom: 16px;
 }
@@ -174,7 +270,7 @@
 .net-label {
   font-family: var(--font-mono);
   font-size: 0.7rem;
-  color: var(--text-secondary);
+  color: rgba(0, 255, 65, 0.4);
   letter-spacing: 0.15em;
 }
 
@@ -187,34 +283,58 @@
 .net-change.negative .net-value { color: var(--phax-light); }
 .net-change.positive .net-value { color: var(--fheels-light); }
 
-/* ── Select Buttons ── */
+/* ── Select Buttons — exploit trigger styling ── */
 .select-button {
   width: 100%;
   padding: 14px;
   border-radius: var(--radius-md);
-  font-size: 0.85rem;
+  font-size: 0.82rem;
   letter-spacing: 0.18em;
   color: var(--bg-base);
+  position: relative;
+  overflow: hidden;
+  transition: box-shadow 0.2s, transform 0.1s;
 }
 
-.select-a { background: var(--phax-blue); }
-.select-b { background: var(--fheels-green); }
+.select-button:hover:not(:disabled) {
+  transform: translateY(-1px);
+}
 
-/* ── Codes Summary ── */
+.select-a {
+  background: var(--phax-blue);
+  box-shadow: 0 0 8px rgba(68, 119, 238, 0.3);
+}
+
+.select-a:hover:not(:disabled) {
+  box-shadow: 0 0 16px rgba(68, 119, 238, 0.5);
+}
+
+.select-b {
+  background: var(--fheels-green);
+  box-shadow: 0 0 8px rgba(74, 158, 92, 0.3);
+}
+
+.select-b:hover:not(:disabled) {
+  box-shadow: 0 0 16px rgba(74, 158, 92, 0.5);
+}
+
+/* ── Codes Summary — backdoor status line ── */
 .codes-summary {
   text-align: center;
   font-family: var(--font-mono);
-  font-size: 0.8rem;
-  color: var(--text-secondary);
+  font-size: 0.75rem;
+  color: rgba(0, 255, 65, 0.3);
   padding: 20px 24px;
-  letter-spacing: 0.1em;
+  letter-spacing: 0.12em;
+  border-top: 1px dashed rgba(0, 255, 65, 0.1);
+  margin-top: 8px;
 }
 
-/* ── Confirmation Overlay ── */
+/* ── Confirmation Overlay — exploit execution dialog ── */
 .confirmation-overlay {
   position: fixed;
   inset: 0;
-  background: var(--bg-overlay);
+  background: rgba(0, 0, 0, 0.9);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -224,21 +344,39 @@
 
 .confirmation-dialog {
   background: var(--bg-surface);
-  border: 1px solid var(--border-mid);
+  border: 1px solid rgba(0, 255, 65, 0.2);
   border-radius: var(--radius-lg);
   padding: 36px 40px;
   max-width: 440px;
   width: 90%;
   text-align: center;
+  box-shadow: 0 0 40px rgba(0, 255, 65, 0.05), inset 0 0 60px rgba(0, 0, 0, 0.3);
+  position: relative;
+}
+
+.confirmation-dialog::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: var(--radius-lg);
+  background: repeating-linear-gradient(
+    0deg,
+    transparent,
+    transparent 3px,
+    rgba(0, 255, 65, 0.01) 3px,
+    rgba(0, 255, 65, 0.01) 6px
+  );
+  pointer-events: none;
 }
 
 .confirmation-dialog h3 {
   font-family: var(--font-mono);
   font-size: 0.95rem;
   font-weight: 700;
-  color: var(--text-primary);
+  color: #00ff41;
   letter-spacing: 0.25em;
   margin-bottom: 16px;
+  text-shadow: 0 0 4px rgba(0, 255, 65, 0.3);
 }
 
 .confirm-option-name {
@@ -269,10 +407,18 @@
   font-size: 0.9rem;
   letter-spacing: 0.15em;
   color: var(--bg-base);
+  transition: box-shadow 0.2s;
 }
 
-.confirm-a { background: var(--phax-blue); }
-.confirm-b { background: var(--fheels-green); }
+.confirm-a {
+  background: var(--phax-blue);
+  box-shadow: 0 0 8px rgba(68, 119, 238, 0.3);
+}
+
+.confirm-b {
+  background: var(--fheels-green);
+  box-shadow: 0 0 8px rgba(74, 158, 92, 0.3);
+}
 
 .cancel-button {
   flex: 1;
@@ -281,13 +427,125 @@
   font-size: 0.9rem;
   letter-spacing: 0.15em;
   background: transparent;
-  border: 1px solid var(--border-mid);
-  color: var(--text-secondary);
+  border: 1px dashed rgba(0, 255, 65, 0.2);
+  color: rgba(0, 255, 65, 0.5);
+  transition: border-color 0.2s, color 0.2s;
 }
 
 .cancel-button:hover:not(:disabled) {
   border-color: var(--color-error);
   color: #e07070;
+}
+
+/* ── Glitch keyframe — subtle header flicker ── */
+@keyframes headerGlitch {
+  0%, 100% {
+    text-shadow: 0 0 6px rgba(0, 255, 65, 0.4);
+    transform: none;
+  }
+  2% {
+    text-shadow: -2px 0 rgba(255, 0, 80, 0.3), 2px 0 rgba(0, 255, 65, 0.5);
+    transform: translateX(1px);
+  }
+  4% {
+    text-shadow: 0 0 6px rgba(0, 255, 65, 0.4);
+    transform: none;
+  }
+  50% {
+    text-shadow: 0 0 8px rgba(0, 255, 65, 0.5);
+  }
+  52% {
+    text-shadow: 1px 0 rgba(0, 255, 65, 0.6), -1px 0 rgba(255, 0, 80, 0.2);
+    transform: translateX(-1px);
+  }
+  54% {
+    text-shadow: 0 0 6px rgba(0, 255, 65, 0.4);
+    transform: none;
+  }
+}
+
+/* ── Border flicker — panels lose and redraw borders ── */
+@keyframes borderFlicker {
+  0%, 100% { border-style: dashed; opacity: 1; }
+  15%      { border-style: dashed; opacity: 1; }
+  15.5%    { border-color: transparent; opacity: 0.92; }
+  16.5%    { border-style: solid; opacity: 1; }
+  17%      { border-style: dashed; }
+  60%      { border-style: dashed; opacity: 1; }
+  60.3%    { border-color: transparent; }
+  61%      { border-style: dashed; opacity: 0.95; }
+  61.5%    { opacity: 1; }
+}
+
+.option-panel {
+  animation: borderFlicker 12s ease-in-out infinite;
+}
+
+.option-a { animation-delay: 0s; }
+.option-b { animation-delay: -6s; }
+
+/* ── Subtle color shift on dimension rows ── */
+@keyframes rowColorShift {
+  0%, 100% {
+    border-left-color: rgba(0, 255, 65, 0.15);
+    background: rgba(0, 255, 65, 0.02);
+  }
+  33% {
+    border-left-color: rgba(0, 200, 255, 0.15);
+    background: rgba(0, 200, 255, 0.02);
+  }
+  66% {
+    border-left-color: rgba(180, 0, 255, 0.12);
+    background: rgba(180, 0, 255, 0.015);
+  }
+}
+
+.option-universe-row {
+  animation: rowColorShift 15s ease-in-out infinite;
+}
+
+.option-universe-row:nth-child(odd) { animation-delay: -5s; }
+.option-universe-row:nth-child(even) { animation-delay: -10s; }
+
+/* ── Flashing status text ── */
+.hack-flash {
+  position: absolute;
+  font-family: var(--font-mono);
+  font-size: 0.55rem;
+  color: rgba(0, 255, 65, 0.2);
+  letter-spacing: 0.2em;
+  pointer-events: none;
+  animation: flashText 6s ease-in-out infinite;
+  white-space: nowrap;
+}
+
+.hack-flash-top {
+  top: 10px;
+  right: 24px;
+}
+
+.hack-flash-bottom {
+  bottom: 10px;
+  left: 24px;
+  animation-delay: -3s;
+}
+
+@keyframes flashText {
+  0%, 85%, 100% { opacity: 0; }
+  88%           { opacity: 1; }
+  92%           { opacity: 0.3; }
+  95%           { opacity: 0.8; }
+  97%           { opacity: 0; }
+}
+
+/* ── Divider pulse ── */
+.options-divider span {
+  animation: dividerPulse 4s ease-in-out infinite;
+}
+
+@keyframes dividerPulse {
+  0%, 100% { color: rgba(0, 255, 65, 0.2); }
+  50%      { color: rgba(0, 255, 65, 0.5); text-shadow: 0 0 4px rgba(0, 255, 65, 0.2); }
 }
 
 /* ── Responsive ── */

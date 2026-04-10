@@ -186,6 +186,23 @@ function CodeEntryScreen({ sessionData, onPreview, onLogout }) {
           {error && <div className="error-message">{error}</div>}
         </div>
 
+        <div className="action-row">
+          <button
+            onClick={handleActivateCode}
+            className="activate-button"
+            disabled={loading || currentCode.length !== 4}
+          >
+            {loading ? 'PROCESSING...' : 'ACTIVATE CODE'}
+          </button>
+          <button
+            onClick={() => setShowTransmitConfirm(true)}
+            className="proceed-button"
+            disabled={loading || activatedCodes.length === 0}
+          >
+            {loading ? 'PROCESSING...' : 'TRANSMIT CODES'}
+          </button>
+        </div>
+
         <div className="activated-codes-section">
           <h3>ACTIVATED CODES</h3>
           <div className="codes-list">
@@ -206,27 +223,11 @@ function CodeEntryScreen({ sessionData, onPreview, onLogout }) {
         </div>
       </div>
 
-      <div className="action-row">
-        <button
-          onClick={handleActivateCode}
-          className="activate-button"
-          disabled={loading || currentCode.length !== 4}
-        >
-          {loading ? 'PROCESSING...' : 'ACTIVATE CODE'}
-        </button>
-        <button
-          onClick={() => setShowTransmitConfirm(true)}
-          className="proceed-button"
-          disabled={loading || activatedCodes.length === 0}
-        >
-          {loading ? 'PROCESSING...' : 'TRANSMIT CODES'}
-        </button>
-      </div>
-
       {showActivation && (
         <div className="activation-overlay">
           <div className="activation-message">
-            IFLU SIGNATURE PROCESSING COMPLETED
+            <div>iFLU SIGNATURE</div>
+            <div>PROCESSING COMPLETED</div>
           </div>
         </div>
       )}
