@@ -496,7 +496,7 @@ function UniverseNetworkVisualization({ mode = 'display', autoRotate = true, onC
   return (
     <div className={`universe-network-viz mode-${mode}`}>
 
-      {loading && <div className="network-status">INITIALIZING DIMENSIONAL NETWORK...</div>}
+      {loading && <div className="network-status">INITIALIZING XDIM TOPOLOGY VIEW...</div>}
       {error   && <div className="network-status error">{error}</div>}
 
       {!loading && networkData && (
@@ -540,7 +540,7 @@ function UniverseNetworkVisualization({ mode = 'display', autoRotate = true, onC
 
       {mode === 'display' && (
         <div className="network-header">
-          <div className="network-title">DIMENSIONAL NETWORK</div>
+          <div className="network-title">XDIM TOPOLOGY VIEW</div>
           <div className="network-subtitle">LIVE STATUS · {networkData?.universes?.length ?? '—'} DIMENSIONS</div>
         </div>
       )}
@@ -560,7 +560,7 @@ function UniverseNetworkVisualization({ mode = 'display', autoRotate = true, onC
 
       {onClose && (
         <button className="network-close-btn" onClick={onClose}>
-          [ CLOSE NETWORK ]
+          [ Back to Terminal View ]
         </button>
       )}
     </div>

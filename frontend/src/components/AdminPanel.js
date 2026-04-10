@@ -57,14 +57,14 @@ function AdminPanel({ sessionData }) {
   };
 
   const handleResetUniverses = async () => {
-    if (window.confirm('WARNING: This will reset all universe data. Continue?')) {
+    if (window.confirm('WARNING: This will reset all dimension data. Continue?')) {
       try {
         const response = await adminService.resetUniverses(sessionData.session_token);
         if (response.success) {
-          alert('Universe statistics reset complete');
+          alert('Dimension statistics reset complete');
         }
       } catch (err) {
-        alert('Error resetting universes');
+        alert('Error resetting dimensions');
       }
     }
   };
@@ -112,7 +112,7 @@ function AdminPanel({ sessionData }) {
               Generate User ID
             </button>
             <button onClick={handleResetUniverses} className="admin-action-button danger">
-              Reset Universe Statistics
+              Reset Dimension Statistics
             </button>
             {newUserId && (
               <div className="new-user-id-display">
@@ -233,7 +233,7 @@ function AdminPanel({ sessionData }) {
                             <table className="effects-table">
                               <thead>
                                 <tr>
-                                  <th>UNIVERSE</th>
+                                  <th>DIMENSION</th>
                                   <th>EFFECT</th>
                                   <th>TYPE</th>
                                 </tr>

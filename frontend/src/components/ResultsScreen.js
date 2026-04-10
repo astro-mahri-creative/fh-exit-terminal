@@ -50,7 +50,11 @@ function ResultsScreen({ resultsData, sessionData, onReset }) {
 
   const recordActivity = useCallback(() => {
     lastActivityRef.current = Date.now();
-  }, []);
+    // Reset back to first idle phase on any user activity
+    if (idleThreshold !== FIRST_IDLE_TIMEOUT) {
+      setIdleThreshold(FIRST_IDLE_TIMEOUT);
+    }
+  }, [idleThreshold]);
 
   useEffect(() => {
     startIdleTimer();
@@ -104,12 +108,12 @@ function ResultsScreen({ resultsData, sessionData, onReset }) {
 
       <div className="universe-map">
         <div className="universe-map-header">
-          <h2>UNIVERSE NETWORK STATUS</h2>
+          <h2>DIMENSIONAL XDIM TOPOLOGY</h2>
           <button
             className="network-toggle-btn"
             onClick={() => { setShowNetwork(v => !v); recordActivity(); }}
           >
-            {showNetwork ? '[ GRID VIEW ]' : '[ NETWORK VIEW ]'}
+            {showNetwork ? '[ GRID VIEW ]' : '[ XDIM TOPOLOGY VIEW ]'}
           </button>
         </div>
 
@@ -218,7 +222,9 @@ function ResultsScreen({ resultsData, sessionData, onReset }) {
       </div>
 
       <div className="countdown">
-        Screen resets in {countdown}s
+        {idleThreshold === FIRST_IDLE_TIMEOUT
+          ? `Idle Time is: ${FIRST_IDLE_TIMEOUT - countdown}s`
+          : `Screen Resets in: ${countdown}s`}
       </div>
     </div>
   );
