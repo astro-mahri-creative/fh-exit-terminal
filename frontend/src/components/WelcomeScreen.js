@@ -1,5 +1,6 @@
-import React, { useState } from 'react';
+import React, { useState, useCallback, useEffect } from 'react';
 import { sessionService } from '../services/api';
+import TerminalKeyboard from './TerminalKeyboard';
 import './WelcomeScreen.css';
 
 function WelcomeScreen({ onSessionStart, onViewNetwork }) {
@@ -7,20 +8,19 @@ function WelcomeScreen({ onSessionStart, onViewNetwork }) {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
 
-  const handleSubmit = async (e) => {
-    e.preventDefault();
+  const handleSubmit = async () => {
     setError('');
-    
+
     if (userId.length !== 6) {
       setError('User ID must be exactly 6 characters');
       return;
     }
 
     setLoading(true);
-    
+
     try {
       const response = await sessionService.start(userId);
-      
+
       if (response.success) {
         onSessionStart(response);
       } else {
@@ -34,11 +34,43 @@ function WelcomeScreen({ onSessionStart, onViewNetwork }) {
     }
   };
 
-  const handleChange = (e) => {
-    const value = e.target.value.toLowerCase().slice(0, 6);
-    setUserId(value);
+  const handleKeyPress = useCallback((key) => {
+    if (loading) return;
+    setUserId(prev => {
+      if (prev.length < 6) {
+        setError('');
+        return prev + key.toLowerCase();
+      }
+      return prev;
+    });
+  }, [loading]);
+
+  const handleBackspace = useCallback(() => {
+    setUserId(prev => prev.slice(0, -1));
+    setError('');
+  }, []);
+
+  const handleClear = () => {
+    setUserId('');
     setError('');
   };
+
+  // Physical keyboard support
+  useEffect(() => {
+    const handlePhysicalKey = (e) => {
+      if (loading) return;
+      const key = e.key;
+      if (/^[a-zA-Z0-9]$/.test(key)) {
+        handleKeyPress(key.toUpperCase());
+      } else if (e.key === 'Backspace') {
+        handleBackspace();
+      } else if (e.key === 'Delete') {
+        handleClear();
+      }
+    };
+    window.addEventListener('keydown', handlePhysicalKey);
+    return () => window.removeEventListener('keydown', handlePhysicalKey);
+  }, [loading, handleKeyPress, handleBackspace]);
 
   return (
     <div className="welcome-screen">
@@ -53,31 +85,39 @@ function WelcomeScreen({ onSessionStart, onViewNetwork }) {
           <span className="terminal-name">EXPERIMENTAL iFLU TRACKING TERMINAL</span>
         </p>
 
-        <form onSubmit={handleSubmit} className="user-id-form">
+        <div className="user-id-form">
           <div className="input-group">
-            <label htmlFor="userId">User ID:</label>
-            <input
-              type="text"
-              id="userId"
-              value={userId}
-              onChange={handleChange}
-              placeholder="______"
-              className="user-id-input"
-              autoComplete="off"
-              autoFocus
-            />
+            <label>User ID:</label>
+            <div className="user-id-display">
+              <div className="user-id-chars">
+                {[0, 1, 2, 3, 4, 5].map(i => (
+                  <span key={i} className="user-id-char">
+                    {userId[i] || '_'}
+                  </span>
+                ))}
+              </div>
+            </div>
           </div>
+
+          <TerminalKeyboard
+            onKeyPress={handleKeyPress}
+            onBackspace={handleBackspace}
+            onClear={handleClear}
+            keysDisabled={userId.length >= 6}
+            backspaceDisabled={userId.length === 0}
+            showNumbers
+          />
 
           {error && <div className="error-message">{error}</div>}
 
-          <button 
-            type="submit" 
+          <button
             className="begin-button"
+            onClick={handleSubmit}
             disabled={loading || userId.length !== 6}
           >
             {loading ? 'CONNECTING...' : 'LOGIN'}
           </button>
-        </form>
+        </div>
 
         <div className="phax-branding">
           <div className="phax-logo">PHAX</div>

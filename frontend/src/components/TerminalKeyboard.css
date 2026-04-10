@@ -1,0 +1,96 @@
+/* ── Keyboard ── */
+.keyboard {
+  margin: 28px auto;
+  width: 90%;
+}
+
+.keyboard-row {
+  display: flex;
+  justify-content: center;
+  gap: 7px;
+  margin-bottom: 7px;
+}
+
+.keyboard-key {
+  flex: 1;
+  max-width: 72px;
+  height: 56px;
+  background: var(--bg-raised);
+  border: 1px solid var(--border-mid);
+  color: var(--text-primary);
+  font-family: var(--font-mono);
+  font-size: 1.5rem;
+  border-radius: var(--radius-md);
+  transition: background 0.1s ease, border-color 0.1s ease;
+}
+
+.keyboard-key:hover:not(:disabled) {
+  background: var(--bg-overlay);
+  border-color: var(--phax-blue);
+  color: var(--phax-light);
+}
+
+.keyboard-key:active:not(:disabled) {
+  transform: scale(0.95);
+}
+
+.keyboard-key:disabled {
+  opacity: 0.25;
+}
+
+.clear-key {
+  flex: 3;
+  max-width: none;
+  padding: 0 20px;
+  background: rgba(192, 48, 48, 0.08);
+  border-color: var(--color-error);
+  color: #e07070;
+}
+
+.clear-key:hover:not(:disabled) {
+  background: rgba(192, 48, 48, 0.18);
+}
+
+.backspace-key {
+  flex: 2;
+  max-width: none;
+  background: rgba(212, 137, 10, 0.08);
+  border-color: var(--color-warning);
+  color: #e0a040;
+  font-size: 1.6rem;
+}
+
+.backspace-key:hover:not(:disabled) {
+  background: rgba(212, 137, 10, 0.18);
+}
+
+/* ── Special character keys (@, .) ── */
+.special-key {
+  background: rgba(74, 158, 92, 0.1);
+  border-color: var(--fheels-green);
+  color: var(--fheels-light, #7cd492);
+  font-family: var(--font-sans);
+  font-weight: 700;
+  font-size: 1.7rem;
+}
+
+.special-key:hover:not(:disabled) {
+  background: rgba(74, 158, 92, 0.22);
+  border-color: var(--fheels-light, #7cd492);
+  color: #fff;
+}
+
+/* ── Responsive ── */
+@media (max-width: 1024px) {
+  .keyboard-key {
+    height: 50px;
+    font-size: 1.3rem;
+  }
+}
+
+@media (max-width: 768px) {
+  .keyboard-key {
+    height: 44px;
+    font-size: 1.15rem;
+  }
+}

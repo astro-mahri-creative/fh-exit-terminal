@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { codeService } from '../services/api';
 import AdminPanel from './AdminPanel';
+import TerminalKeyboard from './TerminalKeyboard';
 import './CodeEntryScreen.css';
 
 function CodeEntryScreen({ sessionData, onPreview, onLogout }) {
@@ -13,13 +14,6 @@ function CodeEntryScreen({ sessionData, onPreview, onLogout }) {
   const [showTransmitConfirm, setShowTransmitConfirm] = useState(false);
 
   const isAdmin = sessionData.is_admin;
-
-  const keyboard = [
-    ['1', '2', '3', '4', '5', '6', '7', '8', '9', '0'],
-    ['Q', 'W', 'E', 'R', 'T', 'Y', 'U', 'I', 'O', 'P'],
-    ['A', 'S', 'D', 'F', 'G', 'H', 'J', 'K', 'L'],
-    ['Z', 'X', 'C', 'V', 'B', 'N', 'M']
-  ];
 
   const handleKeyPress = useCallback((key) => {
     if (loading) return;
@@ -154,34 +148,13 @@ function CodeEntryScreen({ sessionData, onPreview, onLogout }) {
             </div>
           </div>
 
-          <div className="keyboard">
-            {keyboard.map((row, rowIndex) => (
-              <div key={rowIndex} className="keyboard-row">
-                {row.map(key => (
-                  <button
-                    key={key}
-                    onClick={() => handleKeyPress(key)}
-                    className="keyboard-key"
-                    disabled={currentCode.length >= 4}
-                  >
-                    {key}
-                  </button>
-                ))}
-              </div>
-            ))}
-            <div className="keyboard-row">
-              <button onClick={handleClear} className="keyboard-key clear-key">
-                CLEAR
-              </button>
-              <button
-                onClick={handleBackspace}
-                className="keyboard-key backspace-key"
-                disabled={currentCode.length === 0}
-              >
-                &#9003;
-              </button>
-            </div>
-          </div>
+          <TerminalKeyboard
+            onKeyPress={handleKeyPress}
+            onBackspace={handleBackspace}
+            onClear={handleClear}
+            keysDisabled={currentCode.length >= 4}
+            backspaceDisabled={currentCode.length === 0}
+          />
 
           {error && <div className="error-message">{error}</div>}
         </div>

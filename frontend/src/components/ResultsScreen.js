@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { emailService } from '../services/api';
 import UniverseNetworkVisualization from './UniverseNetworkVisualization';
+import TerminalKeyboard from './TerminalKeyboard';
 import './ResultsScreen.css';
 
 const FIRST_IDLE_TIMEOUT = 30;
@@ -76,6 +77,46 @@ function ResultsScreen({ resultsData, sessionData, onReset }) {
     };
     return colors[status] || colors.ACTIVE;
   };
+
+  const handleEmailKeyPress = useCallback((key) => {
+    setEmail(prev => {
+      if (prev.length < 127) {
+        setEmailError('');
+        return prev + key.toLowerCase();
+      }
+      return prev;
+    });
+    recordActivity();
+  }, [recordActivity]);
+
+  const handleEmailBackspace = useCallback(() => {
+    setEmail(prev => prev.slice(0, -1));
+    setEmailError('');
+    recordActivity();
+  }, [recordActivity]);
+
+  const handleEmailClear = () => {
+    setEmail('');
+    setEmailError('');
+    recordActivity();
+  };
+
+  // Physical keyboard support for email input
+  useEffect(() => {
+    const handlePhysicalKey = (e) => {
+      if (emailSent) return;
+      const key = e.key;
+      if (/^[a-zA-Z0-9@._\-+]$/.test(key)) {
+        handleEmailKeyPress(key.toUpperCase());
+      } else if (e.key === 'Backspace') {
+        handleEmailBackspace();
+      } else if (e.key === 'Delete') {
+        handleEmailClear();
+      }
+    };
+    window.addEventListener('keydown', handlePhysicalKey);
+    return () => window.removeEventListener('keydown', handlePhysicalKey);
+  }, [emailSent, handleEmailKeyPress, handleEmailBackspace]);
 
   const handleSendEmail = async () => {
     setEmailError('');
@@ -194,12 +235,20 @@ function ResultsScreen({ resultsData, sessionData, onReset }) {
       <div className="email-section">
         {!emailSent ? (
           <>
-            <input
-              type="email"
-              value={email}
-              onChange={(e) => { setEmail(e.target.value); recordActivity(); }}
-              placeholder="Enter email address"
-              className="email-input"
+            <div className="email-display">
+              <span className="email-display-text">
+                {email || <span className="email-placeholder">enter email address</span>}
+              </span>
+              <span className="email-cursor">|</span>
+            </div>
+            <TerminalKeyboard
+              onKeyPress={handleEmailKeyPress}
+              onBackspace={handleEmailBackspace}
+              onClear={handleEmailClear}
+              keysDisabled={email.length >= 127}
+              backspaceDisabled={email.length === 0}
+              showNumbers
+              extraBottomKeys={{ left: '@', right: '.' }}
             />
             {emailError && <div className="error-message">{emailError}</div>}
             <div className="action-buttons">
