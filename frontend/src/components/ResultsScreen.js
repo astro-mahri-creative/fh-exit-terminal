@@ -95,11 +95,11 @@ function ResultsScreen({ resultsData, sessionData, onReset }) {
     recordActivity();
   }, [recordActivity]);
 
-  const handleEmailClear = () => {
+  const handleEmailClear = useCallback(() => {
     setEmail('');
     setEmailError('');
     recordActivity();
-  };
+  }, [recordActivity]);
 
   // Physical keyboard support for email input
   useEffect(() => {
