@@ -116,7 +116,7 @@ function ResultsScreen({ resultsData, sessionData, onReset }) {
     };
     window.addEventListener('keydown', handlePhysicalKey);
     return () => window.removeEventListener('keydown', handlePhysicalKey);
-  }, [emailSent, handleEmailKeyPress, handleEmailBackspace]);
+  }, [emailSent, handleEmailKeyPress, handleEmailBackspace, handleEmailClear]);
 
   const handleSendEmail = async () => {
     setEmailError('');
