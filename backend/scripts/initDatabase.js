@@ -97,15 +97,15 @@ async function initDatabase() {
     console.log('Creating universes...');
     const universeData = [
       { name: 'D3N.74L', initCases: 45230 },
-      { name: 'Epsilon Sector', initCases: 128500 },
-      { name: 'Universe Gamma', initCases: 850 },
-      { name: 'Delta Quadrant', initCases: 95400 },
-      { name: 'Zeta Prime', initCases: 234000 },
-      { name: 'Theta Complex', initCases: 12000 },
-      { name: 'Iota Realm', initCases: 250 },
-      { name: 'Kappa Dimension', initCases: 67800 },
-      { name: 'Lambda Space', initCases: 156700 },
-      { name: 'Mu Territory', initCases: 42100 }
+      { name: 'M1D.H00', initCases: 128500 },
+      { name: 'PL4.N75', initCases: 850 },
+      { name: '789.YKK', initCases: 95400 },
+      { name: 'L0K.R99', initCases: 234000 },
+      { name: 'R4I.K1N', initCases: 12000 },
+      { name: '50H.YP3', initCases: 250 },
+      { name: 'DP4.35T', initCases: 67800 },
+      { name: 'GA1.A14', initCases: 156700 },
+      { name: 'BX9.R55', initCases: 42100 }   // placeholder — awaiting official ID
     ];
 
     const createdUniverses = [];
@@ -135,70 +135,106 @@ async function initDatabase() {
       createdUniverses.push(universe);
     }
 
-    // Initialize Codes (Sample set - 50+ codes)
+    // Initialize Codes
+    // Source: Project L Puzzle Component Catalog — Terminal Codes sheet
+    // Only codes with a populated STATUS value are included.
+    // Effect dimension assignments marked TBD pending universe mapping finalization.
     console.log('Creating codes...');
     const codesData = [
-      // Tier 1: Standard PHAX Protocol Codes (15 codes)
-      { code: 'PHMX', tier: 1, name: 'Standard Protocol MX', alignment: 'PHAX' },
-      { code: 'TECH', tier: 1, name: 'Tech Integration', alignment: 'PHAX' },
-      { code: 'PHCT', tier: 1, name: 'Containment Protocol', alignment: 'PHAX' },
-      { code: 'PHSN', tier: 1, name: 'Sanitization Protocol', alignment: 'PHAX' },
-      { code: 'PHQR', tier: 1, name: 'Quarantine Routine', alignment: 'PHAX' },
-      { code: 'PHSC', tier: 1, name: 'Security Check', alignment: 'PHAX' },
-      { code: 'PHDX', tier: 1, name: 'Diagnostic Procedure', alignment: 'PHAX' },
-      { code: 'PHMD', tier: 1, name: 'Medical Protocol', alignment: 'PHAX' },
-      { code: 'PHVC', tier: 1, name: 'Vaccine Distribution', alignment: 'PHAX' },
-      { code: 'PHTR', tier: 1, name: 'Treatment Regimen', alignment: 'PHAX' },
-      { code: 'PHMN', tier: 1, name: 'Monitoring System', alignment: 'PHAX' },
-      { code: 'PHDT', tier: 1, name: 'Detection Array', alignment: 'PHAX' },
-      { code: 'PHSG', tier: 1, name: 'Safeguard Measures', alignment: 'PHAX' },
-      { code: 'PHPR', tier: 1, name: 'Prevention Protocol', alignment: 'PHAX' },
-      { code: 'PHCL', tier: 1, name: 'Clearance Level', alignment: 'PHAX' },
+      // Tier 1: PHAX — Phase 1 PRODUCTION
+      {
+        code: 'CERT',
+        tier: 1,
+        name: 'Certification Protocol',
+        alignment: 'PHAX',
+        status: 'Phase 1 PRODUCTION',
+        sourceRoom: 'PHXHUB',
+        discoveryMethod: 'Screen',
+        effectType: 'Eradicate'
+      },
 
-      // Tier 2: Hidden FHEELS Infiltration Codes (12 codes)
-      { code: 'FHGD', tier: 2, name: 'Alternative Therapy', alignment: 'FHEELS' },
-      { code: 'ROQY', tier: 2, name: 'Supplemental Treatment', alignment: 'FHEELS' },
-      { code: 'FHNT', tier: 2, name: 'Nature Therapy', alignment: 'FHEELS' },
-      { code: 'FHOR', tier: 2, name: 'Organic Remedy', alignment: 'FHEELS' },
-      { code: 'FHWD', tier: 2, name: 'Wild Protocol', alignment: 'FHEELS' },
-      { code: 'FHGR', tier: 2, name: 'Growth Enhancer', alignment: 'FHEELS' },
-      { code: 'FHBM', tier: 2, name: 'Biome Restoration', alignment: 'FHEELS' },
-      { code: 'FHEC', tier: 2, name: 'Ecosystem Balance', alignment: 'FHEELS' },
-      { code: 'FHPL', tier: 2, name: 'Plant Medicine', alignment: 'FHEELS' },
-      { code: 'FHSM', tier: 2, name: 'Symbiosis Mode', alignment: 'FHEELS' },
-      { code: 'FHRF', tier: 2, name: 'Rewilding Force', alignment: 'FHEELS' },
-      { code: 'FHVT', tier: 2, name: 'Vitality Boost', alignment: 'FHEELS' },
+      // Tier 2: PHAX — Phase 1 COMPLETE
+      {
+        code: 'TPGM',
+        tier: 2,
+        name: 'Top Game Cipher',
+        alignment: 'PHAX',
+        status: 'Phase 1 COMPLETE',
+        sourceRoom: 'ARCADE',
+        discoveryMethod: 'Screen',
+        effectType: 'Eradicate'
+      },
 
-      // Tier 3: PHAX Security Protocols (10 codes)
-      { code: 'CLRN', tier: 3, name: 'Multi-dimensional Optimization', alignment: 'PHAX' },
-      { code: 'NTPG', tier: 3, name: 'System Purification', alignment: 'PHAX' },
-      { code: 'PHXS', tier: 3, name: 'Cross-System Security', alignment: 'PHAX' },
-      { code: 'PHAC', tier: 3, name: 'Advanced Containment', alignment: 'PHAX' },
-      { code: 'PHUL', tier: 3, name: 'Ultra-Lock Protocol', alignment: 'PHAX' },
-      { code: 'PHQZ', tier: 3, name: 'Quarantine Zone', alignment: 'PHAX' },
-      { code: 'PHFX', tier: 3, name: 'Firewall Extreme', alignment: 'PHAX' },
-      { code: 'PHBD', tier: 3, name: 'Barrier Defense', alignment: 'PHAX' },
-      { code: 'PHSH', tier: 3, name: 'Shield Hardening', alignment: 'PHAX' },
-      { code: 'PHDN', tier: 3, name: 'Denial Protocol', alignment: 'PHAX' },
+      // Tier 2: FHEELS — Phase 1 FABRICATION
+      {
+        code: 'MGBC',
+        tier: 2,
+        name: 'Margin Book Cipher',
+        alignment: 'FHEELS',
+        status: 'Phase 1 FABRICATION',
+        sourceRoom: 'PERCEP',
+        discoveryMethod: 'Physical',
+        effectType: 'Spread'
+      },
 
-      // Tier 4: FHEELS Hacking Operations (8 codes)
-      { code: 'LWME', tier: 4, name: 'Future Hooman Breach', alignment: 'FHEELS' },
-      { code: 'BKDR', tier: 4, name: 'Backdoor Access', alignment: 'FHEELS' },
-      { code: 'FHBR', tier: 4, name: 'Barrier Break', alignment: 'FHEELS' },
-      { code: 'FHOV', tier: 4, name: 'Override Sequence', alignment: 'FHEELS' },
-      { code: 'FHCR', tier: 4, name: 'Corruption Wave', alignment: 'FHEELS' },
-      { code: 'FHIN', tier: 4, name: 'Infiltration Deep', alignment: 'FHEELS' },
-      { code: 'FHVR', tier: 4, name: 'Viral Release', alignment: 'FHEELS' },
-      { code: 'FHEX', tier: 4, name: 'Exponential Spread', alignment: 'FHEELS' },
+      // Tier 3: FHEELS — Phase 1
+      {
+        code: 'CMPR',
+        tier: 3,
+        name: 'Compare Protocol',
+        alignment: 'FHEELS',
+        status: 'Phase 1',
+        sourceRoom: 'BATTIC',
+        discoveryMethod: 'Physical',
+        effectType: 'Spread'
+      },
 
-      // Tier 5: Ultimate System Exploits (4 codes)
-      { code: 'BHLE', tier: 5, name: 'Black Hole Liberation', alignment: 'FHEELS', isCureCode: false },
-      { code: 'NIIX', tier: 5, name: 'Dimensional Liberation', alignment: 'FHEELS' },
-      { code: 'PHOM', tier: 5, name: 'Omega Protocol', alignment: 'PHAX' },
-      { code: 'CUIX', tier: 5, name: 'Cure Initiative X', alignment: 'PHAX', isCureCode: true },
+      // Tier 4: FHEELS — Phase 1 TESTING
+      {
+        code: 'OPLT',
+        tier: 4,
+        name: 'Compliance Audit',
+        alignment: 'FHEELS',
+        status: 'Phase 1 TESTING',
+        sourceRoom: 'SPLTFU',
+        discoveryMethod: 'Physical',
+        effectType: 'Spread'
+      },
 
-      // Tier 6: Network Liberation (1 code)
-      { code: 'LBRT', tier: 6, name: 'Total Liberation', alignment: 'FHEELS' }
+      // Tier 4: FHEELS
+      {
+        code: 'SGMA',
+        tier: 4,
+        name: 'Sigma Infiltration',
+        alignment: 'FHEELS',
+        status: 'Phase 1',
+        discoveryMethod: 'Physical',
+        effectType: 'Spread'
+      },
+
+      // Tier 4: SIGSEV — Phase 1
+      {
+        code: 'RMPI',
+        tier: 4,
+        name: 'Recruitment Package',
+        alignment: 'SIGSEV',
+        status: 'Phase 1',
+        sourceRoom: 'BITEHL',
+        discoveryMethod: 'Physical',
+        effectType: 'Amplify'
+      },
+
+      // Tier 2: SIGSEV — Phase 1
+      {
+        code: 'PRWC',
+        tier: 2,
+        name: 'Hallway B Amplifier',
+        alignment: 'SIGSEV',
+        status: 'Phase 1',
+        sourceRoom: 'SPLTFU',
+        discoveryMethod: 'Sensory',
+        effectType: 'Amplify'
+      }
     ];
 
     const createdCodes = [];
@@ -208,50 +244,41 @@ async function initDatabase() {
     }
 
     // Initialize Code Effects
+    // Effect dimension (universe) assignments are TBD in the source catalog.
+    // Values are sourced directly from the Terminal Codes sheet.
+    // Update universe references once dimension mapping is finalized.
     console.log('Creating code effects...');
     const codeEffectsData = [
-      // PHMX effects (Tier 1)
-      { code: 'PHMX', universe: 'D3N.74L', effect: -400 },
-      { code: 'PHMX', universe: 'Delta Quadrant', effect: -200 },
-      
-      // TECH effects (Tier 1)
-      { code: 'TECH', universe: 'Epsilon Sector', effect: -300 },
-      { code: 'TECH', universe: 'Theta Complex', effect: -250 },
-      
-      // FHGD effects (Tier 2)
-      { code: 'FHGD', universe: 'Universe Gamma', effect: 150 },
-      { code: 'FHGD', universe: 'Iota Realm', effect: 100 },
-      
-      // ROQY effects (Tier 2)
-      { code: 'ROQY', universe: 'Kappa Dimension', effect: 300 },
-      { code: 'ROQY', universe: 'Mu Territory', effect: 250 },
-      
-      // CLRN effects (Tier 3)
-      { code: 'CLRN', universe: 'D3N.74L', effect: -300 },
-      { code: 'CLRN', universe: 'Epsilon Sector', effect: -250 },
-      { code: 'CLRN', universe: 'Delta Quadrant', effect: -250 },
-      
-      // NTPG effects (Tier 3)
-      { code: 'NTPG', universe: 'Theta Complex', effect: -600 },
-      { code: 'NTPG', universe: 'Kappa Dimension', effect: -400 },
-      
-      // LWME effects (Tier 4)
-      { code: 'LWME', universe: 'Zeta Prime', effect: 500 },
-      { code: 'LWME', universe: 'Lambda Space', effect: 200 },
-      
-      // BKDR effects (Tier 4)
-      { code: 'BKDR', universe: 'Epsilon Sector', effect: 800 },
-      { code: 'BKDR', universe: 'Delta Quadrant', effect: 900 },
-      { code: 'BKDR', universe: 'Theta Complex', effect: 800 },
-      
-      // BHLE effects (Tier 5)
-      { code: 'BHLE', universe: 'Zeta Prime', effect: 5000 },
-      
-      // NIIX effects (Tier 5)
-      { code: 'NIIX', universe: 'Lambda Space', effect: 3000 },
-      
-      // LBRT effects (Tier 6)
-      { code: 'LBRT', universe: 'all', effect: 1000 }
+      // CERT effects (Tier 1 — Eradicate)
+      // Effect A: -400 | Dimension: TBD
+      { code: 'CERT', universe: 'D3N.74L', effect: -400, effectType: 'standard' },
+
+      // TPGM effects (Tier 2 — Eradicate)
+      // Effect A: -900 | Effect B: -700 | Dimensions: TBD
+      { code: 'TPGM', universe: 'R4I.K1N', effect: -900, effectType: 'standard' },
+      { code: 'TPGM', universe: 'DP4.35T', effect: -700, effectType: 'standard' },
+
+      // MGBC effects (Tier 2 — Spread)
+      // Effect A: +600 | Dimension: TBD
+      { code: 'MGBC', universe: 'PL4.N75', effect: 600, effectType: 'standard' },
+
+      // CMPR effects (Tier 3 — Spread)
+      // Effect A: +1400 | Dimension: TBD
+      { code: 'CMPR', universe: 'BX9.R55', effect: 1400, effectType: 'standard' },
+
+      // OPLT effects (Tier 4 — Spread)
+      // Effect A: +2500 | Dimension: TBD
+      { code: 'OPLT', universe: '789.YKK', effect: 2500, effectType: 'standard' },
+
+      // SGMA effects (Tier 4 — Spread)
+      // Effect A: +2200 | Dimension: TBD
+      { code: 'SGMA', universe: 'GA1.A14', effect: 2200, effectType: 'standard' },
+
+      // RMPI effects (Tier 4 — Amplify 2.4x All)
+      { code: 'RMPI', universe: 'all', effect: 2.4, effectType: 'amplify' },
+
+      // PRWC effects (Tier 2 — Amplify 1.3x All)
+      { code: 'PRWC', universe: 'all', effect: 1.3, effectType: 'amplify' }
     ];
 
     for (const effectData of codeEffectsData) {
@@ -264,7 +291,7 @@ async function initDatabase() {
             codeId: code._id,
             universeId: universe._id,
             effectValue: effectData.effect,
-            effectType: 'standard'
+            effectType: effectData.effectType
           });
         }
       } else {
@@ -274,33 +301,7 @@ async function initDatabase() {
             codeId: code._id,
             universeId: universe._id,
             effectValue: effectData.effect,
-            effectType: 'standard'
-          });
-        }
-      }
-    }
-
-    // Add more effects for remaining codes (spread them across universes)
-    for (const code of createdCodes) {
-      const existingEffects = await CodeEffect.countDocuments({ codeId: code._id });
-      
-      if (existingEffects === 0) {
-        // Add random effects for codes without effects
-        const numEffects = Math.min(code.tier, 3);
-        const randomUniverses = createdUniverses
-          .sort(() => Math.random() - 0.5)
-          .slice(0, numEffects);
-        
-        for (const universe of randomUniverses) {
-          const baseEffect = code.alignment === 'PHAX' ? -200 : 150;
-          const multiplier = code.tier * 0.5;
-          const effect = Math.floor(baseEffect * multiplier);
-          
-          await CodeEffect.create({
-            codeId: code._id,
-            universeId: universe._id,
-            effectValue: effect,
-            effectType: 'standard'
+            effectType: effectData.effectType
           });
         }
       }
@@ -320,7 +321,7 @@ async function initDatabase() {
       {
         ruleName: 'Synergy Protocol',
         conditionType: 'code_combination',
-        conditionDefinition: JSON.stringify({ required_codes: ['TECH', 'PHMX', 'CLRN'] }),
+        conditionDefinition: JSON.stringify({ required_codes: ['CERT', 'TPGM', 'MGBC'] }),
         effectDefinition: JSON.stringify({ bonus_effect: { universe: 'all', value: -500 } }),
         isActive: true,
         priority: 5

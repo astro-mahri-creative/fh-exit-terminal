@@ -28,7 +28,7 @@ const codeSchema = new mongoose.Schema({
   tier: { type: Number, required: true, min: 1, max: 6 },
   name: { type: String },
   description: { type: String },
-  alignment: { type: String, required: true, enum: ['PHAX', 'FHEELS'] },
+  alignment: { type: String, required: true, enum: ['PHAX', 'FHEELS', 'SIGSEV'] },
   isCureCode: { type: Boolean, default: false },
   isActive: { type: Boolean, default: true }
 }, { timestamps: true });
