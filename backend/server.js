@@ -27,7 +27,8 @@ const {
   MetaGameRule,
   PhaxAlertMessage,
   CureStatus,
-  AnalyticsLog
+  AnalyticsLog,
+  AdminSettings
 } = require('./models');
 
 const app = express();
@@ -324,34 +325,54 @@ app.post('/api/session/start', async (req, res) => {
       });
     }
     
-    // Check if already used today (unless admin)
+    // For non-admin users: check for an existing session in the current clock hour
     if (!userIdRecord.isAdmin) {
-      const today = new Date();
-      today.setHours(0, 0, 0, 0);
-      
-      if (userIdRecord.lastUsedDate && userIdRecord.lastUsedDate >= today) {
-        return res.status(403).json({
-          success: false,
-          error: 'USER_ID_ALREADY_USED_TODAY',
-          message: 'This User ID has already been used today'
+      const currentHourStart = new Date();
+      currentHourStart.setMinutes(0, 0, 0);
+
+      const existingSession = await Session.findOne({
+        userId: user_id.toLowerCase(),
+        startedAt: { $gte: currentHourStart }
+      });
+
+      if (existingSession) {
+        const settings = await AdminSettings.getSettings();
+
+        if (settings.sameHourReturnMode === 'block' && existingSession.isComplete) {
+          return res.status(403).json({
+            success: false,
+            error: 'SESSION_COMPLETE_THIS_HOUR',
+            message: 'Access window closed. Try again later.'
+          });
+        }
+
+        // Resume existing session (complete or not)
+        return res.json({
+          success: true,
+          session_token: existingSession.sessionToken,
+          session_id: existingSession._id,
+          user_id: user_id.toLowerCase(),
+          is_admin: userIdRecord.isAdmin,
+          resumed: true,
+          message: 'Session resumed'
         });
       }
     }
-    
+
     // Update user ID usage
     userIdRecord.lastUsedDate = new Date();
     userIdRecord.usageCount += 1;
     await userIdRecord.save();
-    
+
     // Create session
     const sessionToken = `sess_${uuidv4()}`;
     const session = await Session.create({
       userId: user_id.toLowerCase(),
       sessionToken
     });
-    
+
     await logEvent('session_start', session._id, user_id.toLowerCase());
-    
+
     res.json({
       success: true,
       session_token: sessionToken,
@@ -470,7 +491,7 @@ app.post('/api/codes/validate', async (req, res) => {
       sessionId: session._id,
       codeId: codeRecord._id
     });
-    
+
     if (existingSessionCode) {
       await logEvent('code_error_duplicate', session._id, session.userId, { code });
       return res.status(400).json({
@@ -480,7 +501,31 @@ app.post('/api/codes/validate', async (req, res) => {
         message: 'This code has already been entered'
       });
     }
-    
+
+    // Check if entered in any prior session for this user
+    const priorSessions = await Session.find({
+      userId: session.userId,
+      _id: { $ne: session._id }
+    }).select('_id');
+
+    if (priorSessions.length > 0) {
+      const priorIds = priorSessions.map(s => s._id);
+      const priorEntry = await SessionCode.findOne({
+        sessionId: { $in: priorIds },
+        codeId: codeRecord._id
+      });
+
+      if (priorEntry) {
+        await logEvent('code_error_duplicate_prior_session', session._id, session.userId, { code });
+        return res.status(400).json({
+          success: false,
+          valid: false,
+          error: 'CODE_PREVIOUSLY_ENTERED',
+          message: 'Code already entered in a previous session'
+        });
+      }
+    }
+
     // Add code to session
     const sequenceOrder = session.totalCodesEntered + 1;
     await SessionCode.create({
@@ -1063,6 +1108,30 @@ app.post('/api/admin/generate-userid', async (req, res) => {
   }
 });
 
+// POST /api/admin/settings/toggle-return-mode - Toggle same-hour return behavior (admin only)
+app.post('/api/admin/settings/toggle-return-mode', async (req, res) => {
+  try {
+    const { session_token } = req.body;
+    const session = await Session.findOne({ sessionToken: session_token });
+    if (!session) {
+      return res.status(401).json({ success: false, error: 'UNAUTHORIZED', message: 'Invalid session' });
+    }
+    const userIdRecord = await UserId.findOne({ userId: session.userId });
+    if (!userIdRecord || !userIdRecord.isAdmin) {
+      return res.status(403).json({ success: false, error: 'FORBIDDEN', message: 'Admin access required' });
+    }
+
+    const settings = await AdminSettings.getSettings();
+    settings.sameHourReturnMode = settings.sameHourReturnMode === 'resume' ? 'block' : 'resume';
+    await settings.save();
+
+    res.json({ success: true, sameHourReturnMode: settings.sameHourReturnMode });
+  } catch (error) {
+    console.error('Error toggling return mode:', error);
+    res.status(500).json({ success: false, error: 'SERVER_ERROR', message: 'Error updating settings' });
+  }
+});
+
 // POST /api/admin/reset-universes - Reset universe statistics (admin only)
 app.post('/api/admin/reset-universes', async (req, res) => {
   try {
@@ -1186,7 +1255,9 @@ app.get('/api/admin/analytics', async (req, res) => {
       fheels: sessions.filter(s => s.alignmentScore > 0).length,
       neutral: sessions.filter(s => s.alignmentScore === 0).length
     };
-    
+
+    const settings = await AdminSettings.getSettings();
+
     res.json({
       success: true,
       analytics: {
@@ -1195,7 +1266,8 @@ app.get('/api/admin/analytics', async (req, res) => {
         totalUsers,
         todaySessions,
         currentPhase: currentPhase?.phaseName || 'No active phase',
-        alignmentDistribution
+        alignmentDistribution,
+        sameHourReturnMode: settings.sameHourReturnMode
       }
     });
     

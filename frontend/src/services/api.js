@@ -99,6 +99,13 @@ export const adminService = {
       params: { session_token: sessionToken }
     });
     return response.data;
+  },
+
+  toggleReturnMode: async (sessionToken) => {
+    const response = await api.post('/admin/settings/toggle-return-mode', {
+      session_token: sessionToken
+    });
+    return response.data;
   }
 };
 

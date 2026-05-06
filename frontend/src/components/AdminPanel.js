@@ -10,6 +10,7 @@ function AdminPanel({ sessionData }) {
   const [newUserId, setNewUserId] = useState('');
   const [expandedCode, setExpandedCode] = useState(null);
   const [userFilter, setUserFilter] = useState('all'); // 'all', 'used', 'unused'
+  const [returnMode, setReturnMode] = useState('resume');
 
   const loadUsers = useCallback(async () => {
     setLoading(true);
@@ -36,12 +37,27 @@ function AdminPanel({ sessionData }) {
   }, [sessionData.session_token]);
 
   useEffect(() => {
+    adminService.getAnalytics(sessionData.session_token).then(res => {
+      if (res.success) setReturnMode(res.analytics.sameHourReturnMode || 'resume');
+    }).catch(() => {});
+  }, [sessionData.session_token]);
+
+  useEffect(() => {
     if (activeTab === 'users' && users.length === 0) {
       loadUsers();
     } else if (activeTab === 'codes' && codes.length === 0) {
       loadCodes();
     }
   }, [activeTab, users.length, codes.length, loadUsers, loadCodes]);
+
+  const handleToggleReturnMode = async () => {
+    try {
+      const response = await adminService.toggleReturnMode(sessionData.session_token);
+      if (response.success) setReturnMode(response.sameHourReturnMode);
+    } catch (err) {
+      console.error('Error toggling return mode:', err);
+    }
+  };
 
   const handleGenerateUserId = async () => {
     try {
@@ -110,6 +126,12 @@ function AdminPanel({ sessionData }) {
           <div className="admin-actions">
             <button onClick={handleGenerateUserId} className="admin-action-button">
               Generate User ID
+            </button>
+            <button
+              onClick={handleToggleReturnMode}
+              className={`admin-action-button${returnMode === 'block' ? ' danger' : ''}`}
+            >
+              SESSION RETURN: {returnMode === 'resume' ? '[ RESUME ]' : '[ BLOCK ]'}
             </button>
             <button onClick={handleResetUniverses} className="admin-action-button danger">
               Reset Dimension Statistics

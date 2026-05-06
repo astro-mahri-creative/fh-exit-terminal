@@ -119,6 +119,16 @@ const analyticsLogSchema = new mongoose.Schema({
   timestamp: { type: Date, default: Date.now }
 });
 
+// Admin Settings Schema (singleton document)
+const adminSettingsSchema = new mongoose.Schema({
+  sameHourReturnMode: { type: String, enum: ['resume', 'block'], default: 'resume' }
+});
+adminSettingsSchema.statics.getSettings = async function () {
+  let doc = await this.findOne();
+  if (!doc) doc = await this.create({});
+  return doc;
+};
+
 // Create models
 const Universe = mongoose.model('Universe', universeSchema);
 const UniverseStatusThreshold = mongoose.model('UniverseStatusThreshold', universeStatusThresholdSchema);
@@ -132,6 +142,7 @@ const MetaGameRule = mongoose.model('MetaGameRule', metaGameRuleSchema);
 const PhaxAlertMessage = mongoose.model('PhaxAlertMessage', phaxAlertMessageSchema);
 const CureStatus = mongoose.model('CureStatus', cureStatusSchema);
 const AnalyticsLog = mongoose.model('AnalyticsLog', analyticsLogSchema);
+const AdminSettings = mongoose.model('AdminSettings', adminSettingsSchema);
 
 module.exports = {
   Universe,
@@ -145,5 +156,6 @@ module.exports = {
   MetaGameRule,
   PhaxAlertMessage,
   CureStatus,
-  AnalyticsLog
+  AnalyticsLog,
+  AdminSettings
 };
