@@ -47,8 +47,18 @@ function UniverseCard({ universe, idx, numbersVisible, isFheels }) {
       <div className="universe-name">{universe.name}</div>
       <div className="universe-cases">
         <div className="cases-label">iFLU Cases:</div>
+        {/* Always visible: shows the original (pre-event) value in white before
+            the count-up triggers. When numbersVisible flips, the directional
+            class adds the green/red color (smoothly via CSS transition) and
+            the FHEELS variant layers a glitch flash without re-fading. */}
         <div
-          className={`cases-value ${universe.change > 0 ? 'cases-up' : universe.change < 0 ? 'cases-down' : ''} ${numClass}`}
+          className={`cases-value ${
+            numbersVisible
+              ? `${universe.change > 0 ? 'cases-up' : universe.change < 0 ? 'cases-down' : ''}${
+                  isFheels ? ' numbers-tick-fheels-reveal' : ''
+                }`
+              : ''
+          }`}
           style={{ animationDelay: cardDelay }}
         >
           {animatedCases.toLocaleString()}
@@ -228,7 +238,7 @@ function ResultsScreen({ resultsData, sessionData, onReset }) {
         <UniverseNetworkVisualization
           mode="display"
           autoRotate={true}
-          cameraZ={50}
+          cameraZ={32}
           boundingRadius={12}
           caseDeltas={caseDeltas}
           animateNumbers={numbersVisible}

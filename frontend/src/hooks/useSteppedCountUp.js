@@ -13,11 +13,20 @@ export default function useSteppedCountUp(
   enabled,
   delayMs = 0,
 ) {
-  const [value, setValue] = useState(to);
+  // Pre-animation we display the original (`from`) value so users see the
+  // pre-event state immediately. Once `enabled` flips, the effect kicks off
+  // the staircase tick from `from` to `to`.
+  const [value, setValue] = useState(enabled ? to : from);
 
   useEffect(() => {
-    if (!enabled || from === to) {
+    if (from === to) {
       setValue(to);
+      return undefined;
+    }
+    if (!enabled) {
+      // Pre-animation: park at the original value so the user sees the
+      // pre-event state until the animation triggers.
+      setValue(from);
       return undefined;
     }
 
