@@ -92,6 +92,16 @@
   line-height: 1.1;
 }
 
+.label-cases.cases-up {
+  color: #c94040;
+  text-shadow: 0 0 8px rgba(201, 64, 64, 0.45);
+}
+
+.label-cases.cases-down {
+  color: #2e9e7a;
+  text-shadow: 0 0 8px rgba(46, 158, 122, 0.45);
+}
+
 .label-status {
   font-size: 30px;
   font-weight: 700;

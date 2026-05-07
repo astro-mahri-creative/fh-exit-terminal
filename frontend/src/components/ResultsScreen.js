@@ -1,11 +1,76 @@
-import React, { useState, useEffect, useRef, useCallback } from 'react';
+import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { emailService } from '../services/api';
 import UniverseNetworkVisualization from './UniverseNetworkVisualization';
 import TerminalKeyboard from './TerminalKeyboard';
+import useSteppedCountUp from '../hooks/useSteppedCountUp';
 import './ResultsScreen.css';
 
 const FIRST_IDLE_TIMEOUT = 30;
 const SECOND_IDLE_TIMEOUT = 60;
+
+const STEPPED_COUNT_STEPS = 5;       // 5 intermediate ticks between from and to
+const STEPPED_COUNT_DURATION_MS = 670; // (steps + 1) * duration ≈ 4s total
+
+const STATUS_COLORS = {
+  OPTIMIZED:    { primary: '#b0bec5', secondary: '#78909c', textColor: '#0a0a0a' },
+  ACTIVE:       { primary: '#9e9e9e', secondary: '#616161', textColor: '#0a0a0a' },
+  COMPROMISED:  { primary: '#e6911a', secondary: '#a05c08', textColor: '#0a0a0a' },
+  QUARANTINED:  { primary: '#c94040', secondary: '#7c1a1a', textColor: '#f0eeeb' },
+  LIBERATED:    { primary: '#a0784a', secondary: '#5c3d20', textColor: '#f0eeeb' },
+  TRANSCENDENT: { primary: '#9575cd', secondary: '#4527a0', textColor: '#f0eeeb' },
+};
+
+function UniverseCard({ universe, idx, numbersVisible, isFheels }) {
+  const colors = STATUS_COLORS[universe.status] || STATUS_COLORS.ACTIVE;
+  const startVal = universe.current_cases - universe.change;
+  const animatedCases = useSteppedCountUp(
+    startVal,
+    universe.current_cases,
+    STEPPED_COUNT_STEPS,
+    STEPPED_COUNT_DURATION_MS,
+    numbersVisible,
+    idx * 40,
+  );
+  const numClass = numbersVisible
+    ? (isFheels ? 'numbers-fheels-reveal' : 'numbers-animate')
+    : 'numbers-hidden';
+  const cardDelay = `${idx * 40}ms`;
+
+  return (
+    <div
+      className="universe-card"
+      style={{
+        borderColor: colors.primary + '66',
+        background: `linear-gradient(160deg, ${colors.primary}12, ${colors.secondary}08)`
+      }}
+    >
+      <div className="universe-name">{universe.name}</div>
+      <div className="universe-cases">
+        <div className="cases-label">iFLU Cases:</div>
+        <div
+          className={`cases-value ${universe.change > 0 ? 'cases-up' : universe.change < 0 ? 'cases-down' : ''} ${numClass}`}
+          style={{ animationDelay: cardDelay }}
+        >
+          {animatedCases.toLocaleString()}
+        </div>
+        {universe.change !== 0 && (
+          <div
+            className={`cases-change ${universe.change > 0 ? 'increase' : 'decrease'} ${numClass}`}
+            style={{ animationDelay: cardDelay }}
+          >
+            {universe.change > 0 ? '+' : ''}{universe.change.toLocaleString()}
+          </div>
+        )}
+      </div>
+      <div
+        className="universe-status"
+        style={{ backgroundColor: colors.primary, color: colors.textColor }}
+      >
+        {universe.status}
+      </div>
+    </div>
+  );
+}
 
 function ResultsScreen({ resultsData, sessionData, onReset }) {
   const [email, setEmail] = useState('');
@@ -66,32 +131,29 @@ function ResultsScreen({ resultsData, sessionData, onReset }) {
     };
   }, [startIdleTimer]);
 
-  // Fallback: show numbers after 5s even if 3D view never fires onReady
+  // Fallback: show numbers after 8s even if 3D view never fires onReady
   useEffect(() => {
-    const fallback = setTimeout(() => setNumbersVisible(true), 5000);
+    const fallback = setTimeout(() => setNumbersVisible(true), 8000);
     return () => clearTimeout(fallback);
   }, []);
 
-  // Show numbers 1s after multiverse overview first renders
+  // Show numbers 4s after multiverse overview first renders
   useEffect(() => {
     if (!multiverseReady) return;
-    const timer = setTimeout(() => setNumbersVisible(true), 1000);
+    const timer = setTimeout(() => setNumbersVisible(true), 4000);
     return () => clearTimeout(timer);
   }, [multiverseReady]);
 
-  const getStatusColor = (status) => {
-    // Clinical palette — matches CSS custom properties in App.css
-    // textColor: dark for light backgrounds, light for dark backgrounds
-    const colors = {
-      'OPTIMIZED':    { primary: '#b0bec5', secondary: '#78909c', textColor: '#0a0a0a' },
-      'ACTIVE':       { primary: '#9e9e9e', secondary: '#616161', textColor: '#0a0a0a' },
-      'COMPROMISED':  { primary: '#e6911a', secondary: '#a05c08', textColor: '#0a0a0a' },
-      'QUARANTINED':  { primary: '#c94040', secondary: '#7c1a1a', textColor: '#f0eeeb' },
-      'LIBERATED':    { primary: '#a0784a', secondary: '#5c3d20', textColor: '#f0eeeb' },
-      'TRANSCENDENT': { primary: '#9575cd', secondary: '#4527a0', textColor: '#f0eeeb' }
-    };
-    return colors[status] || colors.ACTIVE;
-  };
+  // Map of universe._id (string) -> case change. Lets the 3D label component
+  // animate from previous-cases (current - change) to current-cases.
+  const caseDeltas = useMemo(() => {
+    const out = {};
+    resultsData.universes.forEach((u) => {
+      out[u.id?.toString?.() ?? u._id?.toString?.() ?? u.id] = u.change ?? 0;
+    });
+    return out;
+  }, [resultsData.universes]);
+
 
   const handleEmailKeyPress = useCallback((key) => {
     setEmail(prev => {
@@ -166,7 +228,10 @@ function ResultsScreen({ resultsData, sessionData, onReset }) {
         <UniverseNetworkVisualization
           mode="display"
           autoRotate={true}
-          cameraZ={28}
+          cameraZ={50}
+          boundingRadius={12}
+          caseDeltas={caseDeltas}
+          animateNumbers={numbersVisible}
           onReady={() => setMultiverseReady(true)}
         />
       </div>
@@ -183,49 +248,23 @@ function ResultsScreen({ resultsData, sessionData, onReset }) {
         </div>
 
         {showNetwork ? (
-          <UniverseNetworkVisualization mode="interactive" autoRotate={true} />
+          <UniverseNetworkVisualization
+            mode="interactive"
+            autoRotate={true}
+            caseDeltas={caseDeltas}
+            animateNumbers={numbersVisible}
+          />
         ) : (
           <div className="universes-grid">
-            {resultsData.universes.map((universe, idx) => {
-            const colors = getStatusColor(universe.status);
-            const isFheels = resultsData.alignment_score > 0;
-            const numClass = numbersVisible
-              ? (isFheels ? 'numbers-fheels-reveal' : 'numbers-animate')
-              : 'numbers-hidden';
-            const cardDelay = `${idx * 40}ms`;
-            return (
-              <div
+            {resultsData.universes.map((universe, idx) => (
+              <UniverseCard
                 key={universe.id}
-                className="universe-card"
-                style={{
-                  borderColor: colors.primary + '66',
-                  background: `linear-gradient(160deg, ${colors.primary}12, ${colors.secondary}08)`
-                }}
-              >
-                <div className="universe-name">{universe.name}</div>
-                <div className="universe-cases">
-                  <div className="cases-label">iFLU Cases:</div>
-                  <div className={`cases-value ${numClass}`} style={{ animationDelay: cardDelay }}>
-                    {universe.current_cases.toLocaleString()}
-                  </div>
-                  {universe.change !== 0 && (
-                    <div
-                      className={`cases-change ${universe.change > 0 ? 'increase' : 'decrease'} ${numClass}`}
-                      style={{ animationDelay: cardDelay }}
-                    >
-                      {universe.change > 0 ? '+' : ''}{universe.change.toLocaleString()}
-                    </div>
-                  )}
-                </div>
-                <div
-                  className="universe-status"
-                  style={{ backgroundColor: colors.primary, color: colors.textColor }}
-                >
-                  {universe.status}
-                </div>
-              </div>
-            );
-          })}
+                universe={universe}
+                idx={idx}
+                numbersVisible={numbersVisible}
+                isFheels={resultsData.alignment_score > 0}
+              />
+            ))}
         </div>
         )}
 
