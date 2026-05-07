@@ -1,38 +1,15 @@
-import React, { useState, useEffect, useRef, useCallback } from 'react';
+import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { emailService } from '../services/api';
 import UniverseNetworkVisualization from './UniverseNetworkVisualization';
 import TerminalKeyboard from './TerminalKeyboard';
+import useSteppedCountUp from '../hooks/useSteppedCountUp';
 import './ResultsScreen.css';
 
 const FIRST_IDLE_TIMEOUT = 30;
 const SECOND_IDLE_TIMEOUT = 60;
 
-// Animate a number from `from` to `to` once `enabled` flips true.
-// Returns the current rounded integer; stays at `to` when disabled.
-function useCountUp(from, to, duration, enabled, delayMs = 0) {
-  const [value, setValue] = useState(to);
-  useEffect(() => {
-    if (!enabled || from === to) {
-      setValue(to);
-      return;
-    }
-    setValue(from);
-    let raf;
-    let startTime;
-    const tick = (now) => {
-      if (startTime == null) startTime = now;
-      const elapsed = now - startTime - delayMs;
-      if (elapsed < 0) { raf = requestAnimationFrame(tick); return; }
-      const t = Math.min(1, elapsed / duration);
-      const eased = 1 - Math.pow(1 - t, 3);
-      setValue(Math.round(from + (to - from) * eased));
-      if (t < 1) raf = requestAnimationFrame(tick);
-    };
-    raf = requestAnimationFrame(tick);
-    return () => cancelAnimationFrame(raf);
-  }, [from, to, duration, enabled, delayMs]);
-  return value;
-}
+const STEPPED_COUNT_STEPS = 5;       // 5 intermediate ticks between from and to
+const STEPPED_COUNT_DURATION_MS = 180;
 
 const STATUS_COLORS = {
   OPTIMIZED:    { primary: '#b0bec5', secondary: '#78909c', textColor: '#0a0a0a' },
@@ -46,7 +23,14 @@ const STATUS_COLORS = {
 function UniverseCard({ universe, idx, numbersVisible, isFheels }) {
   const colors = STATUS_COLORS[universe.status] || STATUS_COLORS.ACTIVE;
   const startVal = universe.current_cases - universe.change;
-  const animatedCases = useCountUp(startVal, universe.current_cases, 900, numbersVisible, idx * 40);
+  const animatedCases = useSteppedCountUp(
+    startVal,
+    universe.current_cases,
+    STEPPED_COUNT_STEPS,
+    STEPPED_COUNT_DURATION_MS,
+    numbersVisible,
+    idx * 40,
+  );
   const numClass = numbersVisible
     ? (isFheels ? 'numbers-fheels-reveal' : 'numbers-animate')
     : 'numbers-hidden';
@@ -157,6 +141,16 @@ function ResultsScreen({ resultsData, sessionData, onReset }) {
     return () => clearTimeout(timer);
   }, [multiverseReady]);
 
+  // Map of universe._id (string) -> case change. Lets the 3D label component
+  // animate from previous-cases (current - change) to current-cases.
+  const caseDeltas = useMemo(() => {
+    const out = {};
+    resultsData.universes.forEach((u) => {
+      out[u.id?.toString?.() ?? u._id?.toString?.() ?? u.id] = u.change ?? 0;
+    });
+    return out;
+  }, [resultsData.universes]);
+
 
   const handleEmailKeyPress = useCallback((key) => {
     setEmail(prev => {
@@ -231,7 +225,10 @@ function ResultsScreen({ resultsData, sessionData, onReset }) {
         <UniverseNetworkVisualization
           mode="display"
           autoRotate={true}
-          cameraZ={42}
+          cameraZ={50}
+          boundingRadius={12}
+          caseDeltas={caseDeltas}
+          animateNumbers={numbersVisible}
           onReady={() => setMultiverseReady(true)}
         />
       </div>
@@ -248,7 +245,12 @@ function ResultsScreen({ resultsData, sessionData, onReset }) {
         </div>
 
         {showNetwork ? (
-          <UniverseNetworkVisualization mode="interactive" autoRotate={true} />
+          <UniverseNetworkVisualization
+            mode="interactive"
+            autoRotate={true}
+            caseDeltas={caseDeltas}
+            animateNumbers={numbersVisible}
+          />
         ) : (
           <div className="universes-grid">
             {resultsData.universes.map((universe, idx) => (

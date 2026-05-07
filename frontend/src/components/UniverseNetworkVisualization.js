@@ -5,7 +5,11 @@ import { OrbitControls, Stars, Html, Line } from '@react-three/drei';
 import { EffectComposer, Bloom } from '@react-three/postprocessing';
 import { forceSimulation, forceManyBody, forceLink, forceCenter, forceCollide } from 'd3-force-3d';
 import { networkService } from '../services/api';
+import useSteppedCountUp from '../hooks/useSteppedCountUp';
 import './UniverseNetworkVisualization.css';
+
+const STEPPED_COUNT_STEPS = 5;
+const STEPPED_COUNT_DURATION_MS = 180;
 
 // ─── Configuration ─────────────────────────────────────────────────────────
 const CONFIG = {
@@ -319,13 +323,24 @@ function NetworkParticles({ links, positions, universeColors }) {
 }
 
 // ─── Universe Node ─────────────────────────────────────────────────────────
-function UniverseNode({ position, universe, radius, interactive, onHover, isHovered }) {
+function UniverseNode({ position, universe, radius, interactive, onHover, isHovered, caseDelta, animateNumbers, animationDelayMs }) {
   const color        = STATUS_COLORS[universe.status] || STATUS_COLORS.ACTIVE;
   const emissive     = STATUS_EMISSIVE[universe.status] || 1.0;
   const seed         = universe._id.toString();
   const variantIndex = hashId(seed) % 2;   // deterministic but distributed random
   const Variant      = UNIVERSE_VARIANTS[variantIndex];
   const labelOffsetPx = VARIANT_LABEL_OFFSET[variantIndex](radius);
+
+  const finalCases = universe.currentCases ?? 0;
+  const startCases = finalCases - (caseDelta ?? 0);
+  const displayedCases = useSteppedCountUp(
+    startCases,
+    finalCases,
+    STEPPED_COUNT_STEPS,
+    STEPPED_COUNT_DURATION_MS,
+    !!animateNumbers,
+    animationDelayMs ?? 0,
+  );
 
   return (
     <group position={position}>
@@ -350,7 +365,7 @@ function UniverseNode({ position, universe, radius, interactive, onHover, isHove
           }}
         >
           <div className="label-name"   style={{ color }}>{universe.name}</div>
-          <div className="label-cases">{universe.currentCases?.toLocaleString()} iFLU</div>
+          <div className="label-cases">{displayedCases.toLocaleString()} iFLU</div>
           <div className="label-status" style={{ color }}>{universe.status}</div>
         </div>
       </Html>
@@ -359,7 +374,7 @@ function UniverseNode({ position, universe, radius, interactive, onHover, isHove
 }
 
 // ─── Scene Contents ────────────────────────────────────────────────────────
-function NetworkScene({ networkData, interactive, onHover, onReady }) {
+function NetworkScene({ networkData, interactive, onHover, onReady, boundingRadius, caseDeltas, animateNumbers }) {
   const layout = useMemo(() => {
     if (!networkData) return null;
 
@@ -386,13 +401,28 @@ function NetworkScene({ networkData, interactive, onHover, onReady }) {
 
     for (let i = 0; i < CONFIG.forceSimTicks; i++) sim.tick();
 
+    // Optional: scale positions inward so the furthest universe sits at
+    // boundingRadius. Lets the camera be placed at a known distance and
+    // actually feel "outside" the multiverse cluster.
+    if (boundingRadius && boundingRadius > 0) {
+      let maxR = 0;
+      nodes.forEach(n => {
+        const r = Math.hypot(n.x ?? 0, n.y ?? 0, n.z ?? 0);
+        if (r > maxR) maxR = r;
+      });
+      if (maxR > boundingRadius) {
+        const s = boundingRadius / maxR;
+        nodes.forEach(n => { n.x = (n.x ?? 0) * s; n.y = (n.y ?? 0) * s; n.z = (n.z ?? 0) * s; });
+      }
+    }
+
     const positions = {};
     nodes.forEach(n => { positions[n.id] = [n.x ?? 0, n.y ?? 0, n.z ?? 0]; });
 
     const maxWeight = Math.max(1, ...links.map(l => l.weight));
 
     return { universes, links, positions, maxWeight };
-  }, [networkData]);
+  }, [networkData, boundingRadius]);
 
   const [hovered, setHovered] = useState(null);
 
@@ -450,8 +480,9 @@ function NetworkScene({ networkData, interactive, onHover, onReady }) {
       />
 
       {/* Nodes */}
-      {universes.map(u => {
-        const pos = positions[u._id.toString()];
+      {universes.map((u, idx) => {
+        const id = u._id.toString();
+        const pos = positions[id];
         if (!pos) return null;
         const radius = CONFIG.nodeRadiusMin +
           ((u.currentCases - minCases) / caseRange) *
@@ -465,6 +496,9 @@ function NetworkScene({ networkData, interactive, onHover, onReady }) {
             interactive={interactive}
             onHover={handleHover}
             isHovered={hovered === u._id}
+            caseDelta={caseDeltas?.[id] ?? 0}
+            animateNumbers={animateNumbers}
+            animationDelayMs={idx * 40}
           />
         );
       })}
@@ -473,7 +507,7 @@ function NetworkScene({ networkData, interactive, onHover, onReady }) {
 }
 
 // ─── Main Component ─────────────────────────────────────────────────────────
-function UniverseNetworkVisualization({ mode = 'display', autoRotate = true, onClose, cameraZ, onReady }) {
+function UniverseNetworkVisualization({ mode = 'display', autoRotate = true, onClose, cameraZ, onReady, boundingRadius, caseDeltas, animateNumbers }) {
   const [networkData,     setNetworkData]     = useState(null);
   const [loading,         setLoading]         = useState(true);
   const [error,           setError]           = useState(null);
@@ -518,6 +552,9 @@ function UniverseNetworkVisualization({ mode = 'display', autoRotate = true, onC
             interactive={interactive}
             onHover={setHoveredUniverse}
             onReady={onReady}
+            boundingRadius={boundingRadius}
+            caseDeltas={caseDeltas}
+            animateNumbers={animateNumbers}
           />
           <OrbitControls
             autoRotate={autoRotate}
