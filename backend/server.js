@@ -461,13 +461,19 @@ app.post('/api/codes/validate', async (req, res) => {
       });
     }
     
-    // Block code entry on finalized sessions
+    // Block code entry only when admin has chosen to block same-hour returns.
+    // In 'resume' mode the user may continue activating NEW codes after a
+    // prior finalization within the hour; duplicate-code checks below still
+    // prevent reprocessing of any code they already submitted.
     if (session.isComplete) {
-      return res.status(400).json({
-        success: false,
-        error: 'SESSION_ALREADY_FINALIZED',
-        message: 'Your codes have already been processed'
-      });
+      const settings = await AdminSettings.getSettings();
+      if (settings.sameHourReturnMode === 'block') {
+        return res.status(400).json({
+          success: false,
+          error: 'SESSION_ALREADY_FINALIZED',
+          message: 'Your codes have already been processed'
+        });
+      }
     }
 
     // Find code
@@ -575,13 +581,21 @@ app.post('/api/codes/preview', async (req, res) => {
       return res.status(404).json({ success: false, error: 'INVALID_SESSION', message: 'Session not found' });
     }
     if (session.isComplete) {
-      return res.status(400).json({ success: false, error: 'SESSION_ALREADY_FINALIZED', message: 'Your codes have already been processed' });
-    }
-    if (session.totalCodesEntered === 0) {
-      return res.status(400).json({ success: false, error: 'NO_CODES_ENTERED', message: 'Please enter at least one code' });
+      const settings = await AdminSettings.getSettings();
+      if (settings.sameHourReturnMode === 'block') {
+        return res.status(400).json({ success: false, error: 'SESSION_ALREADY_FINALIZED', message: 'Your codes have already been processed' });
+      }
     }
 
-    const sessionCodes = await SessionCode.find({ sessionId: session._id }).populate('codeId');
+    // In resume mode, only consider codes entered since the last finalization.
+    // First-time finalize: finalizedAt is null and we include every entry.
+    const codesQuery = { sessionId: session._id };
+    if (session.finalizedAt) codesQuery.enteredAt = { $gt: session.finalizedAt };
+    const sessionCodes = await SessionCode.find(codesQuery).populate('codeId');
+
+    if (sessionCodes.length === 0) {
+      return res.status(400).json({ success: false, error: 'NO_CODES_ENTERED', message: 'Please enter at least one code' });
+    }
     const universes = await Universe.find();
     let cureStatus = await CureStatus.findOne();
     let isCureActive = cureStatus?.isDiscovered || false;
@@ -689,27 +703,32 @@ app.post('/api/codes/finalize', async (req, res) => {
       });
     }
 
-    // Prevent double-finalization
+    // Block re-finalization only in 'block' mode. In 'resume' mode, processing
+    // a second round simply applies the codes entered since the last finalize.
     if (session.isComplete) {
-      return res.status(400).json({
-        success: false,
-        error: 'SESSION_ALREADY_FINALIZED',
-        message: 'Your codes have already been processed'
-      });
+      const settings = await AdminSettings.getSettings();
+      if (settings.sameHourReturnMode === 'block') {
+        return res.status(400).json({
+          success: false,
+          error: 'SESSION_ALREADY_FINALIZED',
+          message: 'Your codes have already been processed'
+        });
+      }
     }
 
-    // Check if codes entered
-    if (session.totalCodesEntered === 0) {
+    // Only process codes entered since the last finalization. First-time
+    // finalize sees every code; subsequent rounds only see new entries.
+    const codesQuery = { sessionId: session._id };
+    if (session.finalizedAt) codesQuery.enteredAt = { $gt: session.finalizedAt };
+    const sessionCodes = await SessionCode.find(codesQuery).populate('codeId');
+
+    if (sessionCodes.length === 0) {
       return res.status(400).json({
         success: false,
         error: 'NO_CODES_ENTERED',
         message: 'Please enter at least one code'
       });
     }
-
-    // Get all session codes
-    const sessionCodes = await SessionCode.find({ sessionId: session._id })
-      .populate('codeId');
 
     // Get cure status
     let cureStatus = await CureStatus.findOne();

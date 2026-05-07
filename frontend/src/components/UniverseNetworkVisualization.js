@@ -365,7 +365,11 @@ function UniverseNode({ position, universe, radius, interactive, onHover, isHove
           }}
         >
           <div className="label-name"   style={{ color }}>{universe.name}</div>
-          <div className={`label-cases ${(caseDelta ?? 0) > 0 ? 'cases-up' : (caseDelta ?? 0) < 0 ? 'cases-down' : ''}`}>
+          <div className={`label-cases ${
+            animateNumbers
+              ? (caseDelta ?? 0) > 0 ? 'cases-up' : (caseDelta ?? 0) < 0 ? 'cases-down' : ''
+              : ''
+          }`}>
             {displayedCases.toLocaleString()} iFLU
           </div>
           <div className="label-status" style={{ color }}>{universe.status}</div>
