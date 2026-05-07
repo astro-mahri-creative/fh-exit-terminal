@@ -244,12 +244,6 @@
   text-shadow: 0 0 6px rgba(46, 158, 122, 0.25);
 }
 
-/* FHEELS glitch flash without the opacity/translate fade — used on
-   .cases-value which is already visible from the start. */
-.numbers-tick-fheels-reveal {
-  animation: fheelsReveal 0.6s ease-out 0.1s both;
-}
-
 .cases-change {
   font-family: var(--font-mono);
   font-size: 0.95rem;

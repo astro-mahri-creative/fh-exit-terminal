@@ -49,17 +49,14 @@ function UniverseCard({ universe, idx, numbersVisible, isFheels }) {
         <div className="cases-label">iFLU Cases:</div>
         {/* Always visible: shows the original (pre-event) value in white before
             the count-up triggers. When numbersVisible flips, the directional
-            class adds the green/red color (smoothly via CSS transition) and
-            the FHEELS variant layers a glitch flash without re-fading. */}
+            class is added — CSS transition smoothly fades white → green/red,
+            and that color is what persists once the count-up settles. */}
         <div
           className={`cases-value ${
             numbersVisible
-              ? `${universe.change > 0 ? 'cases-up' : universe.change < 0 ? 'cases-down' : ''}${
-                  isFheels ? ' numbers-tick-fheels-reveal' : ''
-                }`
+              ? (universe.change > 0 ? 'cases-up' : universe.change < 0 ? 'cases-down' : '')
               : ''
           }`}
-          style={{ animationDelay: cardDelay }}
         >
           {animatedCases.toLocaleString()}
         </div>
