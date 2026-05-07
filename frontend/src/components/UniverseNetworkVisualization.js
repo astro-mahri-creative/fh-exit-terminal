@@ -359,7 +359,7 @@ function UniverseNode({ position, universe, radius, interactive, onHover, isHove
 }
 
 // ─── Scene Contents ────────────────────────────────────────────────────────
-function NetworkScene({ networkData, interactive, onHover }) {
+function NetworkScene({ networkData, interactive, onHover, onReady }) {
   const layout = useMemo(() => {
     if (!networkData) return null;
 
@@ -403,6 +403,14 @@ function NetworkScene({ networkData, interactive, onHover }) {
       layout.universes.map(u => [u._id.toString(), STATUS_COLORS[u.status] || STATUS_COLORS.ACTIVE])
     );
   }, [layout]);
+
+  const readyFiredRef = useRef(false);
+  useFrame(() => {
+    if (!readyFiredRef.current) {
+      readyFiredRef.current = true;
+      onReady?.();
+    }
+  });
 
   const handleHover = (u) => {
     setHovered(u ? u._id : null);
@@ -465,7 +473,7 @@ function NetworkScene({ networkData, interactive, onHover }) {
 }
 
 // ─── Main Component ─────────────────────────────────────────────────────────
-function UniverseNetworkVisualization({ mode = 'display', autoRotate = true, onClose }) {
+function UniverseNetworkVisualization({ mode = 'display', autoRotate = true, onClose, cameraZ, onReady }) {
   const [networkData,     setNetworkData]     = useState(null);
   const [loading,         setLoading]         = useState(true);
   const [error,           setError]           = useState(null);
@@ -501,7 +509,7 @@ function UniverseNetworkVisualization({ mode = 'display', autoRotate = true, onC
 
       {!loading && networkData && (
         <Canvas
-          camera={{ position: [0, 0, CONFIG.cameraDistance], fov: CONFIG.cameraFOV }}
+          camera={{ position: [0, 0, cameraZ ?? CONFIG.cameraDistance], fov: CONFIG.cameraFOV }}
           gl={{ antialias: true, alpha: true }}
           style={{ position: 'absolute', inset: 0 }}
         >
@@ -509,6 +517,7 @@ function UniverseNetworkVisualization({ mode = 'display', autoRotate = true, onC
             networkData={networkData}
             interactive={interactive}
             onHover={setHoveredUniverse}
+            onReady={onReady}
           />
           <OrbitControls
             autoRotate={autoRotate}
