@@ -7,6 +7,84 @@ import './ResultsScreen.css';
 const FIRST_IDLE_TIMEOUT = 30;
 const SECOND_IDLE_TIMEOUT = 60;
 
+// Animate a number from `from` to `to` once `enabled` flips true.
+// Returns the current rounded integer; stays at `to` when disabled.
+function useCountUp(from, to, duration, enabled, delayMs = 0) {
+  const [value, setValue] = useState(to);
+  useEffect(() => {
+    if (!enabled || from === to) {
+      setValue(to);
+      return;
+    }
+    setValue(from);
+    let raf;
+    let startTime;
+    const tick = (now) => {
+      if (startTime == null) startTime = now;
+      const elapsed = now - startTime - delayMs;
+      if (elapsed < 0) { raf = requestAnimationFrame(tick); return; }
+      const t = Math.min(1, elapsed / duration);
+      const eased = 1 - Math.pow(1 - t, 3);
+      setValue(Math.round(from + (to - from) * eased));
+      if (t < 1) raf = requestAnimationFrame(tick);
+    };
+    raf = requestAnimationFrame(tick);
+    return () => cancelAnimationFrame(raf);
+  }, [from, to, duration, enabled, delayMs]);
+  return value;
+}
+
+const STATUS_COLORS = {
+  OPTIMIZED:    { primary: '#b0bec5', secondary: '#78909c', textColor: '#0a0a0a' },
+  ACTIVE:       { primary: '#9e9e9e', secondary: '#616161', textColor: '#0a0a0a' },
+  COMPROMISED:  { primary: '#e6911a', secondary: '#a05c08', textColor: '#0a0a0a' },
+  QUARANTINED:  { primary: '#c94040', secondary: '#7c1a1a', textColor: '#f0eeeb' },
+  LIBERATED:    { primary: '#a0784a', secondary: '#5c3d20', textColor: '#f0eeeb' },
+  TRANSCENDENT: { primary: '#9575cd', secondary: '#4527a0', textColor: '#f0eeeb' },
+};
+
+function UniverseCard({ universe, idx, numbersVisible, isFheels }) {
+  const colors = STATUS_COLORS[universe.status] || STATUS_COLORS.ACTIVE;
+  const startVal = universe.current_cases - universe.change;
+  const animatedCases = useCountUp(startVal, universe.current_cases, 900, numbersVisible, idx * 40);
+  const numClass = numbersVisible
+    ? (isFheels ? 'numbers-fheels-reveal' : 'numbers-animate')
+    : 'numbers-hidden';
+  const cardDelay = `${idx * 40}ms`;
+
+  return (
+    <div
+      className="universe-card"
+      style={{
+        borderColor: colors.primary + '66',
+        background: `linear-gradient(160deg, ${colors.primary}12, ${colors.secondary}08)`
+      }}
+    >
+      <div className="universe-name">{universe.name}</div>
+      <div className="universe-cases">
+        <div className="cases-label">iFLU Cases:</div>
+        <div className={`cases-value ${numClass}`} style={{ animationDelay: cardDelay }}>
+          {animatedCases.toLocaleString()}
+        </div>
+        {universe.change !== 0 && (
+          <div
+            className={`cases-change ${universe.change > 0 ? 'increase' : 'decrease'} ${numClass}`}
+            style={{ animationDelay: cardDelay }}
+          >
+            {universe.change > 0 ? '+' : ''}{universe.change.toLocaleString()}
+          </div>
+        )}
+      </div>
+      <div
+        className="universe-status"
+        style={{ backgroundColor: colors.primary, color: colors.textColor }}
+      >
+        {universe.status}
+      </div>
+    </div>
+  );
+}
+
 function ResultsScreen({ resultsData, sessionData, onReset }) {
   const [email, setEmail] = useState('');
   const [emailSent, setEmailSent] = useState(false);
@@ -66,32 +144,19 @@ function ResultsScreen({ resultsData, sessionData, onReset }) {
     };
   }, [startIdleTimer]);
 
-  // Fallback: show numbers after 5s even if 3D view never fires onReady
+  // Fallback: show numbers after 8s even if 3D view never fires onReady
   useEffect(() => {
-    const fallback = setTimeout(() => setNumbersVisible(true), 5000);
+    const fallback = setTimeout(() => setNumbersVisible(true), 8000);
     return () => clearTimeout(fallback);
   }, []);
 
-  // Show numbers 1s after multiverse overview first renders
+  // Show numbers 4s after multiverse overview first renders
   useEffect(() => {
     if (!multiverseReady) return;
-    const timer = setTimeout(() => setNumbersVisible(true), 1000);
+    const timer = setTimeout(() => setNumbersVisible(true), 4000);
     return () => clearTimeout(timer);
   }, [multiverseReady]);
 
-  const getStatusColor = (status) => {
-    // Clinical palette — matches CSS custom properties in App.css
-    // textColor: dark for light backgrounds, light for dark backgrounds
-    const colors = {
-      'OPTIMIZED':    { primary: '#b0bec5', secondary: '#78909c', textColor: '#0a0a0a' },
-      'ACTIVE':       { primary: '#9e9e9e', secondary: '#616161', textColor: '#0a0a0a' },
-      'COMPROMISED':  { primary: '#e6911a', secondary: '#a05c08', textColor: '#0a0a0a' },
-      'QUARANTINED':  { primary: '#c94040', secondary: '#7c1a1a', textColor: '#f0eeeb' },
-      'LIBERATED':    { primary: '#a0784a', secondary: '#5c3d20', textColor: '#f0eeeb' },
-      'TRANSCENDENT': { primary: '#9575cd', secondary: '#4527a0', textColor: '#f0eeeb' }
-    };
-    return colors[status] || colors.ACTIVE;
-  };
 
   const handleEmailKeyPress = useCallback((key) => {
     setEmail(prev => {
@@ -166,7 +231,7 @@ function ResultsScreen({ resultsData, sessionData, onReset }) {
         <UniverseNetworkVisualization
           mode="display"
           autoRotate={true}
-          cameraZ={28}
+          cameraZ={42}
           onReady={() => setMultiverseReady(true)}
         />
       </div>
@@ -186,46 +251,15 @@ function ResultsScreen({ resultsData, sessionData, onReset }) {
           <UniverseNetworkVisualization mode="interactive" autoRotate={true} />
         ) : (
           <div className="universes-grid">
-            {resultsData.universes.map((universe, idx) => {
-            const colors = getStatusColor(universe.status);
-            const isFheels = resultsData.alignment_score > 0;
-            const numClass = numbersVisible
-              ? (isFheels ? 'numbers-fheels-reveal' : 'numbers-animate')
-              : 'numbers-hidden';
-            const cardDelay = `${idx * 40}ms`;
-            return (
-              <div
+            {resultsData.universes.map((universe, idx) => (
+              <UniverseCard
                 key={universe.id}
-                className="universe-card"
-                style={{
-                  borderColor: colors.primary + '66',
-                  background: `linear-gradient(160deg, ${colors.primary}12, ${colors.secondary}08)`
-                }}
-              >
-                <div className="universe-name">{universe.name}</div>
-                <div className="universe-cases">
-                  <div className="cases-label">iFLU Cases:</div>
-                  <div className={`cases-value ${numClass}`} style={{ animationDelay: cardDelay }}>
-                    {universe.current_cases.toLocaleString()}
-                  </div>
-                  {universe.change !== 0 && (
-                    <div
-                      className={`cases-change ${universe.change > 0 ? 'increase' : 'decrease'} ${numClass}`}
-                      style={{ animationDelay: cardDelay }}
-                    >
-                      {universe.change > 0 ? '+' : ''}{universe.change.toLocaleString()}
-                    </div>
-                  )}
-                </div>
-                <div
-                  className="universe-status"
-                  style={{ backgroundColor: colors.primary, color: colors.textColor }}
-                >
-                  {universe.status}
-                </div>
-              </div>
-            );
-          })}
+                universe={universe}
+                idx={idx}
+                numbersVisible={numbersVisible}
+                isFheels={resultsData.alignment_score > 0}
+              />
+            ))}
         </div>
         )}
 

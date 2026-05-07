@@ -524,7 +524,7 @@ function UniverseNetworkVisualization({ mode = 'display', autoRotate = true, onC
             autoRotateSpeed={CONFIG.autoRotateSpeed}
             enableZoom={interactive}
             enablePan={false}
-            maxDistance={38}
+            maxDistance={Math.max(38, (cameraZ ?? CONFIG.cameraDistance) + 4)}
             minDistance={8}
           />
           <Stars
