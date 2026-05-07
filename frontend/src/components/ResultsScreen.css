@@ -82,13 +82,16 @@
   animation: fadeInNumbers 0.7s ease-out both;
 }
 
+/* 100% keyframe deliberately omits `color` so that with fill-mode: both,
+   the directional .cases-up / .cases-down color persists after the
+   animation finishes instead of being locked to `inherit`. */
 @keyframes fheelsReveal {
-  0%   { color: inherit; text-shadow: none; }
+  0%   { text-shadow: none; }
   15%  { color: #4cff91; text-shadow: 2px 0 #4cff91, -1px 0 #00ffcc; }
-  30%  { color: inherit; text-shadow: -2px 0 #4cff91; }
+  30%  { text-shadow: -2px 0 #4cff91; }
   50%  { color: #4cff91; text-shadow: none; }
-  70%  { color: inherit; text-shadow: 1px 0 #00ffcc, -1px 0 #4cff91; }
-  100% { color: inherit; text-shadow: none; }
+  70%  { text-shadow: 1px 0 #00ffcc, -1px 0 #4cff91; }
+  100% { text-shadow: none; }
 }
 
 .numbers-fheels-reveal {
@@ -226,6 +229,16 @@
   font-size: 1.8rem;
   font-weight: 700;
   color: var(--text-primary);
+}
+
+.cases-value.cases-up {
+  color: var(--status-quarantined);
+  text-shadow: 0 0 6px rgba(201, 64, 64, 0.25);
+}
+
+.cases-value.cases-down {
+  color: var(--color-cure);
+  text-shadow: 0 0 6px rgba(46, 158, 122, 0.25);
 }
 
 .cases-change {

@@ -47,7 +47,10 @@ function UniverseCard({ universe, idx, numbersVisible, isFheels }) {
       <div className="universe-name">{universe.name}</div>
       <div className="universe-cases">
         <div className="cases-label">iFLU Cases:</div>
-        <div className={`cases-value ${numClass}`} style={{ animationDelay: cardDelay }}>
+        <div
+          className={`cases-value ${universe.change > 0 ? 'cases-up' : universe.change < 0 ? 'cases-down' : ''} ${numClass}`}
+          style={{ animationDelay: cardDelay }}
+        >
           {animatedCases.toLocaleString()}
         </div>
         {universe.change !== 0 && (
