@@ -9,7 +9,7 @@ const FIRST_IDLE_TIMEOUT = 30;
 const SECOND_IDLE_TIMEOUT = 60;
 
 const STEPPED_COUNT_STEPS = 5;       // 5 intermediate ticks between from and to
-const STEPPED_COUNT_DURATION_MS = 180;
+const STEPPED_COUNT_DURATION_MS = 670; // (steps + 1) * duration ≈ 4s total
 
 const STATUS_COLORS = {
   OPTIMIZED:    { primary: '#b0bec5', secondary: '#78909c', textColor: '#0a0a0a' },

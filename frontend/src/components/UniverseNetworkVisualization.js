@@ -9,7 +9,7 @@ import useSteppedCountUp from '../hooks/useSteppedCountUp';
 import './UniverseNetworkVisualization.css';
 
 const STEPPED_COUNT_STEPS = 5;
-const STEPPED_COUNT_DURATION_MS = 180;
+const STEPPED_COUNT_DURATION_MS = 670; // (steps + 1) * duration ≈ 4s total
 
 // ─── Configuration ─────────────────────────────────────────────────────────
 const CONFIG = {
