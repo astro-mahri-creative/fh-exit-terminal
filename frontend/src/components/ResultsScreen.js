@@ -12,6 +12,8 @@ function ResultsScreen({ resultsData, sessionData, onReset }) {
   const [emailSent, setEmailSent] = useState(false);
   const [emailError, setEmailError] = useState('');
   const [showNetwork, setShowNetwork] = useState(false);
+  const [multiverseReady, setMultiverseReady] = useState(false);
+  const [numbersVisible, setNumbersVisible]   = useState(false);
   const [countdown, setCountdown] = useState(FIRST_IDLE_TIMEOUT);
   const [idleThreshold, setIdleThreshold] = useState(FIRST_IDLE_TIMEOUT);
   const intervalRef = useRef(null);
@@ -63,6 +65,19 @@ function ResultsScreen({ resultsData, sessionData, onReset }) {
       if (intervalRef.current) clearInterval(intervalRef.current);
     };
   }, [startIdleTimer]);
+
+  // Fallback: show numbers after 5s even if 3D view never fires onReady
+  useEffect(() => {
+    const fallback = setTimeout(() => setNumbersVisible(true), 5000);
+    return () => clearTimeout(fallback);
+  }, []);
+
+  // Show numbers 1s after multiverse overview first renders
+  useEffect(() => {
+    if (!multiverseReady) return;
+    const timer = setTimeout(() => setNumbersVisible(true), 1000);
+    return () => clearTimeout(timer);
+  }, [multiverseReady]);
 
   const getStatusColor = (status) => {
     // Clinical palette — matches CSS custom properties in App.css
@@ -147,6 +162,15 @@ function ResultsScreen({ resultsData, sessionData, onReset }) {
         <div className="alert-text">{resultsData.phax_alert}</div>
       </div>
 
+      <div className="results-overview-viz">
+        <UniverseNetworkVisualization
+          mode="display"
+          autoRotate={true}
+          cameraZ={28}
+          onReady={() => setMultiverseReady(true)}
+        />
+      </div>
+
       <div className="universe-map">
         <div className="universe-map-header">
           <h2>DIMENSIONAL XDIM TOPOLOGY</h2>
@@ -162,8 +186,13 @@ function ResultsScreen({ resultsData, sessionData, onReset }) {
           <UniverseNetworkVisualization mode="interactive" autoRotate={true} />
         ) : (
           <div className="universes-grid">
-            {resultsData.universes.map(universe => {
+            {resultsData.universes.map((universe, idx) => {
             const colors = getStatusColor(universe.status);
+            const isFheels = resultsData.alignment_score > 0;
+            const numClass = numbersVisible
+              ? (isFheels ? 'numbers-fheels-reveal' : 'numbers-animate')
+              : 'numbers-hidden';
+            const cardDelay = `${idx * 40}ms`;
             return (
               <div
                 key={universe.id}
@@ -176,11 +205,14 @@ function ResultsScreen({ resultsData, sessionData, onReset }) {
                 <div className="universe-name">{universe.name}</div>
                 <div className="universe-cases">
                   <div className="cases-label">iFLU Cases:</div>
-                  <div className="cases-value">
+                  <div className={`cases-value ${numClass}`} style={{ animationDelay: cardDelay }}>
                     {universe.current_cases.toLocaleString()}
                   </div>
                   {universe.change !== 0 && (
-                    <div className={`cases-change ${universe.change > 0 ? 'increase' : 'decrease'}`}>
+                    <div
+                      className={`cases-change ${universe.change > 0 ? 'increase' : 'decrease'} ${numClass}`}
+                      style={{ animationDelay: cardDelay }}
+                    >
                       {universe.change > 0 ? '+' : ''}{universe.change.toLocaleString()}
                     </div>
                   )}
@@ -207,29 +239,41 @@ function ResultsScreen({ resultsData, sessionData, onReset }) {
       <div className="impact-summary">
         <h3>YOUR IMPACT</h3>
 
-        {/* Prominent code count — top of impact report */}
-        <div className="codes-activated-banner">
-          <div className="codes-count-display">
-            <span className="codes-entered-num">{resultsData.total_codes_entered}</span>
-            <span className="codes-count-sep"> of </span>
-            <span className="codes-total-num">{resultsData.total_codes ?? '—'}</span>
-          </div>
-          <div className="codes-activated-label">CODES ACTIVATED</div>
-        </div>
+        {(() => {
+          const isFheels = resultsData.alignment_score > 0;
+          const numClass = numbersVisible
+            ? (isFheels ? 'numbers-fheels-reveal' : 'numbers-animate')
+            : 'numbers-hidden';
+          return (
+            <>
+              {/* Prominent code count — top of impact report */}
+              <div className={`codes-activated-banner ${numClass}`}>
+                <div className="codes-count-display">
+                  <span className="codes-entered-num">{resultsData.total_codes_entered}</span>
+                  <span className="codes-count-sep"> of </span>
+                  <span className="codes-total-num">{resultsData.total_codes ?? '—'}</span>
+                </div>
+                <div className="codes-activated-label">CODES ACTIVATED</div>
+              </div>
 
-        <p className="alignment-narrative">{resultsData.alignment_narrative}</p>
-        <div className="stats">
-          <div className="stat">
-            <span className="stat-label">Codes Entered:</span>
-            <span className="stat-value">{resultsData.total_codes_entered}</span>
-          </div>
-          <div className="stat">
-            <span className="stat-label">Alignment Score:</span>
-            <span className={`stat-value ${resultsData.alignment_score < 0 ? 'phax' : 'fheels'}`}>
-              {resultsData.alignment_score > 0 ? '+' : ''}{resultsData.alignment_score}
-            </span>
-          </div>
-        </div>
+              <p className={`alignment-narrative ${numClass}`} style={{ animationDelay: '100ms' }}>
+                {resultsData.alignment_narrative}
+              </p>
+              <div className={`stats ${numClass}`} style={{ animationDelay: '200ms' }}>
+                <div className="stat">
+                  <span className="stat-label">Codes Entered:</span>
+                  <span className="stat-value">{resultsData.total_codes_entered}</span>
+                </div>
+                <div className="stat">
+                  <span className="stat-label">Alignment Score:</span>
+                  <span className={`stat-value ${resultsData.alignment_score < 0 ? 'phax' : 'fheels'}`}>
+                    {resultsData.alignment_score > 0 ? '+' : ''}{resultsData.alignment_score}
+                  </span>
+                </div>
+              </div>
+            </>
+          );
+        })()}
       </div>
 
       <div className="email-section">
