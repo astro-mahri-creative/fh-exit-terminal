@@ -380,7 +380,7 @@ function UniverseNode({ position, universe, radius, interactive, onHover, isHove
 }
 
 // ─── Scene Contents ────────────────────────────────────────────────────────
-function NetworkScene({ networkData, interactive, onHover, onReady, boundingRadius, caseDeltas, animateNumbers }) {
+function NetworkScene({ networkData, interactive, onHover, onReady, boundingRadius, caseDeltas, animateNumbers, focusUniverseId }) {
   const layout = useMemo(() => {
     if (!networkData) return null;
 
@@ -422,13 +422,28 @@ function NetworkScene({ networkData, interactive, onHover, onReady, boundingRadi
       }
     }
 
+    // Optional: shift the entire layout so the focused universe sits at
+    // origin. Camera + auto-rotate already target origin, so the focused
+    // universe lands dead-center in the viewport.
+    if (focusUniverseId) {
+      const focus = nodes.find(n => n.id === focusUniverseId);
+      if (focus) {
+        const dx = focus.x ?? 0, dy = focus.y ?? 0, dz = focus.z ?? 0;
+        nodes.forEach(n => {
+          n.x = (n.x ?? 0) - dx;
+          n.y = (n.y ?? 0) - dy;
+          n.z = (n.z ?? 0) - dz;
+        });
+      }
+    }
+
     const positions = {};
     nodes.forEach(n => { positions[n.id] = [n.x ?? 0, n.y ?? 0, n.z ?? 0]; });
 
     const maxWeight = Math.max(1, ...links.map(l => l.weight));
 
     return { universes, links, positions, maxWeight };
-  }, [networkData, boundingRadius]);
+  }, [networkData, boundingRadius, focusUniverseId]);
 
   const [hovered, setHovered] = useState(null);
 
@@ -513,7 +528,7 @@ function NetworkScene({ networkData, interactive, onHover, onReady, boundingRadi
 }
 
 // ─── Main Component ─────────────────────────────────────────────────────────
-function UniverseNetworkVisualization({ mode = 'display', autoRotate = true, onClose, cameraZ, onReady, boundingRadius, caseDeltas, animateNumbers }) {
+function UniverseNetworkVisualization({ mode = 'display', autoRotate = true, onClose, cameraZ, onReady, boundingRadius, caseDeltas, animateNumbers, focusUniverseId }) {
   const [networkData,     setNetworkData]     = useState(null);
   const [loading,         setLoading]         = useState(true);
   const [error,           setError]           = useState(null);
@@ -561,6 +576,7 @@ function UniverseNetworkVisualization({ mode = 'display', autoRotate = true, onC
             boundingRadius={boundingRadius}
             caseDeltas={caseDeltas}
             animateNumbers={animateNumbers}
+            focusUniverseId={focusUniverseId}
           />
           <OrbitControls
             autoRotate={autoRotate}

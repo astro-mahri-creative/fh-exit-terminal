@@ -52,7 +52,10 @@
 /* ── Multiverse Overview ── */
 .results-overview-viz {
   width: 100%;
-  height: 260px;
+  /* Fills ~half the viewport so the topology dominates the impact-report
+     hero on portrait tablets while still sharing space with the cards. */
+  height: 50vh;
+  min-height: 460px;
   position: relative;
   margin-bottom: 24px;
   border-radius: var(--radius-lg);
