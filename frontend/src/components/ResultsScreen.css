@@ -52,7 +52,10 @@
 /* ── Multiverse Overview ── */
 .results-overview-viz {
   width: 100%;
-  height: 260px;
+  /* Fills ~half the viewport so the topology dominates the impact-report
+     hero on portrait tablets while still sharing space with the cards. */
+  height: 50vh;
+  min-height: 460px;
   position: relative;
   margin-bottom: 24px;
   border-radius: var(--radius-lg);
@@ -242,12 +245,6 @@
 .cases-value.cases-down {
   color: var(--color-cure);
   text-shadow: 0 0 6px rgba(46, 158, 122, 0.25);
-}
-
-/* FHEELS glitch flash without the opacity/translate fade — used on
-   .cases-value which is already visible from the start. */
-.numbers-tick-fheels-reveal {
-  animation: fheelsReveal 0.6s ease-out 0.1s both;
 }
 
 .cases-change {

@@ -49,17 +49,14 @@ function UniverseCard({ universe, idx, numbersVisible, isFheels }) {
         <div className="cases-label">iFLU Cases:</div>
         {/* Always visible: shows the original (pre-event) value in white before
             the count-up triggers. When numbersVisible flips, the directional
-            class adds the green/red color (smoothly via CSS transition) and
-            the FHEELS variant layers a glitch flash without re-fading. */}
+            class is added — CSS transition smoothly fades white → green/red,
+            and that color is what persists once the count-up settles. */}
         <div
           className={`cases-value ${
             numbersVisible
-              ? `${universe.change > 0 ? 'cases-up' : universe.change < 0 ? 'cases-down' : ''}${
-                  isFheels ? ' numbers-tick-fheels-reveal' : ''
-                }`
+              ? (universe.change > 0 ? 'cases-up' : universe.change < 0 ? 'cases-down' : '')
               : ''
           }`}
-          style={{ animationDelay: cardDelay }}
         >
           {animatedCases.toLocaleString()}
         </div>
@@ -86,7 +83,6 @@ function ResultsScreen({ resultsData, sessionData, onReset }) {
   const [email, setEmail] = useState('');
   const [emailSent, setEmailSent] = useState(false);
   const [emailError, setEmailError] = useState('');
-  const [showNetwork, setShowNetwork] = useState(false);
   const [multiverseReady, setMultiverseReady] = useState(false);
   const [numbersVisible, setNumbersVisible]   = useState(false);
   const [countdown, setCountdown] = useState(FIRST_IDLE_TIMEOUT);
@@ -164,6 +160,23 @@ function ResultsScreen({ resultsData, sessionData, onReset }) {
     return out;
   }, [resultsData.universes]);
 
+  // Universe with the largest absolute case delta — the topology view will
+  // shift its layout so this universe sits at origin, putting the most-
+  // affected node front-and-center for the user to watch the count tick.
+  const focusUniverseId = useMemo(() => {
+    if (!resultsData?.universes?.length) return undefined;
+    let pick = null;
+    let maxAbs = -1;
+    resultsData.universes.forEach((u) => {
+      const abs = Math.abs(u.change ?? 0);
+      if (abs > maxAbs) {
+        maxAbs = abs;
+        pick = u.id?.toString?.() ?? u._id?.toString?.() ?? u.id;
+      }
+    });
+    return pick ?? undefined;
+  }, [resultsData.universes]);
+
 
   const handleEmailKeyPress = useCallback((key) => {
     setEmail(prev => {
@@ -238,45 +251,27 @@ function ResultsScreen({ resultsData, sessionData, onReset }) {
         <UniverseNetworkVisualization
           mode="display"
           autoRotate={true}
-          cameraZ={32}
+          cameraZ={15}
           boundingRadius={12}
           caseDeltas={caseDeltas}
           animateNumbers={numbersVisible}
+          focusUniverseId={focusUniverseId}
           onReady={() => setMultiverseReady(true)}
         />
       </div>
 
       <div className="universe-map">
-        <div className="universe-map-header">
-          <h2>DIMENSIONAL XDIM TOPOLOGY</h2>
-          <button
-            className="network-toggle-btn"
-            onClick={() => { setShowNetwork(v => !v); recordActivity(); }}
-          >
-            {showNetwork ? '[ GRID VIEW ]' : '[ XDIM TOPOLOGY VIEW ]'}
-          </button>
+        <div className="universes-grid">
+          {resultsData.universes.map((universe, idx) => (
+            <UniverseCard
+              key={universe.id}
+              universe={universe}
+              idx={idx}
+              numbersVisible={numbersVisible}
+              isFheels={resultsData.alignment_score > 0}
+            />
+          ))}
         </div>
-
-        {showNetwork ? (
-          <UniverseNetworkVisualization
-            mode="interactive"
-            autoRotate={true}
-            caseDeltas={caseDeltas}
-            animateNumbers={numbersVisible}
-          />
-        ) : (
-          <div className="universes-grid">
-            {resultsData.universes.map((universe, idx) => (
-              <UniverseCard
-                key={universe.id}
-                universe={universe}
-                idx={idx}
-                numbersVisible={numbersVisible}
-                isFheels={resultsData.alignment_score > 0}
-              />
-            ))}
-        </div>
-        )}
 
         {resultsData.cure_active && (
           <div className="cure-indicator">
