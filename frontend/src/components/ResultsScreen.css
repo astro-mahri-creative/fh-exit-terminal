@@ -62,12 +62,16 @@
   overflow: hidden;
 }
 
-/* mode-display normally uses position:fixed for full-screen use; override to
-   sit inside the 260px container when embedded in the results screen */
-.results-overview-viz .universe-network-viz.mode-display {
+/* The viz's mode-display normally goes fullscreen-fixed and mode-interactive
+   has a fixed 420px height. Both need to sit inside the overview container,
+   so we force absolute fill regardless of the mode the viz was given. */
+.results-overview-viz .universe-network-viz {
   position: absolute;
   inset: 0;
+  width: 100%;
+  height: 100%;
   z-index: 1;
+  border: none;
 }
 
 /* ── Number entrance animations ── */

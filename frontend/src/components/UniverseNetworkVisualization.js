@@ -380,7 +380,7 @@ function UniverseNode({ position, universe, radius, interactive, onHover, isHove
 }
 
 // ─── Scene Contents ────────────────────────────────────────────────────────
-function NetworkScene({ networkData, interactive, onHover, onReady, boundingRadius, caseDeltas, animateNumbers, focusUniverseId }) {
+function NetworkScene({ networkData, interactive, onHover, onReady, boundingRadius, caseDeltas, animateNumbers, focusUniverseId, onFocusPosition }) {
   const layout = useMemo(() => {
     if (!networkData) return null;
 
@@ -422,30 +422,24 @@ function NetworkScene({ networkData, interactive, onHover, onReady, boundingRadi
       }
     }
 
-    // Optional: shift the entire layout so the focused universe sits at
-    // origin. Camera + auto-rotate already target origin, so the focused
-    // universe lands dead-center in the viewport.
-    if (focusUniverseId) {
-      const focus = nodes.find(n => n.id === focusUniverseId);
-      if (focus) {
-        const dx = focus.x ?? 0, dy = focus.y ?? 0, dz = focus.z ?? 0;
-        nodes.forEach(n => {
-          n.x = (n.x ?? 0) - dx;
-          n.y = (n.y ?? 0) - dy;
-          n.z = (n.z ?? 0) - dz;
-        });
-      }
-    }
-
     const positions = {};
     nodes.forEach(n => { positions[n.id] = [n.x ?? 0, n.y ?? 0, n.z ?? 0]; });
 
     const maxWeight = Math.max(1, ...links.map(l => l.weight));
 
     return { universes, links, positions, maxWeight };
-  }, [networkData, boundingRadius, focusUniverseId]);
+  }, [networkData, boundingRadius]);
 
   const [hovered, setHovered] = useState(null);
+
+  // Emit the focused universe's position whenever the layout or focus
+  // selection changes; the parent uses this as OrbitControls' target so
+  // the camera orients onto that universe without disturbing the layout.
+  useEffect(() => {
+    if (!layout || !focusUniverseId || !onFocusPosition) return;
+    const pos = layout.positions[focusUniverseId];
+    if (pos) onFocusPosition(pos);
+  }, [layout, focusUniverseId, onFocusPosition]);
 
   // Must be called before any early return to respect hooks rules
   const universeColors = useMemo(() => {
@@ -533,6 +527,10 @@ function UniverseNetworkVisualization({ mode = 'display', autoRotate = true, onC
   const [loading,         setLoading]         = useState(true);
   const [error,           setError]           = useState(null);
   const [hoveredUniverse, setHoveredUniverse] = useState(null);
+  // Position of the focused universe — set by NetworkScene once the layout
+  // is computed. Used as the OrbitControls target so the camera orients
+  // onto that universe without changing how the camera moves or orbits.
+  const [focusTarget, setFocusTarget] = useState(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -577,8 +575,10 @@ function UniverseNetworkVisualization({ mode = 'display', autoRotate = true, onC
             caseDeltas={caseDeltas}
             animateNumbers={animateNumbers}
             focusUniverseId={focusUniverseId}
+            onFocusPosition={setFocusTarget}
           />
           <OrbitControls
+            target={focusTarget ?? [0, 0, 0]}
             autoRotate={autoRotate}
             autoRotateSpeed={CONFIG.autoRotateSpeed}
             enableZoom={interactive}
