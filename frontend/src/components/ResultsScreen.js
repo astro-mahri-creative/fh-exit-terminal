@@ -150,6 +150,16 @@ function ResultsScreen({ resultsData, sessionData, onReset }) {
     return () => clearTimeout(timer);
   }, [multiverseReady]);
 
+  // Pause auto-rotation for 10s after the topology view loads so the user
+  // can watch the count-up animation on the focused universe before the
+  // camera starts orbiting.
+  const [autoRotateOn, setAutoRotateOn] = useState(false);
+  useEffect(() => {
+    if (!multiverseReady) return;
+    const timer = setTimeout(() => setAutoRotateOn(true), 10000);
+    return () => clearTimeout(timer);
+  }, [multiverseReady]);
+
   // Map of universe._id (string) -> case change. Lets the 3D label component
   // animate from previous-cases (current - change) to current-cases.
   const caseDeltas = useMemo(() => {
@@ -248,11 +258,14 @@ function ResultsScreen({ resultsData, sessionData, onReset }) {
       </div>
 
       <div className="results-overview-viz">
+        {/* Mirrors the original/primary topology view (interactive mode,
+            same camera / orbit behavior). The only impact-report-specific
+            tweak is targeting the most-affected universe and pausing
+            auto-rotate for 10s so the count-up animation is easy to watch. */}
         <UniverseNetworkVisualization
-          mode="display"
-          autoRotate={true}
+          mode="interactive"
+          autoRotate={autoRotateOn}
           cameraZ={15}
-          boundingRadius={12}
           caseDeltas={caseDeltas}
           animateNumbers={numbersVisible}
           focusUniverseId={focusUniverseId}
