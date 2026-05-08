@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo, useRef } from 'react';
+import React, { useState, useEffect, useLayoutEffect, useMemo, useRef } from 'react';
 import * as THREE from 'three';
 import { Canvas, useFrame, useThree } from '@react-three/fiber';
 import { OrbitControls, Stars, Html, Line } from '@react-three/drei';
@@ -385,14 +385,21 @@ function UniverseNode({ position, universe, radius, interactive, onHover, isHove
 // topology view already had it. After OrbitControls updates each frame we
 // override camera.lookAt() to face the focused universe, so the camera
 // orbits the original axis but always *looks at* the most-affected node.
+//
+// Priority MUST be 0 (default). Using positive priority disables R3F's
+// auto-render, and using negative priority would run before OrbitControls'
+// own lookAt(target) — losing the override. At priority 0, callbacks run
+// in mount order, and this component mounts after <OrbitControls>, so its
+// useFrame fires last each frame and its lookAt wins.
 function LookAtFocused({ target }) {
   const { camera } = useThree();
-  // Priority 100 keeps this useFrame callback running after drei's
-  // OrbitControls update, so its lookAt is the one that wins each frame.
   useFrame(() => {
     if (!target) return;
     camera.lookAt(target[0], target[1], target[2]);
-  }, 100);
+    // matrixWorldNeedsUpdate = true so the new orientation reaches render
+    // before any other system reads the matrix.
+    camera.updateMatrixWorld();
+  });
   return null;
 }
 
@@ -450,12 +457,23 @@ function NetworkScene({ networkData, interactive, onHover, onReady, boundingRadi
   const [hovered, setHovered] = useState(null);
 
   // Emit the focused universe's position whenever the layout or focus
-  // selection changes; the parent uses this as OrbitControls' target so
-  // the camera orients onto that universe without disturbing the layout.
-  useEffect(() => {
+  // selection changes; the parent uses it to drive camera.lookAt(). Runs
+  // as useLayoutEffect so the parent has the position set before the next
+  // frame paints (and so the very first frame already faces the focus).
+  useLayoutEffect(() => {
     if (!layout || !focusUniverseId || !onFocusPosition) return;
     const pos = layout.positions[focusUniverseId];
-    if (pos) onFocusPosition(pos);
+    if (pos) {
+      onFocusPosition(pos);
+    } else {
+      // Diagnostic for the case the user hit: focus id from finalize did
+      // not match any node id from /api/network. Falls back to origin.
+      // eslint-disable-next-line no-console
+      console.warn('[UniverseNetworkVisualization] focusUniverseId not found in layout positions', {
+        focusUniverseId,
+        availableIds: Object.keys(layout.positions),
+      });
+    }
   }, [layout, focusUniverseId, onFocusPosition]);
 
   // Must be called before any early return to respect hooks rules
