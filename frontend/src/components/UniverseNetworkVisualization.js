@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import * as THREE from 'three';
-import { Canvas, useFrame } from '@react-three/fiber';
+import { Canvas, useFrame, useThree } from '@react-three/fiber';
 import { OrbitControls, Stars, Html, Line } from '@react-three/drei';
 import { EffectComposer, Bloom } from '@react-three/postprocessing';
 import { forceSimulation, forceManyBody, forceLink, forceCenter, forceCollide } from 'd3-force-3d';
@@ -379,6 +379,23 @@ function UniverseNode({ position, universe, radius, interactive, onHover, isHove
   );
 }
 
+// ─── Camera orientation override ──────────────────────────────────────────
+// OrbitControls handles position/rotation around its target — we leave that
+// pointed at origin so the orbit axis stays exactly where the primary
+// topology view already had it. After OrbitControls updates each frame we
+// override camera.lookAt() to face the focused universe, so the camera
+// orbits the original axis but always *looks at* the most-affected node.
+function LookAtFocused({ target }) {
+  const { camera } = useThree();
+  // Priority 100 keeps this useFrame callback running after drei's
+  // OrbitControls update, so its lookAt is the one that wins each frame.
+  useFrame(() => {
+    if (!target) return;
+    camera.lookAt(target[0], target[1], target[2]);
+  }, 100);
+  return null;
+}
+
 // ─── Scene Contents ────────────────────────────────────────────────────────
 function NetworkScene({ networkData, interactive, onHover, onReady, boundingRadius, caseDeltas, animateNumbers, focusUniverseId, onFocusPosition }) {
   const layout = useMemo(() => {
@@ -577,8 +594,12 @@ function UniverseNetworkVisualization({ mode = 'display', autoRotate = true, onC
             focusUniverseId={focusUniverseId}
             onFocusPosition={setFocusTarget}
           />
+          {/* Note: target stays at origin so orbit (auto-rotate AND user
+              drag) keeps using the same axis as the primary topology view.
+              The LookAtFocused below overrides camera orientation each
+              frame so the focused universe stays centered in view. */}
           <OrbitControls
-            target={focusTarget ?? [0, 0, 0]}
+            target={[0, 0, 0]}
             autoRotate={autoRotate}
             autoRotateSpeed={CONFIG.autoRotateSpeed}
             enableZoom={interactive}
@@ -586,6 +607,7 @@ function UniverseNetworkVisualization({ mode = 'display', autoRotate = true, onC
             maxDistance={Math.max(38, (cameraZ ?? CONFIG.cameraDistance) + 4)}
             minDistance={8}
           />
+          <LookAtFocused target={focusTarget} />
           <Stars
             radius={CONFIG.starRadius}
             depth={50}
