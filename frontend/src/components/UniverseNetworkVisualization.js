@@ -75,9 +75,9 @@ function seededRand(seed) {
 // These are generous — erring well clear of satellites and shells.
 const VARIANT_LABEL_OFFSET = [
   // 0: Nebula — satellites reach radius*2.8
-  (r) => Math.round(r * 24 + 14),
+  (r) => Math.round(r * 50 + 30),
   // 1: Pulsing — shells reach up to radius*1.75
-  (r) => Math.round(r * 22 + 12),
+  (r) => Math.round(r * 46 + 26),
 ];
 
 // ─── Variant 0: Nebula Cluster ─────────────────────────────────────────────
@@ -354,7 +354,7 @@ function UniverseNode({ position, universe, radius, interactive, onHover, isHove
       <Variant radius={radius} color={color} emissive={emissive} isHovered={isHovered} seed={seed} />
 
       {/* Label — always screen-right via CSS translateX */}
-      <Html distanceFactor={5.5} zIndexRange={[1, 2]}>
+      <Html distanceFactor={12} zIndexRange={[1, 2]}>
         <div
           className="universe-node-label"
           style={{
@@ -422,13 +422,31 @@ function NetworkScene({ networkData, interactive, onHover, onReady, boundingRadi
       }
     }
 
+    // Rotate the entire layout so the focus universe faces the camera (+Z).
+    if (focusUniverseId) {
+      const fn = nodes.find(n => n.id === focusUniverseId);
+      if (fn) {
+        const fx = fn.x ?? 0, fz = fn.z ?? 0;
+        const dist = Math.hypot(fx, fz);
+        if (dist > 0.01) {
+          const angle = Math.atan2(fx, fz);
+          const cos = Math.cos(-angle), sin = Math.sin(-angle);
+          nodes.forEach(n => {
+            const nx = n.x ?? 0, nz = n.z ?? 0;
+            n.x = nx * cos - nz * sin;
+            n.z = nx * sin + nz * cos;
+          });
+        }
+      }
+    }
+
     const positions = {};
     nodes.forEach(n => { positions[n.id] = [n.x ?? 0, n.y ?? 0, n.z ?? 0]; });
 
     const maxWeight = Math.max(1, ...links.map(l => l.weight));
 
     return { universes, links, positions, maxWeight };
-  }, [networkData, boundingRadius]);
+  }, [networkData, boundingRadius, focusUniverseId]);
 
   const [hovered, setHovered] = useState(null);
 
