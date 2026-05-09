@@ -1384,10 +1384,13 @@ app.post('/api/admin/reset-universes', async (req, res) => {
       });
     }
     
-    // Reset all universes to 50% of init cases
+    // Reset all universes to the initial spread defined in initDatabase.js
+    // (saved as `initialCurrentCases` on each Universe doc). Falls back to
+    // 50% of initializationCases for legacy docs that predate the field.
     const universes = await Universe.find();
     for (const universe of universes) {
-      universe.currentCases = Math.floor(universe.initializationCases * 0.5);
+      universe.currentCases = universe.initialCurrentCases ?? Math.floor(universe.initializationCases * 0.5);
+      universe.lastImpactDirection = null;
       await universe.save();
       await updateUniverseStatus(universe._id);
     }

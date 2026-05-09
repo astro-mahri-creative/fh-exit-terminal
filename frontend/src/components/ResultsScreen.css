@@ -247,8 +247,8 @@
 }
 
 .cases-value.cases-down {
-  color: var(--color-cure);
-  text-shadow: 0 0 6px rgba(46, 158, 122, 0.25);
+  color: #4a90d9;
+  text-shadow: 0 0 6px rgba(74, 144, 217, 0.25);
 }
 
 .cases-change {
@@ -264,8 +264,8 @@
 }
 
 .cases-change.decrease {
-  color: var(--color-cure);
-  text-shadow: 0 0 4px rgba(46, 158, 122, 0.2);
+  color: #4a90d9;
+  text-shadow: 0 0 4px rgba(74, 144, 217, 0.2);
 }
 
 .universe-status {

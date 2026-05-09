@@ -5,6 +5,11 @@ const universeSchema = new mongoose.Schema({
   name: { type: String, required: true },
   displayOrder: { type: Number, required: true },
   initializationCases: { type: Number, required: true },
+  // Snapshot of currentCases at the moment this universe was created by
+  // the init script. Used by the admin "Reset Dimension Statistics"
+  // action to restore the exact spread defined in initDatabase.js
+  // (instead of a uniform 50%).
+  initialCurrentCases: { type: Number },
   currentCases: { type: Number, required: true },
   status: { type: String, required: true, default: 'COMPROMISED' },
   canSpread: { type: Boolean, default: true },
