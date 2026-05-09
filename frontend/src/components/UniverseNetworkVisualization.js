@@ -35,21 +35,15 @@ const CONFIG = {
 };
 
 const STATUS_COLORS = {
-  ACTIVE:       '#9e9e9e',
-  OPTIMIZED:    '#b0bec5',
+  PRESERVED:    '#4a90d9',
   COMPROMISED:  '#e6911a',
-  QUARANTINED:  '#c94040',
   LIBERATED:    '#a0784a',
-  TRANSCENDENT: '#9575cd',
 };
 
 const STATUS_EMISSIVE = {
-  ACTIVE:       1.0,
-  OPTIMIZED:    1.8,
+  PRESERVED:    1.8,
   COMPROMISED:  2.2,
-  QUARANTINED:  2.4,
   LIBERATED:    1.6,
-  TRANSCENDENT: 3.0,
 };
 
 // ─── Deterministic per-universe random helpers ─────────────────────────────
@@ -324,7 +318,7 @@ function NetworkParticles({ links, positions, universeColors }) {
 
 // ─── Universe Node ─────────────────────────────────────────────────────────
 function UniverseNode({ position, universe, radius, interactive, onHover, isHovered, caseDelta, animateNumbers, animationDelayMs }) {
-  const color        = STATUS_COLORS[universe.status] || STATUS_COLORS.ACTIVE;
+  const color        = STATUS_COLORS[universe.status] || STATUS_COLORS.COMPROMISED;
   const emissive     = STATUS_EMISSIVE[universe.status] || 1.0;
   const seed         = universe._id.toString();
   const variantIndex = hashId(seed) % 2;   // deterministic but distributed random
@@ -480,7 +474,7 @@ function NetworkScene({ networkData, interactive, onHover, onReady, boundingRadi
   const universeColors = useMemo(() => {
     if (!layout) return {};
     return Object.fromEntries(
-      layout.universes.map(u => [u._id.toString(), STATUS_COLORS[u.status] || STATUS_COLORS.ACTIVE])
+      layout.universes.map(u => [u._id.toString(), STATUS_COLORS[u.status] || STATUS_COLORS.COMPROMISED])
     );
   }, [layout]);
 

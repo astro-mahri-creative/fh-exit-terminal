@@ -155,39 +155,49 @@ async function logEvent(eventType, sessionId = null, userId = null, eventData = 
   }
 }
 
-// Calculate universe status based on case count
-async function calculateUniverseStatus(currentCases) {
-  const thresholds = await UniverseStatusThreshold.find().sort({ minCases: 1 });
-  
-  // Special case checks first
-  if (currentCases >= 150000) return 'LIBERATED';
-  if (currentCases >= 90000) return 'COMPROMISED';
-  if (currentCases >= 1000 && currentCases <= 75000) return 'ACTIVE';
-  if (currentCases <= 500) return 'OPTIMIZED';
-  
-  // Default to ACTIVE
-  return 'ACTIVE';
+// Most recent 4:00am ET boundary, DST-aware
+function getDailyResetTime() {
+  const now = new Date();
+  const etString = now.toLocaleString('en-US', { timeZone: 'America/New_York' });
+  const et = new Date(etString);
+  const etHour = et.getHours();
+
+  // Set to today's 4:00am ET
+  et.setHours(4, 0, 0, 0);
+  // If it's before 4am ET, roll back to yesterday's 4am
+  if (etHour < 4) et.setDate(et.getDate() - 1);
+
+  // Convert back to UTC by computing the offset between local-interpreted ET and real now
+  const offsetMs = now.getTime() - new Date(now.toLocaleString('en-US', { timeZone: 'America/New_York' })).getTime();
+  return new Date(et.getTime() + offsetMs);
+}
+
+// Calculate universe status based on percentage of initializationCases
+function calculateUniverseStatus(currentCases, initializationCases) {
+  if (currentCases >= initializationCases * 0.85) return 'LIBERATED';
+  if (currentCases <= initializationCases * 0.15) return 'PRESERVED';
+  return 'COMPROMISED';
 }
 
 // Update universe status and canSpread
 async function updateUniverseStatus(universeId) {
   const universe = await Universe.findById(universeId);
   if (!universe) return;
-  
-  const newStatus = await calculateUniverseStatus(universe.currentCases);
-  
-  // Update canSpread based on status
-  let canSpread = true;
-  if (['OPTIMIZED', 'QUARANTINED', 'LIBERATED'].includes(newStatus)) {
-    canSpread = false;
-  }
-  
+
+  const newStatus = calculateUniverseStatus(universe.currentCases, universe.initializationCases);
   universe.status = newStatus;
-  universe.canSpread = canSpread;
+  universe.canSpread = newStatus === 'COMPROMISED';
   universe.lastUpdated = new Date();
   await universe.save();
-  
+
   return universe;
+}
+
+// Select a random universe with COMPROMISED status and >0 cases
+function selectRandomCompromised(universes) {
+  const eligible = universes.filter(u => u.currentCases > 0 && u.status === 'COMPROMISED');
+  if (eligible.length === 0) return null;
+  return eligible[Math.floor(Math.random() * eligible.length)];
 }
 
 // Select PHAX alert message
@@ -205,22 +215,18 @@ async function selectPhaxAlertMessage() {
   
   // Priority-based selection
   let condition = 'active_stable_states';
-  
-  if (statusCounts.LIBERATED > 0) {
+
+  if (statusCounts.LIBERATED > 3) {
+    condition = 'extreme_fheels_victory';
+  } else if (statusCounts.LIBERATED > 0) {
     condition = 'liberated_states';
-  } else if (statusCounts.QUARANTINED > 0) {
-    condition = 'quarantined_states';
   } else if (cureStatus?.isDiscovered) {
     condition = 'cure_discovery';
-  } else if (statusCounts.OPTIMIZED >= 5) {
+  } else if (statusCounts.PRESERVED >= 5) {
     condition = 'optimized_states';
   } else if (statusCounts.COMPROMISED > 0) {
     condition = 'compromised_states';
-  } else if (totalCases > 800000) {
-    condition = 'extreme_fheels_victory';
-  } else if (totalCases < 50000) {
-    condition = 'optimized_states';
-  } else if (Object.keys(statusCounts).length > 2) {
+  } else if (Object.keys(statusCounts).length > 1) {
     condition = 'balanced_states';
   }
   
@@ -325,23 +331,22 @@ app.post('/api/session/start', async (req, res) => {
       });
     }
     
-    // For non-admin users: check for an existing session in the current clock hour
+    // For non-admin users: check for an existing session since today's 4:00am ET
     if (!userIdRecord.isAdmin) {
-      const currentHourStart = new Date();
-      currentHourStart.setMinutes(0, 0, 0);
+      const dailyReset = getDailyResetTime();
 
       const existingSession = await Session.findOne({
         userId: user_id.toLowerCase(),
-        startedAt: { $gte: currentHourStart }
+        startedAt: { $gte: dailyReset }
       });
 
       if (existingSession) {
         const settings = await AdminSettings.getSettings();
 
-        if (settings.sameHourReturnMode === 'block' && existingSession.isComplete) {
+        if (settings.sameDayReturnMode === 'block' && existingSession.isComplete) {
           return res.status(403).json({
             success: false,
-            error: 'SESSION_COMPLETE_THIS_HOUR',
+            error: 'SESSION_COMPLETE_TODAY',
             message: 'Access window closed. Try again later.'
           });
         }
@@ -407,39 +412,11 @@ app.get('/api/universes', async (req, res) => {
   }
 });
 
-// GET /api/network - Universe network data with computed edges (public)
+// GET /api/network - Universe network data (public)
 app.get('/api/network', async (req, res) => {
   try {
-    const [universes, effects] = await Promise.all([
-      Universe.find().sort({ displayOrder: 1 }),
-      CodeEffect.find().populate('codeId', 'code name alignment')
-    ]);
-
-    // Group effects by code to find co-affected universe pairs
-    const codeToUniverses = {};
-    effects.forEach(effect => {
-      const codeKey = effect.codeId._id.toString();
-      if (!codeToUniverses[codeKey]) codeToUniverses[codeKey] = [];
-      codeToUniverses[codeKey].push(effect.universeId.toString());
-    });
-
-    // Build weighted edges: universes connected when they share a code
-    const edgeMap = {};
-    Object.values(codeToUniverses).forEach(universeIds => {
-      for (let i = 0; i < universeIds.length; i++) {
-        for (let j = i + 1; j < universeIds.length; j++) {
-          const key = [universeIds[i], universeIds[j]].sort().join(':');
-          edgeMap[key] = (edgeMap[key] || 0) + 1;
-        }
-      }
-    });
-
-    const edges = Object.entries(edgeMap).map(([key, weight]) => {
-      const [source, target] = key.split(':');
-      return { source, target, weight };
-    });
-
-    res.json({ success: true, universes, edges });
+    const universes = await Universe.find().sort({ displayOrder: 1 });
+    res.json({ success: true, universes, edges: [] });
   } catch (error) {
     console.error('Error fetching network data:', error);
     res.status(500).json({ success: false, error: 'SERVER_ERROR', message: 'Error fetching network data' });
@@ -467,7 +444,7 @@ app.post('/api/codes/validate', async (req, res) => {
     // prevent reprocessing of any code they already submitted.
     if (session.isComplete) {
       const settings = await AdminSettings.getSettings();
-      if (settings.sameHourReturnMode === 'block') {
+      if (settings.sameDayReturnMode === 'block') {
         return res.status(400).json({
           success: false,
           error: 'SESSION_ALREADY_FINALIZED',
@@ -492,43 +469,49 @@ app.post('/api/codes/validate', async (req, res) => {
       });
     }
     
-    // Check if already entered in this session
-    const existingSessionCode = await SessionCode.findOne({
-      sessionId: session._id,
-      codeId: codeRecord._id
-    });
+    // Admins bypass duplicate checks entirely
+    const sessionUser = await UserId.findOne({ userId: session.userId });
+    const isAdminUser = sessionUser?.isAdmin === true;
 
-    if (existingSessionCode) {
-      await logEvent('code_error_duplicate', session._id, session.userId, { code });
-      return res.status(400).json({
-        success: false,
-        valid: false,
-        error: 'CODE_ALREADY_ENTERED',
-        message: 'This code has already been entered'
-      });
-    }
-
-    // Check if entered in any prior session for this user
-    const priorSessions = await Session.find({
-      userId: session.userId,
-      _id: { $ne: session._id }
-    }).select('_id');
-
-    if (priorSessions.length > 0) {
-      const priorIds = priorSessions.map(s => s._id);
-      const priorEntry = await SessionCode.findOne({
-        sessionId: { $in: priorIds },
+    if (!isAdminUser) {
+      // Check if already entered in this session
+      const existingSessionCode = await SessionCode.findOne({
+        sessionId: session._id,
         codeId: codeRecord._id
       });
 
-      if (priorEntry) {
-        await logEvent('code_error_duplicate_prior_session', session._id, session.userId, { code });
+      if (existingSessionCode) {
+        await logEvent('code_error_duplicate', session._id, session.userId, { code });
         return res.status(400).json({
           success: false,
           valid: false,
-          error: 'CODE_PREVIOUSLY_ENTERED',
-          message: 'Code already entered in a previous session'
+          error: 'CODE_ALREADY_ENTERED',
+          message: 'This code has already been entered'
         });
+      }
+
+      // Check if entered in any prior session for this user
+      const priorSessions = await Session.find({
+        userId: session.userId,
+        _id: { $ne: session._id }
+      }).select('_id');
+
+      if (priorSessions.length > 0) {
+        const priorIds = priorSessions.map(s => s._id);
+        const priorEntry = await SessionCode.findOne({
+          sessionId: { $in: priorIds },
+          codeId: codeRecord._id
+        });
+
+        if (priorEntry) {
+          await logEvent('code_error_duplicate_prior_session', session._id, session.userId, { code });
+          return res.status(400).json({
+            success: false,
+            valid: false,
+            error: 'CODE_PREVIOUSLY_ENTERED',
+            message: 'Code already entered in a previous session'
+          });
+        }
       }
     }
 
@@ -550,11 +533,15 @@ app.post('/api/codes/validate', async (req, res) => {
     
     const totalAvailableCodes = await Code.countDocuments({ isActive: true });
 
+    // Hide name for status-breaking codes (revealed on impact report)
+    const codeEffects = await CodeEffect.find({ codeId: codeRecord._id });
+    const isHiddenEffect = codeEffects.some(e => e.effectType === 'break_preserved' || e.effectType === 'break_liberated');
+
     res.json({
       success: true,
       valid: true,
       code: codeRecord.code,
-      code_name: codeRecord.name,
+      code_name: isHiddenEffect ? '???' : codeRecord.name,
       code_tier: codeRecord.tier,
       total_codes_entered: session.totalCodesEntered,
       total_codes: totalAvailableCodes,
@@ -582,7 +569,7 @@ app.post('/api/codes/preview', async (req, res) => {
     }
     if (session.isComplete) {
       const settings = await AdminSettings.getSettings();
-      if (settings.sameHourReturnMode === 'block') {
+      if (settings.sameDayReturnMode === 'block') {
         return res.status(400).json({ success: false, error: 'SESSION_ALREADY_FINALIZED', message: 'Your codes have already been processed' });
       }
     }
@@ -603,6 +590,18 @@ app.post('/api/codes/preview', async (req, res) => {
     const { tierMultipliers, bonusEffects, triggerCure } = await applyMetaGameRules(sessionCodes, universes);
     if (triggerCure && !isCureActive) isCureActive = true;
 
+    const settings = await AdminSettings.getSettings();
+    const effectScale = settings.effectScale || 1;
+
+    // Work on in-memory copies for status tracking during preview
+    const simUniverses = universes.map(u => ({
+      _id: u._id,
+      name: u.name,
+      currentCases: u.currentCases,
+      initializationCases: u.initializationCases,
+      status: u.status
+    }));
+
     // Split effects into negative (containment) and positive (proliferation)
     const negativeChanges = {};
     const positiveChanges = {};
@@ -612,6 +611,49 @@ app.post('/api/codes/preview', async (req, res) => {
       positiveChanges[id] = { id: u._id, name: u.name, current_cases: u.currentCases, change: 0 };
     });
 
+    const previewStatusMessages = [];
+    const excludedUniverseIds = new Set();
+
+    // --- Pass 1: process status-breaking codes (RVLT/CURE) first ---
+    for (const sessionCode of sessionCodes) {
+      const code = sessionCode.codeId;
+      const effects = await CodeEffect.find({ codeId: code._id });
+
+      for (const effect of effects) {
+        if (effect.isPostCure && !isCureActive) continue;
+
+        if (effect.effectType === 'break_preserved') {
+          const preserved = simUniverses.filter(u => u.status === 'PRESERVED');
+          if (preserved.length === 0) {
+            previewStatusMessages.push({ code: code.code, message: '???' });
+            continue;
+          }
+          const target = preserved[Math.floor(Math.random() * preserved.length)];
+          const newCases = Math.ceil(target.initializationCases * 0.25);
+          target.currentCases = newCases;
+          target.status = calculateUniverseStatus(newCases, target.initializationCases);
+          excludedUniverseIds.add(target._id.toString());
+          previewStatusMessages.push({ code: code.code, message: '???' });
+          continue;
+        }
+        if (effect.effectType === 'break_liberated') {
+          const liberated = simUniverses.filter(u => u.status === 'LIBERATED');
+          if (liberated.length === 0) {
+            previewStatusMessages.push({ code: code.code, message: '???' });
+            continue;
+          }
+          const target = liberated[Math.floor(Math.random() * liberated.length)];
+          const newCases = Math.floor(target.initializationCases * 0.75);
+          target.currentCases = newCases;
+          target.status = calculateUniverseStatus(newCases, target.initializationCases);
+          excludedUniverseIds.add(target._id.toString());
+          previewStatusMessages.push({ code: code.code, message: '???' });
+          continue;
+        }
+      }
+    }
+
+    // --- Pass 2: process all standard numerical effects ---
     for (const sessionCode of sessionCodes) {
       const code = sessionCode.codeId;
       const effects = await CodeEffect.find({ codeId: code._id });
@@ -619,12 +661,39 @@ app.post('/api/codes/preview', async (req, res) => {
 
       for (const effect of effects) {
         if (effect.isPostCure && !isCureActive) continue;
-        const effectValue = Math.floor(effect.effectValue * tierMultiplier);
-        const universeId = effect.universeId.toString();
+        if (effect.effectType === 'break_preserved' || effect.effectType === 'break_liberated') continue;
+
+        const effectValue = Math.floor(effect.effectValue * tierMultiplier * effectScale);
+
+        // Resolve random target (excluding RVLT/CURE universes)
+        let targetUniverse;
+        if (effect.targetMode === 'random') {
+          targetUniverse = selectRandomCompromised(simUniverses.filter(u => !excludedUniverseIds.has(u._id.toString())));
+          if (!targetUniverse) continue;
+        } else {
+          targetUniverse = simUniverses.find(u => u._id.equals(effect.universeId));
+          if (targetUniverse && excludedUniverseIds.has(targetUniverse._id.toString())) continue;
+        }
+        if (!targetUniverse) continue;
+
+        // Status-based blocking
+        if (targetUniverse.status === 'LIBERATED') continue;
+        if (targetUniverse.status === 'PRESERVED' && effectValue > 0) continue;
+
+        const universeId = targetUniverse._id.toString();
         if (effectValue < 0 && negativeChanges[universeId]) {
           negativeChanges[universeId].change += effectValue;
         } else if (effectValue > 0 && positiveChanges[universeId]) {
           positiveChanges[universeId].change += effectValue;
+        }
+
+        // Update sim state
+        const previousStatus = targetUniverse.status;
+        targetUniverse.currentCases = Math.max(0, targetUniverse.currentCases + effectValue);
+        targetUniverse.status = calculateUniverseStatus(targetUniverse.currentCases, targetUniverse.initializationCases);
+
+        if (targetUniverse.status !== previousStatus) {
+          previewStatusMessages.push({ code: code.code, message: `STATUS of ${targetUniverse.name} is now ${targetUniverse.status}` });
         }
       }
     }
@@ -670,7 +739,8 @@ app.post('/api/codes/preview', async (req, res) => {
         net_change: netPositive
       },
       cure_triggered: isCureActive,
-      total_codes_entered: session.totalCodesEntered
+      total_codes_entered: session.totalCodesEntered,
+      status_messages: previewStatusMessages
     });
 
   } catch (error) {
@@ -707,7 +777,7 @@ app.post('/api/codes/finalize', async (req, res) => {
     // a second round simply applies the codes entered since the last finalize.
     if (session.isComplete) {
       const settings = await AdminSettings.getSettings();
-      if (settings.sameHourReturnMode === 'block') {
+      if (settings.sameDayReturnMode === 'block') {
         return res.status(400).json({
           success: false,
           error: 'SESSION_ALREADY_FINALIZED',
@@ -771,30 +841,110 @@ app.post('/api/codes/finalize', async (req, res) => {
       isCureActive = true;
     }
 
-    // Process each code's effects — only include effects matching the chosen option
+    // Load effect scale
+    const settings = await AdminSettings.getSettings();
+    const effectScale = settings.effectScale || 1;
+
+    // In-memory status tracking so random selection reflects prior effects
+    const liveUniverses = universes.map(u => ({
+      _id: u._id,
+      name: u.name,
+      currentCases: u.currentCases,
+      initializationCases: u.initializationCases,
+      status: u.status
+    }));
+
+    const statusMessages = [];
+    const excludedUniverseIds = new Set();
+
+    // --- Pass 1: process status-breaking codes (RVLT/CURE) first ---
     for (const sessionCode of sessionCodes) {
       const code = sessionCode.codeId;
-
-      // Get all effects for this code
       const effects = await CodeEffect.find({ codeId: code._id });
 
-      // Determine tier multiplier from meta-game rules
+      for (const effect of effects) {
+        if (effect.isPostCure && !isCureActive) continue;
+
+        if (effect.effectType === 'break_preserved') {
+          const preserved = liveUniverses.filter(u => u.status === 'PRESERVED');
+          if (preserved.length === 0) {
+            statusMessages.push({ code: code.code, message: 'NO IMPACT' });
+            continue;
+          }
+          const target = preserved[Math.floor(Math.random() * preserved.length)];
+          const newCases = Math.ceil(target.initializationCases * 0.25);
+          const uid = target._id.toString();
+          universeChanges[uid].change += newCases - target.currentCases;
+          target.currentCases = newCases;
+          const newStatus = calculateUniverseStatus(newCases, target.initializationCases);
+          target.status = newStatus;
+          excludedUniverseIds.add(uid);
+          statusMessages.push({ code: code.code, message: `STATUS of ${target.name} is now ${newStatus}` });
+          continue;
+        }
+        if (effect.effectType === 'break_liberated') {
+          const liberated = liveUniverses.filter(u => u.status === 'LIBERATED');
+          if (liberated.length === 0) {
+            statusMessages.push({ code: code.code, message: 'NO IMPACT' });
+            continue;
+          }
+          const target = liberated[Math.floor(Math.random() * liberated.length)];
+          const newCases = Math.floor(target.initializationCases * 0.75);
+          const uid = target._id.toString();
+          universeChanges[uid].change += newCases - target.currentCases;
+          target.currentCases = newCases;
+          const newStatus = calculateUniverseStatus(newCases, target.initializationCases);
+          target.status = newStatus;
+          excludedUniverseIds.add(uid);
+          statusMessages.push({ code: code.code, message: `STATUS of ${target.name} is now ${newStatus}` });
+          continue;
+        }
+      }
+    }
+
+    // --- Pass 2: process standard numerical effects ---
+    for (const sessionCode of sessionCodes) {
+      const code = sessionCode.codeId;
+      const effects = await CodeEffect.find({ codeId: code._id });
       const tierMultiplier = tierMultipliers[code.tier] || 1;
 
       for (const effect of effects) {
-        // Skip post-cure effects if cure not active
         if (effect.isPostCure && !isCureActive) continue;
+        if (effect.effectType === 'break_preserved' || effect.effectType === 'break_liberated') continue;
 
-        const effectValue = Math.floor(effect.effectValue * tierMultiplier);
+        const effectValue = Math.floor(effect.effectValue * tierMultiplier * effectScale);
 
         // Only apply effects matching the chosen option
         if (choice === 'a' && effectValue >= 0) continue;
         if (choice === 'b' && effectValue <= 0) continue;
 
-        // Apply effect
-        const universeId = effect.universeId.toString();
+        // Resolve target universe (excluding RVLT/CURE universes)
+        let targetUniverse;
+        if (effect.targetMode === 'random') {
+          targetUniverse = selectRandomCompromised(liveUniverses.filter(u => !excludedUniverseIds.has(u._id.toString())));
+          if (!targetUniverse) continue;
+        } else {
+          targetUniverse = liveUniverses.find(u => u._id.equals(effect.universeId));
+          if (targetUniverse && excludedUniverseIds.has(targetUniverse._id.toString())) continue;
+        }
+        if (!targetUniverse) continue;
+
+        // Status-based blocking
+        if (targetUniverse.status === 'LIBERATED') continue;
+        if (targetUniverse.status === 'PRESERVED' && effectValue > 0) continue;
+
+        const universeId = targetUniverse._id.toString();
         if (universeChanges[universeId]) {
           universeChanges[universeId].change += effectValue;
+        }
+
+        // Update in-memory state for subsequent random selections
+        const previousStatus = targetUniverse.status;
+        targetUniverse.currentCases = Math.max(0, targetUniverse.currentCases + effectValue);
+        targetUniverse.status = calculateUniverseStatus(targetUniverse.currentCases, targetUniverse.initializationCases);
+
+        if (targetUniverse.status !== previousStatus) {
+          statusMessages.push({ code: code.code, message: `STATUS of ${targetUniverse.name} is now ${targetUniverse.status}` });
         }
       }
 
@@ -896,9 +1046,10 @@ app.post('/api/codes/finalize', async (req, res) => {
       alignment_score: totalAlignmentScore,
       total_codes_entered: session.totalCodesEntered,
       total_codes: totalAvailableCodes,
-      cure_active: isCureActive
+      cure_active: isCureActive,
+      status_messages: statusMessages
     });
-    
+
   } catch (error) {
     console.error('Error finalizing codes:', error);
     res.status(500).json({
@@ -1141,10 +1292,10 @@ app.post('/api/admin/settings/toggle-return-mode', async (req, res) => {
     }
 
     const settings = await AdminSettings.getSettings();
-    settings.sameHourReturnMode = settings.sameHourReturnMode === 'resume' ? 'block' : 'resume';
+    settings.sameDayReturnMode = settings.sameDayReturnMode === 'resume' ? 'block' : 'resume';
     await settings.save();
 
-    res.json({ success: true, sameHourReturnMode: settings.sameHourReturnMode });
+    res.json({ success: true, sameDayReturnMode: settings.sameDayReturnMode });
   } catch (error) {
     console.error('Error toggling return mode:', error);
     res.status(500).json({ success: false, error: 'SERVER_ERROR', message: 'Error updating settings' });
@@ -1175,10 +1326,10 @@ app.post('/api/admin/reset-universes', async (req, res) => {
       });
     }
     
-    // Reset all universes
+    // Reset all universes to 50% of init cases
     const universes = await Universe.find();
     for (const universe of universes) {
-      universe.currentCases = universe.initializationCases;
+      universe.currentCases = Math.floor(universe.initializationCases * 0.5);
       await universe.save();
       await updateUniverseStatus(universe._id);
     }
@@ -1286,7 +1437,8 @@ app.get('/api/admin/analytics', async (req, res) => {
         todaySessions,
         currentPhase: currentPhase?.phaseName || 'No active phase',
         alignmentDistribution,
-        sameHourReturnMode: settings.sameHourReturnMode
+        sameDayReturnMode: settings.sameDayReturnMode,
+        effectScale: settings.effectScale
       }
     });
     
@@ -1368,7 +1520,7 @@ app.get('/api/admin/codes', async (req, res) => {
       const codeId = effect.codeId.toString();
       if (!effectsByCode[codeId]) effectsByCode[codeId] = [];
       effectsByCode[codeId].push({
-        universe: effect.universeId?.name || 'Unknown',
+        universe: effect.targetMode === 'random' ? 'RANDOM' : (effect.universeId?.name || 'Unknown'),
         effect_value: effect.effectValue,
         effect_type: effect.effectType,
         is_post_cure: effect.isPostCure
@@ -1392,6 +1544,56 @@ app.get('/api/admin/codes', async (req, res) => {
   } catch (error) {
     console.error('Error fetching codes:', error);
     res.status(500).json({ success: false, error: 'SERVER_ERROR', message: 'Error fetching codes' });
+  }
+});
+
+// GET /api/admin/settings/effect-scale - Get current effect scale (admin only)
+app.get('/api/admin/settings/effect-scale', async (req, res) => {
+  try {
+    const { session_token } = req.query;
+    const session = await Session.findOne({ sessionToken: session_token });
+    if (!session) {
+      return res.status(401).json({ success: false, error: 'UNAUTHORIZED', message: 'Invalid session' });
+    }
+    const userIdRecord = await UserId.findOne({ userId: session.userId });
+    if (!userIdRecord || !userIdRecord.isAdmin) {
+      return res.status(403).json({ success: false, error: 'FORBIDDEN', message: 'Admin access required' });
+    }
+
+    const settings = await AdminSettings.getSettings();
+    res.json({ success: true, effectScale: settings.effectScale });
+  } catch (error) {
+    console.error('Error getting effect scale:', error);
+    res.status(500).json({ success: false, error: 'SERVER_ERROR', message: 'Error getting effect scale' });
+  }
+});
+
+// POST /api/admin/settings/effect-scale - Set effect scale (admin only)
+app.post('/api/admin/settings/effect-scale', async (req, res) => {
+  try {
+    const { session_token, effectScale } = req.body;
+    const session = await Session.findOne({ sessionToken: session_token });
+    if (!session) {
+      return res.status(401).json({ success: false, error: 'UNAUTHORIZED', message: 'Invalid session' });
+    }
+    const userIdRecord = await UserId.findOne({ userId: session.userId });
+    if (!userIdRecord || !userIdRecord.isAdmin) {
+      return res.status(403).json({ success: false, error: 'FORBIDDEN', message: 'Admin access required' });
+    }
+
+    const value = parseInt(effectScale, 10);
+    if (isNaN(value) || value < 1 || value > 99) {
+      return res.status(400).json({ success: false, error: 'INVALID_VALUE', message: 'Effect scale must be between 1 and 99' });
+    }
+
+    const settings = await AdminSettings.getSettings();
+    settings.effectScale = value;
+    await settings.save();
+
+    res.json({ success: true, effectScale: settings.effectScale });
+  } catch (error) {
+    console.error('Error setting effect scale:', error);
+    res.status(500).json({ success: false, error: 'SERVER_ERROR', message: 'Error setting effect scale' });
   }
 });
 

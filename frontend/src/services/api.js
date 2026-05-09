@@ -106,6 +106,21 @@ export const adminService = {
       session_token: sessionToken
     });
     return response.data;
+  },
+
+  getEffectScale: async (sessionToken) => {
+    const response = await api.get('/admin/settings/effect-scale', {
+      params: { session_token: sessionToken }
+    });
+    return response.data;
+  },
+
+  setEffectScale: async (sessionToken, effectScale) => {
+    const response = await api.post('/admin/settings/effect-scale', {
+      session_token: sessionToken,
+      effectScale
+    });
+    return response.data;
   }
 };
 

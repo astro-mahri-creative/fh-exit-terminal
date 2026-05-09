@@ -6,7 +6,7 @@ const universeSchema = new mongoose.Schema({
   displayOrder: { type: Number, required: true },
   initializationCases: { type: Number, required: true },
   currentCases: { type: Number, required: true },
-  status: { type: String, required: true, default: 'ACTIVE' },
+  status: { type: String, required: true, default: 'COMPROMISED' },
   canSpread: { type: Boolean, default: true },
   lastUpdated: { type: Date, default: Date.now }
 }, { timestamps: true });
@@ -36,7 +36,8 @@ const codeSchema = new mongoose.Schema({
 // Code Effect Schema
 const codeEffectSchema = new mongoose.Schema({
   codeId: { type: mongoose.Schema.Types.ObjectId, ref: 'Code', required: true },
-  universeId: { type: mongoose.Schema.Types.ObjectId, ref: 'Universe', required: true },
+  universeId: { type: mongoose.Schema.Types.ObjectId, ref: 'Universe', default: null },
+  targetMode: { type: String, enum: ['specific', 'random'], default: 'specific' },
   effectValue: { type: Number, required: true },
   effectType: { type: String, default: 'standard' },
   conditionRule: { type: String },
@@ -121,7 +122,8 @@ const analyticsLogSchema = new mongoose.Schema({
 
 // Admin Settings Schema (singleton document)
 const adminSettingsSchema = new mongoose.Schema({
-  sameHourReturnMode: { type: String, enum: ['resume', 'block'], default: 'resume' }
+  sameDayReturnMode: { type: String, enum: ['resume', 'block'], default: 'resume' },
+  effectScale: { type: Number, default: 1, min: 1, max: 99 }
 });
 adminSettingsSchema.statics.getSettings = async function () {
   let doc = await this.findOne();

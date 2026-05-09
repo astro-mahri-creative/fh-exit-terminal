@@ -325,6 +325,46 @@
   box-shadow: 0 0 20px rgba(74, 158, 92, 0.45);
 }
 
+/* ── Status Messages ── */
+.choice-status-messages {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 12px 20px;
+}
+
+.choice-status-msg {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 12px;
+  border-radius: var(--radius-sm);
+  font-family: var(--font-mono);
+  font-size: 0.75rem;
+  letter-spacing: 0.1em;
+}
+
+.choice-status-msg.status-change {
+  background: rgba(230, 145, 26, 0.1);
+  border: 1px solid rgba(230, 145, 26, 0.3);
+  color: #e6911a;
+}
+
+.choice-status-msg.no-impact {
+  background: rgba(120, 120, 120, 0.1);
+  border: 1px solid rgba(120, 120, 120, 0.3);
+  color: var(--text-secondary);
+}
+
+.csm-code {
+  font-weight: 700;
+  flex-shrink: 0;
+}
+
+.csm-text {
+  font-weight: 500;
+}
+
 /* ── Codes Summary ── */
 .codes-summary {
   text-align: center;

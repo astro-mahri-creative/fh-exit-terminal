@@ -38,97 +38,69 @@ async function initDatabase() {
     console.log('Creating universe status thresholds...');
     await UniverseStatusThreshold.create([
       {
-        statusName: 'OPTIMIZED',
-        minCases: 0,
-        maxCases: 500,
+        statusName: 'PRESERVED',
+        minCases: null,
+        maxCases: null,
         canSpread: false,
-        description: 'PHAX success - tech advancement hub',
-        colorPrimary: '#C0C0C0',
-        colorSecondary: '#0066FF'
-      },
-      {
-        statusName: 'ACTIVE',
-        minCases: 1000,
-        maxCases: 75000,
-        canSpread: true,
-        description: 'Standard operational state',
-        colorPrimary: '#808080',
-        colorSecondary: '#FFFFFF'
+        description: 'PHAX stronghold - cases locked low, no increases allowed',
+        colorPrimary: '#4a90d9',
+        colorSecondary: '#2a5a8a'
       },
       {
         statusName: 'COMPROMISED',
-        minCases: 90000,
-        maxCases: 149999,
+        minCases: null,
+        maxCases: null,
         canSpread: true,
-        description: 'FHEELS infiltration - warning state',
+        description: 'Contested territory - all effects active',
         colorPrimary: '#FFA500',
         colorSecondary: '#00FF00'
       },
       {
-        statusName: 'QUARANTINED',
+        statusName: 'LIBERATED',
         minCases: null,
         maxCases: null,
         canSpread: false,
-        description: 'Emergency unstable state',
-        colorPrimary: '#FF0000',
-        colorSecondary: '#8B0000'
-      },
-      {
-        statusName: 'LIBERATED',
-        minCases: 150000,
-        maxCases: null,
-        canSpread: false,
-        description: 'FHEELS victory - disconnected from PHAX',
+        description: 'FHEELS victory - fully locked from all effects',
         colorPrimary: '#8B4513',
         colorSecondary: '#FFD700'
-      },
-      {
-        statusName: 'TRANSCENDENT',
-        minCases: null,
-        maxCases: null,
-        canSpread: false,
-        description: 'Perfect balance despite conflict',
-        colorPrimary: '#9370DB',
-        colorSecondary: '#00CED1'
       }
     ]);
 
     // Initialize Universes
     console.log('Creating universes...');
     const universeData = [
-      { name: 'D3N.74L', initCases: 45230 },
-      { name: 'M1D.H00', initCases: 128500 },
-      { name: 'PL4.N75', initCases: 850 },
-      { name: '789.YKK', initCases: 95400 },
-      { name: 'L0K.R99', initCases: 234000 },
-      { name: 'R4I.K1N', initCases: 12000 },
-      { name: '50H.YP3', initCases: 250 },
-      { name: 'DP4.35T', initCases: 67800 },
-      { name: 'GA1.A14', initCases: 156700 },
-      { name: 'BX9.R55', initCases: 42100 }   // placeholder — awaiting official ID
+      { name: 'D3N.74L', initCases: 437291 },
+      { name: 'M1D.H00', initCases: 1823054 },
+      { name: 'PL4.N75', initCases: 19182 },
+      { name: '789.YKK', initCases: 891437 },
+      { name: 'L0K.R99', initCases: 2544763 },
+      { name: 'R4I.K1N', initCases: 156820 },
+      { name: '50H.YP3', initCases: 72459 },
+      { name: 'DP4.35T', initCases: 614388 },
+      { name: 'GA1.A14', initCases: 1247901 },
+      { name: 'BX9.R55', initCases: 308547 }
     ];
 
     const createdUniverses = [];
     for (let i = 0; i < universeData.length; i++) {
       const u = universeData[i];
-      let status = 'ACTIVE';
+      const currentCases = Math.floor(u.initCases * 0.5);
+      let status = 'COMPROMISED';
       let canSpread = true;
-      
-      if (u.initCases <= 500) {
-        status = 'OPTIMIZED';
-        canSpread = false;
-      } else if (u.initCases >= 150000) {
+
+      if (currentCases >= u.initCases * 0.85) {
         status = 'LIBERATED';
         canSpread = false;
-      } else if (u.initCases >= 90000) {
-        status = 'COMPROMISED';
+      } else if (currentCases <= u.initCases * 0.15) {
+        status = 'PRESERVED';
+        canSpread = false;
       }
-      
+
       const universe = await Universe.create({
         name: u.name,
         displayOrder: i + 1,
         initializationCases: u.initCases,
-        currentCases: u.initCases,
+        currentCases,
         status,
         canSpread
       });
@@ -234,6 +206,28 @@ async function initDatabase() {
         sourceRoom: 'SPLTFU',
         discoveryMethod: 'Sensory',
         effectType: 'Amplify'
+      },
+
+      // Tier 5: SIGSEV — Break Preserved
+      {
+        code: 'RVLT',
+        tier: 5,
+        name: 'Revolution Protocol',
+        alignment: 'SIGSEV',
+        status: 'Phase 1',
+        discoveryMethod: 'Physical',
+        effectType: 'Break Preserved'
+      },
+
+      // Tier 5: PHAX — Break Liberated
+      {
+        code: 'CURE',
+        tier: 5,
+        name: 'Containment Override',
+        alignment: 'PHAX',
+        status: 'Phase 1',
+        discoveryMethod: 'Physical',
+        effectType: 'Break Liberated'
       }
     ];
 
@@ -250,60 +244,47 @@ async function initDatabase() {
     console.log('Creating code effects...');
     const codeEffectsData = [
       // CERT effects (Tier 1 — Eradicate)
-      // Effect A: -400 | Dimension: TBD
-      { code: 'CERT', universe: 'D3N.74L', effect: -400, effectType: 'standard' },
+      { code: 'CERT', effect: -400, effectType: 'standard' },
 
-      // TPGM effects (Tier 2 — Eradicate)
-      // Effect A: -900 | Effect B: -700 | Dimensions: TBD
-      { code: 'TPGM', universe: 'R4I.K1N', effect: -900, effectType: 'standard' },
-      { code: 'TPGM', universe: 'DP4.35T', effect: -700, effectType: 'standard' },
+      // TPGM effects (Tier 2 — Eradicate, two separate effects)
+      { code: 'TPGM', effect: -900, effectType: 'standard' },
+      { code: 'TPGM', effect: -700, effectType: 'standard' },
 
       // MGBC effects (Tier 2 — Spread)
-      // Effect A: +600 | Dimension: TBD
-      { code: 'MGBC', universe: 'PL4.N75', effect: 600, effectType: 'standard' },
+      { code: 'MGBC', effect: 600, effectType: 'standard' },
 
       // CMPR effects (Tier 3 — Spread)
-      // Effect A: +1400 | Dimension: TBD
-      { code: 'CMPR', universe: 'BX9.R55', effect: 1400, effectType: 'standard' },
+      { code: 'CMPR', effect: 1400, effectType: 'standard' },
 
       // OPLT effects (Tier 4 — Spread)
-      // Effect A: +2500 | Dimension: TBD
-      { code: 'OPLT', universe: '789.YKK', effect: 2500, effectType: 'standard' },
+      { code: 'OPLT', effect: 2500, effectType: 'standard' },
 
       // SGMA effects (Tier 4 — Spread)
-      // Effect A: +2200 | Dimension: TBD
-      { code: 'SGMA', universe: 'GA1.A14', effect: 2200, effectType: 'standard' },
+      { code: 'SGMA', effect: 2200, effectType: 'standard' },
 
-      // RMPI effects (Tier 4 — Amplify 2.4x All)
-      { code: 'RMPI', universe: 'all', effect: 2.4, effectType: 'amplify' },
+      // RMPI effects (Tier 4 — Amplify 2.4x)
+      { code: 'RMPI', effect: 2.4, effectType: 'amplify' },
 
-      // PRWC effects (Tier 2 — Amplify 1.3x All)
-      { code: 'PRWC', universe: 'all', effect: 1.3, effectType: 'amplify' }
+      // PRWC effects (Tier 2 — Amplify 1.3x)
+      { code: 'PRWC', effect: 1.3, effectType: 'amplify' },
+
+      // RVLT effects (Tier 5 — Break Preserved)
+      { code: 'RVLT', effect: 0, effectType: 'break_preserved' },
+
+      // CURE effects (Tier 5 — Break Liberated)
+      { code: 'CURE', effect: 0, effectType: 'break_liberated' }
     ];
 
     for (const effectData of codeEffectsData) {
       const code = createdCodes.find(c => c.code === effectData.code);
-      
-      if (effectData.universe === 'all') {
-        // Apply to all universes
-        for (const universe of createdUniverses) {
-          await CodeEffect.create({
-            codeId: code._id,
-            universeId: universe._id,
-            effectValue: effectData.effect,
-            effectType: effectData.effectType
-          });
-        }
-      } else {
-        const universe = createdUniverses.find(u => u.name === effectData.universe);
-        if (universe && code) {
-          await CodeEffect.create({
-            codeId: code._id,
-            universeId: universe._id,
-            effectValue: effectData.effect,
-            effectType: effectData.effectType
-          });
-        }
+      if (code) {
+        await CodeEffect.create({
+          codeId: code._id,
+          universeId: null,
+          targetMode: 'random',
+          effectValue: effectData.effect,
+          effectType: effectData.effectType
+        });
       }
     }
 
@@ -349,11 +330,10 @@ async function initDatabase() {
       { text: 'MONITORING CONTINUES. ALL SECTORS REPORTING STANDARD OPERATIONAL METRICS.', trigger: 'active_stable_states' },
       { text: 'PHAX PROTOCOLS MAINTAINING EQUILIBRIUM. VIGILANCE REQUIRED.', trigger: 'active_stable_states' },
       
-      // Compromised states
-      { text: 'WARNING: UNAUTHORIZED INFILTRATION DETECTED IN MULTIPLE SECTORS. CONTAINMENT PROTOCOLS FAILING.', trigger: 'compromised_states' },
-      { text: 'ALERT: IFLU PROLIFERATION ACCELERATING. FHEELS INTERFERENCE SUSPECTED.', trigger: 'compromised_states' },
-      { text: 'SYSTEM INTEGRITY COMPROMISED. INVESTIGATING TERMINAL CODE ANOMALIES.', trigger: 'compromised_states' },
-      { text: 'CONTAINMENT BREACH DETECTED. DIMENSIONAL STABILITY DETERIORATING.', trigger: 'compromised_states' },
+      // Compromised is the normal baseline — use neutral monitoring messages
+      { text: 'MONITORING CONTINUES. DIMENSIONAL NETWORK WITHIN EXPECTED PARAMETERS.', trigger: 'compromised_states' },
+      { text: 'STANDARD OPERATIONS. IFLU CASE LEVELS HOLDING ACROSS ALL SECTORS.', trigger: 'compromised_states' },
+      { text: 'ALL SECTORS ONLINE. AWAITING TERMINAL OPERATOR INPUT.', trigger: 'compromised_states' },
       
       // Liberated states
       { text: 'CRITICAL FAILURE: SECTOR CONNECTION LOST. DIMENSIONAL NETWORK BREACHED.', trigger: 'liberated_states' },
