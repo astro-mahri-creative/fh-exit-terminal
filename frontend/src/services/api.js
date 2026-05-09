@@ -56,10 +56,11 @@ export const codeService = {
 };
 
 export const emailService = {
-  send: async (sessionToken, email) => {
+  send: async (sessionToken, email, optIn = false) => {
     const response = await api.post('/email/send', {
       session_token: sessionToken,
-      email
+      email,
+      opt_in: optIn
     });
     return response.data;
   }

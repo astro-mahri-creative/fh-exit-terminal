@@ -8,7 +8,7 @@ function WelcomeScreen({ onSessionStart, onViewNetwork }) {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
 
-  const handleSubmit = async () => {
+  const handleSubmit = useCallback(async () => {
     setError('');
 
     if (userId.length !== 6) {
@@ -32,7 +32,7 @@ function WelcomeScreen({ onSessionStart, onViewNetwork }) {
     } finally {
       setLoading(false);
     }
-  };
+  }, [userId, onSessionStart]);
 
   const handleKeyPress = useCallback((key) => {
     if (loading) return;
@@ -66,11 +66,13 @@ function WelcomeScreen({ onSessionStart, onViewNetwork }) {
         handleBackspace();
       } else if (e.key === 'Delete') {
         handleClear();
+      } else if (e.key === 'Enter' && userId.length === 6) {
+        handleSubmit();
       }
     };
     window.addEventListener('keydown', handlePhysicalKey);
     return () => window.removeEventListener('keydown', handlePhysicalKey);
-  }, [loading, handleKeyPress, handleBackspace]);
+  }, [loading, handleKeyPress, handleBackspace, handleSubmit, userId]);
 
   return (
     <div className="welcome-screen">

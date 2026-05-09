@@ -36,6 +36,40 @@ function CodeEntryScreen({ sessionData, onPreview, onLogout }) {
     setError('');
   };
 
+  const handleActivateCode = useCallback(async () => {
+    if (currentCode.length !== 4) {
+      setError('Code must be exactly 4 characters');
+      return;
+    }
+
+    setLoading(true);
+    setError('');
+
+    try {
+      const response = await codeService.validate(sessionData.session_token, currentCode);
+
+      if (response.success && response.valid) {
+        setShowActivation(true);
+        setTimeout(() => setShowActivation(false), 1800);
+
+        setActivatedCodes(prev => [...prev, {
+          code: response.code,
+          name: response.code_name,
+          tier: response.code_tier
+        }]);
+
+        setCurrentCode('');
+      } else {
+        setError(response.message || 'Invalid code');
+      }
+    } catch (err) {
+      const errorMessage = err.response?.data?.message || 'Error validating code';
+      setError(errorMessage);
+    } finally {
+      setLoading(false);
+    }
+  }, [currentCode, sessionData.session_token]);
+
   // Physical keyboard support
   useEffect(() => {
     const handlePhysicalKey = (e) => {
@@ -47,48 +81,13 @@ function CodeEntryScreen({ sessionData, onPreview, onLogout }) {
         handleBackspace();
       } else if (e.key === 'Delete') {
         handleClear();
+      } else if (e.key === 'Enter' && currentCode.length === 4) {
+        handleActivateCode();
       }
     };
     window.addEventListener('keydown', handlePhysicalKey);
     return () => window.removeEventListener('keydown', handlePhysicalKey);
-  }, [loading, handleKeyPress, handleBackspace]);
-
-  const handleActivateCode = async () => {
-    if (currentCode.length !== 4) {
-      setError('Code must be exactly 4 characters');
-      return;
-    }
-
-    setLoading(true);
-    setError('');
-
-    try {
-      const response = await codeService.validate(sessionData.session_token, currentCode);
-      
-      if (response.success && response.valid) {
-        // Show activation animation
-        setShowActivation(true);
-        setTimeout(() => setShowActivation(false), 1800);
-        
-        // Add to activated codes
-        setActivatedCodes([...activatedCodes, {
-          code: response.code,
-          name: response.code_name,
-          tier: response.code_tier
-        }]);
-        
-        // Clear input
-        setCurrentCode('');
-      } else {
-        setError(response.message || 'Invalid code');
-      }
-    } catch (err) {
-      const errorMessage = err.response?.data?.message || 'Error validating code';
-      setError(errorMessage);
-    } finally {
-      setLoading(false);
-    }
-  };
+  }, [loading, handleKeyPress, handleBackspace, handleActivateCode, currentCode]);
 
   const handleFinalize = async () => {
     if (activatedCodes.length === 0) {
@@ -139,12 +138,21 @@ function CodeEntryScreen({ sessionData, onPreview, onLogout }) {
       <div className="main-content">
         <div className="code-input-section">
           <div className="code-display">
-            <div className="code-input-box">
-              {[0, 1, 2, 3].map(i => (
-                <span key={i} className="code-char">
-                  {currentCode[i] || '_'}
-                </span>
-              ))}
+            <div className="code-display-row">
+              <div className="code-input-box">
+                {[0, 1, 2, 3].map(i => (
+                  <span key={i} className="code-char">
+                    {currentCode[i] || '_'}
+                  </span>
+                ))}
+              </div>
+              <button
+                onClick={handleActivateCode}
+                className="activate-button"
+                disabled={loading || currentCode.length !== 4}
+              >
+                {loading ? 'PROCESSING...' : 'ACTIVATE CODE'}
+              </button>
             </div>
           </div>
 
@@ -159,22 +167,13 @@ function CodeEntryScreen({ sessionData, onPreview, onLogout }) {
           {error && <div className="error-message">{error}</div>}
         </div>
 
-        <div className="action-row">
-          <button
-            onClick={handleActivateCode}
-            className="activate-button"
-            disabled={loading || currentCode.length !== 4}
-          >
-            {loading ? 'PROCESSING...' : 'ACTIVATE CODE'}
-          </button>
-          <button
-            onClick={() => setShowTransmitConfirm(true)}
-            className="proceed-button"
-            disabled={loading || activatedCodes.length === 0}
-          >
-            {loading ? 'PROCESSING...' : 'TRANSMIT CODES'}
-          </button>
-        </div>
+        <button
+          onClick={() => setShowTransmitConfirm(true)}
+          className="proceed-button"
+          disabled={loading || activatedCodes.length === 0}
+        >
+          {loading ? 'PROCESSING...' : 'TRANSMIT CODES'}
+        </button>
 
         <div className="activated-codes-section">
           <h3>ACTIVATED CODES</h3>

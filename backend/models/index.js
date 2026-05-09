@@ -60,6 +60,7 @@ const sessionSchema = new mongoose.Schema({
   alignmentScore: { type: Number, default: 0 },
   emailAddress: { type: String },
   emailSent: { type: Boolean, default: false },
+  optInMessaging: { type: Boolean, default: false },
   isComplete: { type: Boolean, default: false }
 });
 
