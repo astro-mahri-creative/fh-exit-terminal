@@ -75,9 +75,9 @@ function seededRand(seed) {
 // These are generous — erring well clear of satellites and shells.
 const VARIANT_LABEL_OFFSET = [
   // 0: Nebula — satellites reach radius*2.8
-  (r) => Math.round(r * 70 + 40),
+  (r) => Math.round(r * 76 + 44),
   // 1: Pulsing — shells reach up to radius*1.75
-  (r) => Math.round(r * 65 + 35),
+  (r) => Math.round(r * 70 + 38),
 ];
 
 // ─── Variant 0: Nebula Cluster ─────────────────────────────────────────────
@@ -354,7 +354,7 @@ function UniverseNode({ position, universe, radius, interactive, onHover, isHove
       <Variant radius={radius} color={color} emissive={emissive} isHovered={isHovered} seed={seed} />
 
       {/* Label — always screen-right via CSS translateX */}
-      <Html distanceFactor={22} zIndexRange={[1, 2]}>
+      <Html distanceFactor={17.5} zIndexRange={[1, 2]}>
         <div
           className="universe-node-label"
           style={{
