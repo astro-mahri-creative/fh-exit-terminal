@@ -426,7 +426,7 @@ function NetworkScene({ networkData, interactive, onHover, onReady, boundingRadi
     if (focusUniverseId) {
       const fn = nodes.find(n => n.id === focusUniverseId);
       if (fn) {
-        const fx = fn.x ?? 0, fy = fn.y ?? 0, fz = fn.z ?? 0;
+        const fx = fn.x ?? 0, fz = fn.z ?? 0;
         const dist = Math.hypot(fx, fz);
         if (dist > 0.01) {
           const angle = Math.atan2(fx, fz);
