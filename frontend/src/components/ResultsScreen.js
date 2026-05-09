@@ -82,6 +82,7 @@ function ResultsScreen({ resultsData, sessionData, onReset }) {
   const [email, setEmail] = useState('');
   const [emailSent, setEmailSent] = useState(false);
   const [emailError, setEmailError] = useState('');
+  const [optInMessaging, setOptInMessaging] = useState(false);
   const [multiverseReady, setMultiverseReady] = useState(false);
   const [numbersVisible, setNumbersVisible]   = useState(false);
   const [countdown, setCountdown] = useState(FIRST_IDLE_TIMEOUT);
@@ -240,8 +241,8 @@ function ResultsScreen({ resultsData, sessionData, onReset }) {
     }
 
     try {
-      const response = await emailService.send(sessionData.session_token, email);
-      
+      const response = await emailService.send(sessionData.session_token, email, optInMessaging);
+
       if (response.success) {
         setEmailSent(true);
       } else {
@@ -364,6 +365,17 @@ function ResultsScreen({ resultsData, sessionData, onReset }) {
               showNumbers
               extraBottomKeys={{ left: '@', right: '.' }}
             />
+            <label className="email-optin">
+              <input
+                type="checkbox"
+                checked={optInMessaging}
+                onChange={(e) => { setOptInMessaging(e.target.checked); recordActivity(); }}
+              />
+              <span>
+                Yes, I'd like to receive occasional updates from Future Hooman about new releases,
+                events, and dimensional broadcasts. You can unsubscribe at any time.
+              </span>
+            </label>
             {emailError && <div className="error-message">{emailError}</div>}
             <div className="action-buttons">
               <button onClick={handleSendEmail} className="send-button">

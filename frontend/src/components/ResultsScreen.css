@@ -528,11 +528,45 @@
   50% { opacity: 0; }
 }
 
+.email-optin {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  max-width: 560px;
+  margin: 18px auto 4px;
+  padding: 10px 14px;
+  background: var(--bg-raised);
+  border: 1px dashed rgba(68, 119, 238, 0.18);
+  border-radius: var(--radius-md);
+  font-family: var(--font-mono);
+  font-size: 0.78rem;
+  line-height: 1.5;
+  color: var(--text-secondary);
+  text-align: left;
+  letter-spacing: 0.02em;
+  cursor: pointer;
+  transition: border-color 0.2s;
+}
+
+.email-optin:hover {
+  border-color: rgba(68, 119, 238, 0.35);
+}
+
+.email-optin input[type="checkbox"] {
+  flex-shrink: 0;
+  margin-top: 2px;
+  width: 16px;
+  height: 16px;
+  accent-color: var(--phax-light);
+  cursor: pointer;
+}
+
 .action-buttons {
   display: flex;
   justify-content: center;
   gap: 16px;
   flex-wrap: wrap;
+  margin-top: 16px;
 }
 
 .send-button {
