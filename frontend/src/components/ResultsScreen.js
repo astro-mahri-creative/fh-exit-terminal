@@ -12,16 +12,13 @@ const STEPPED_COUNT_STEPS = 5;       // 5 intermediate ticks between from and to
 const STEPPED_COUNT_DURATION_MS = 670; // (steps + 1) * duration ≈ 4s total
 
 const STATUS_COLORS = {
-  OPTIMIZED:    { primary: '#b0bec5', secondary: '#78909c', textColor: '#0a0a0a' },
-  ACTIVE:       { primary: '#9e9e9e', secondary: '#616161', textColor: '#0a0a0a' },
+  PRESERVED:    { primary: '#4a90d9', secondary: '#2a5a8a', textColor: '#f0eeeb' },
   COMPROMISED:  { primary: '#e6911a', secondary: '#a05c08', textColor: '#0a0a0a' },
-  QUARANTINED:  { primary: '#c94040', secondary: '#7c1a1a', textColor: '#f0eeeb' },
   LIBERATED:    { primary: '#a0784a', secondary: '#5c3d20', textColor: '#f0eeeb' },
-  TRANSCENDENT: { primary: '#9575cd', secondary: '#4527a0', textColor: '#f0eeeb' },
 };
 
 function UniverseCard({ universe, idx, numbersVisible, isFheels }) {
-  const colors = STATUS_COLORS[universe.status] || STATUS_COLORS.ACTIVE;
+  const colors = STATUS_COLORS[universe.status] || STATUS_COLORS.COMPROMISED;
   const startVal = universe.current_cases - universe.change;
   const animatedCases = useSteppedCountUp(
     startVal,
@@ -91,7 +88,10 @@ function ResultsScreen({ resultsData, sessionData, onReset }) {
   const countdownRef = useRef(FIRST_IDLE_TIMEOUT);
   const lastActivityRef = useRef(Date.now());
 
+  const isAdmin = sessionData?.is_admin;
+
   const startIdleTimer = useCallback(() => {
+    if (isAdmin) return;
     if (intervalRef.current) clearInterval(intervalRef.current);
 
     lastActivityRef.current = Date.now();
@@ -120,7 +120,7 @@ function ResultsScreen({ resultsData, sessionData, onReset }) {
         }
       }
     }, 1000);
-  }, [idleThreshold, onReset]);
+  }, [isAdmin, idleThreshold, onReset]);
 
   const recordActivity = useCallback(() => {
     lastActivityRef.current = Date.now();
@@ -275,7 +275,7 @@ function ResultsScreen({ resultsData, sessionData, onReset }) {
 
       <div className="universe-map">
         <div className="universes-grid">
-          {resultsData.universes.map((universe, idx) => (
+          {[...resultsData.universes].sort((a, b) => Math.abs(b.change) - Math.abs(a.change)).map((universe, idx) => (
             <UniverseCard
               key={universe.id}
               universe={universe}
@@ -289,6 +289,17 @@ function ResultsScreen({ resultsData, sessionData, onReset }) {
         {resultsData.cure_active && (
           <div className="cure-indicator">
             🧬 CURE PROTOCOL ACTIVE — iFLU cure discovered
+          </div>
+        )}
+
+        {resultsData.status_messages && resultsData.status_messages.length > 0 && (
+          <div className="status-messages">
+            {resultsData.status_messages.map((msg, i) => (
+              <div key={i} className={`status-message ${msg.message === 'NO IMPACT' ? 'no-impact' : 'status-change'}`}>
+                <span className="status-msg-code">[{msg.code}]</span>
+                <span className="status-msg-text">{msg.message}</span>
+              </div>
+            ))}
           </div>
         )}
       </div>
@@ -371,11 +382,13 @@ function ResultsScreen({ resultsData, sessionData, onReset }) {
         )}
       </div>
 
-      <div className="countdown">
-        {idleThreshold === FIRST_IDLE_TIMEOUT
-          ? `Idle Time is: ${FIRST_IDLE_TIMEOUT - countdown}s`
-          : `Screen Resets in: ${countdown}s`}
-      </div>
+      {!isAdmin && (
+        <div className="countdown">
+          {idleThreshold === FIRST_IDLE_TIMEOUT
+            ? `Idle Time is: ${FIRST_IDLE_TIMEOUT - countdown}s`
+            : `Screen Resets in: ${countdown}s`}
+        </div>
+      )}
     </div>
   );
 }

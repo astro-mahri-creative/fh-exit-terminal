@@ -134,6 +134,17 @@ function ChoiceScreen({ choiceData, sessionData, onChoiceConfirmed }) {
         </div>
       </div>
 
+      {choiceData.status_messages && choiceData.status_messages.length > 0 && (
+        <div className="choice-status-messages">
+          {choiceData.status_messages.map((msg, i) => (
+            <div key={i} className={`choice-status-msg ${msg.message === 'NO IMPACT' ? 'no-impact' : 'status-change'}`}>
+              <span className="csm-code">[{msg.code}]</span>
+              <span className="csm-text">{msg.message}</span>
+            </div>
+          ))}
+        </div>
+      )}
+
       <div className="codes-summary">
         Codes activated: {choiceData.total_codes_entered}
       </div>

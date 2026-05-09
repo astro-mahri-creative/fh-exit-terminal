@@ -1,16 +1,18 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { adminService } from '../services/api';
+import { adminService, universeService } from '../services/api';
 import './AdminPanel.css';
 
 function AdminPanel({ sessionData }) {
   const [activeTab, setActiveTab] = useState('actions');
   const [users, setUsers] = useState([]);
   const [codes, setCodes] = useState([]);
+  const [universes, setUniverses] = useState([]);
   const [loading, setLoading] = useState(false);
   const [newUserId, setNewUserId] = useState('');
   const [expandedCode, setExpandedCode] = useState(null);
   const [userFilter, setUserFilter] = useState('all'); // 'all', 'used', 'unused'
   const [returnMode, setReturnMode] = useState('resume');
+  const [effectScale, setEffectScale] = useState(1);
 
   const loadUsers = useCallback(async () => {
     setLoading(true);
@@ -36,9 +38,24 @@ function AdminPanel({ sessionData }) {
     }
   }, [sessionData.session_token]);
 
+  const loadUniverses = useCallback(async () => {
+    setLoading(true);
+    try {
+      const response = await universeService.getAll();
+      if (response.success) setUniverses(response.universes);
+    } catch (err) {
+      console.error('Error loading universes:', err);
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
   useEffect(() => {
     adminService.getAnalytics(sessionData.session_token).then(res => {
-      if (res.success) setReturnMode(res.analytics.sameHourReturnMode || 'resume');
+      if (res.success) {
+        setReturnMode(res.analytics.sameDayReturnMode || 'resume');
+        if (res.analytics.effectScale !== undefined) setEffectScale(res.analytics.effectScale);
+      }
     }).catch(() => {});
   }, [sessionData.session_token]);
 
@@ -47,13 +64,15 @@ function AdminPanel({ sessionData }) {
       loadUsers();
     } else if (activeTab === 'codes' && codes.length === 0) {
       loadCodes();
+    } else if (activeTab === 'universes') {
+      loadUniverses();
     }
-  }, [activeTab, users.length, codes.length, loadUsers, loadCodes]);
+  }, [activeTab, users.length, codes.length, loadUsers, loadCodes, loadUniverses]);
 
   const handleToggleReturnMode = async () => {
     try {
       const response = await adminService.toggleReturnMode(sessionData.session_token);
-      if (response.success) setReturnMode(response.sameHourReturnMode);
+      if (response.success) setReturnMode(response.sameDayReturnMode);
     } catch (err) {
       console.error('Error toggling return mode:', err);
     }
@@ -69,6 +88,16 @@ function AdminPanel({ sessionData }) {
       }
     } catch (err) {
       alert('Error generating user ID');
+    }
+  };
+
+  const handleSetEffectScale = async (value) => {
+    const clamped = Math.max(1, Math.min(99, value));
+    setEffectScale(clamped);
+    try {
+      await adminService.setEffectScale(sessionData.session_token, clamped);
+    } catch (err) {
+      console.error('Error setting effect scale:', err);
     }
   };
 
@@ -114,6 +143,12 @@ function AdminPanel({ sessionData }) {
           USERS
         </button>
         <button
+          className={`admin-tab ${activeTab === 'universes' ? 'active' : ''}`}
+          onClick={() => setActiveTab('universes')}
+        >
+          UNIVERSES
+        </button>
+        <button
           className={`admin-tab ${activeTab === 'codes' ? 'active' : ''}`}
           onClick={() => setActiveTab('codes')}
         >
@@ -136,6 +171,30 @@ function AdminPanel({ sessionData }) {
             <button onClick={handleResetUniverses} className="admin-action-button danger">
               Reset Dimension Statistics
             </button>
+            <div className="effect-scale-control">
+              <span className="effect-scale-label">EFFECT SCALE MULTIPLIER</span>
+              <div className="effect-scale-selector">
+                <button
+                  className="scale-btn"
+                  onClick={() => handleSetEffectScale(effectScale - 1)}
+                  disabled={effectScale <= 1}
+                >−</button>
+                <select
+                  className="scale-select"
+                  value={effectScale}
+                  onChange={(e) => handleSetEffectScale(parseInt(e.target.value, 10))}
+                >
+                  {Array.from({ length: 99 }, (_, i) => i + 1).map(v => (
+                    <option key={v} value={v}>{v}x</option>
+                  ))}
+                </select>
+                <button
+                  className="scale-btn"
+                  onClick={() => handleSetEffectScale(effectScale + 1)}
+                  disabled={effectScale >= 99}
+                >+</button>
+              </div>
+            </div>
             {newUserId && (
               <div className="new-user-id-display">
                 <span className="new-id-label">NEW USER ID:</span>
@@ -200,6 +259,63 @@ function AdminPanel({ sessionData }) {
                           <td className="count-cell">{user.usage_count}</td>
                         </tr>
                       ))}
+                    </tbody>
+                  </table>
+                </div>
+              </>
+            )}
+          </div>
+        )}
+
+        {activeTab === 'universes' && (
+          <div className="admin-universes">
+            {loading ? (
+              <div className="admin-loading">Loading universes...</div>
+            ) : (
+              <>
+                <div className="admin-list-header">
+                  <span className="admin-count">{universes.length} universes</span>
+                  <button onClick={loadUniverses} className="admin-refresh">REFRESH</button>
+                </div>
+                <div className="admin-table-wrap">
+                  <table className="admin-table">
+                    <thead>
+                      <tr>
+                        <th>NAME</th>
+                        <th>STATUS</th>
+                        <th>CASES</th>
+                        <th>MAX</th>
+                        <th>%</th>
+                        <th>CAPACITY</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {universes.map(u => {
+                        const pct = u.initializationCases > 0
+                          ? Math.round((u.currentCases / u.initializationCases) * 100)
+                          : 0;
+                        const statusClass = u.status === 'LIBERATED' ? 'liberated'
+                          : u.status === 'PRESERVED' ? 'preserved' : 'compromised';
+                        return (
+                          <tr key={u._id}>
+                            <td className="universe-name-cell">{u.name}</td>
+                            <td>
+                              <span className={`status-badge ${statusClass}`}>{u.status}</span>
+                            </td>
+                            <td className="count-cell">{u.currentCases.toLocaleString()}</td>
+                            <td className="count-cell">{u.initializationCases.toLocaleString()}</td>
+                            <td className="count-cell">{pct}%</td>
+                            <td className="capacity-cell">
+                              <div className="capacity-bar">
+                                <div
+                                  className={`capacity-fill ${statusClass}`}
+                                  style={{ width: `${Math.min(pct, 100)}%` }}
+                                />
+                              </div>
+                            </td>
+                          </tr>
+                        );
+                      })}
                     </tbody>
                   </table>
                 </div>

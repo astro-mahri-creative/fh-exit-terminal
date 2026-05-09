@@ -257,7 +257,7 @@
 
 .count-cell {
   font-family: var(--font-mono);
-  text-align: center;
+  text-align: left;
 }
 
 /* ── Codes List ── */
@@ -435,6 +435,113 @@
   font-size: 0.72rem;
   color: var(--text-secondary);
 }
+
+/* ── Effect Scale Control ── */
+.effect-scale-control {
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 10px 14px;
+  background: var(--bg-raised);
+  border: 1px solid var(--border-faint);
+  border-radius: var(--radius-md);
+}
+
+.effect-scale-label {
+  font-family: var(--font-mono);
+  font-size: 0.65rem;
+  font-weight: 700;
+  letter-spacing: 0.15em;
+  color: var(--text-secondary);
+}
+
+.effect-scale-selector {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.scale-btn {
+  width: 32px;
+  height: 32px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--phax-blue);
+  color: var(--bg-base);
+  border: none;
+  border-radius: var(--radius-sm);
+  font-size: 1rem;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.scale-btn:disabled {
+  opacity: 0.3;
+  cursor: not-allowed;
+}
+
+.scale-select {
+  flex: 1;
+  max-width: 100px;
+  padding: 6px 8px;
+  background: var(--bg-base);
+  color: var(--text-primary);
+  border: 1px solid var(--border-faint);
+  border-radius: var(--radius-sm);
+  font-family: var(--font-mono);
+  font-size: 0.85rem;
+  font-weight: 700;
+  text-align: center;
+}
+
+/* ── Universes Tab ── */
+.universe-name-cell {
+  font-weight: 700;
+  letter-spacing: 0.05em;
+}
+
+.status-badge.compromised {
+  background: rgba(230, 145, 26, 0.12);
+  color: #e6911a;
+  border: 1px solid rgba(230, 145, 26, 0.3);
+}
+
+.status-badge.liberated {
+  background: rgba(160, 120, 74, 0.12);
+  color: #c4a06a;
+  border: 1px solid rgba(160, 120, 74, 0.3);
+}
+
+.status-badge.preserved {
+  background: rgba(74, 144, 217, 0.12);
+  color: #4a90d9;
+  border: 1px solid rgba(74, 144, 217, 0.3);
+}
+
+.capacity-cell {
+  min-width: 120px;
+}
+
+.capacity-bar {
+  width: 100%;
+  height: 8px;
+  background: var(--bg-base);
+  border: 1px solid var(--border-faint);
+  border-radius: 4px;
+  overflow: hidden;
+}
+
+.capacity-fill {
+  height: 100%;
+  border-radius: 3px;
+  transition: width 0.3s ease;
+}
+
+.capacity-fill.compromised { background: #e6911a; }
+.capacity-fill.liberated   { background: #a0784a; }
+.capacity-fill.preserved   { background: #4a90d9; }
 
 /* ── Responsive ── */
 @media (max-width: 768px) {
