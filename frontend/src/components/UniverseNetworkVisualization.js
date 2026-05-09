@@ -568,6 +568,11 @@ function UniverseNetworkVisualization({ mode = 'display', autoRotate = true, onC
   const [error,           setError]           = useState(null);
   const [hoveredUniverse, setHoveredUniverse] = useState(null);
   const [focusTarget,     setFocusTarget]     = useState(null);
+  // True once the user manually rotates the orbit, OR after autoRotate
+  // kicks in (i.e. the initial focus window has elapsed). Either condition
+  // disables the LookAtFocused override so the camera goes back to looking
+  // at the cluster origin and labels stay locked to their nodes.
+  const [userRotated,     setUserRotated]     = useState(false);
 
   useEffect(() => {
     let cancelled = false;
@@ -585,9 +590,15 @@ function UniverseNetworkVisualization({ mode = 'display', autoRotate = true, onC
     };
 
     fetchData();
+    // Skip auto-refresh on the impact report. focusUniverseId is only set
+    // in that flow, where the data is a snapshot in time and should not
+    // change underneath the user — refreshing scrambles the force layout.
+    if (focusUniverseId) {
+      return () => { cancelled = true; };
+    }
     const interval = setInterval(fetchData, CONFIG.refreshIntervalMs);
     return () => { cancelled = true; clearInterval(interval); };
-  }, []);
+  }, [focusUniverseId]);
 
   const interactive = mode === 'interactive';
 
@@ -622,10 +633,19 @@ function UniverseNetworkVisualization({ mode = 'display', autoRotate = true, onC
             enablePan={false}
             maxDistance={Math.max(38, (cameraZ ?? CONFIG.cameraDistance) + 4)}
             minDistance={8}
+            onStart={() => setUserRotated(true)}
           />
           {/* Mounts AFTER OrbitControls so its useFrame callback runs
-              after OrbitControls' update each frame and its lookAt wins. */}
-          <LookAtFocused target={focusTarget} />
+              after OrbitControls' update each frame and its lookAt wins.
+              Only active during the initial focus window: once the user
+              manually rotates OR autoRotate kicks in (after the parent's
+              10-second pause), target becomes null and the camera reverts
+              to OrbitControls' default lookAt(origin). This also stops
+              drei's Html projection from drifting against the rotating
+              camera, so labels stay locked to their nodes. */}
+          <LookAtFocused
+            target={(autoRotate || userRotated) ? null : focusTarget}
+          />
           <Stars
             radius={CONFIG.starRadius}
             depth={50}
