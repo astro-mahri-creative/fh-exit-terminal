@@ -174,6 +174,8 @@ function getDailyResetTime() {
 
 // Calculate universe status based on percentage of initializationCases
 function calculateUniverseStatus(currentCases, initializationCases) {
+  if (currentCases >= initializationCases) return 'QUARANTINED';
+  if (currentCases <= 0) return 'TRANSCENDED';
   if (currentCases >= initializationCases * 0.85) return 'LIBERATED';
   if (currentCases <= initializationCases * 0.15) return 'PRESERVED';
   return 'COMPROMISED';
@@ -216,7 +218,9 @@ async function selectPhaxAlertMessage() {
   // Priority-based selection
   let condition = 'active_stable_states';
 
-  if (statusCounts.LIBERATED > 3) {
+  if (statusCounts.QUARANTINED > 0 || statusCounts.TRANSCENDED > 0) {
+    condition = 'locked_states';
+  } else if (statusCounts.LIBERATED > 3) {
     condition = 'extreme_fheels_victory';
   } else if (statusCounts.LIBERATED > 0) {
     condition = 'liberated_states';
@@ -412,11 +416,29 @@ app.get('/api/universes', async (req, res) => {
   }
 });
 
-// GET /api/network - Universe network data (public)
+// GET /api/network - Universe network data with computed edges (public)
 app.get('/api/network', async (req, res) => {
   try {
-    const universes = await Universe.find().sort({ displayOrder: 1 });
-    res.json({ success: true, universes, edges: [] });
+    const [universes, codeCount] = await Promise.all([
+      Universe.find().sort({ displayOrder: 1 }),
+      Code.countDocuments({ isActive: true })
+    ]);
+
+    // With random targeting, all codes can potentially affect any universe.
+    // Generate edges between all universe pairs with weights proportional
+    // to the number of active codes (mirrors the old shared-code logic).
+    const edges = [];
+    for (let i = 0; i < universes.length; i++) {
+      for (let j = i + 1; j < universes.length; j++) {
+        edges.push({
+          source: universes[i]._id.toString(),
+          target: universes[j]._id.toString(),
+          weight: codeCount
+        });
+      }
+    }
+
+    res.json({ success: true, universes, edges });
   } catch (error) {
     console.error('Error fetching network data:', error);
     res.status(500).json({ success: false, error: 'SERVER_ERROR', message: 'Error fetching network data' });
@@ -683,6 +705,7 @@ app.post('/api/codes/preview', async (req, res) => {
         if (!targetUniverse) continue;
 
         // Status-based blocking
+        if (targetUniverse.status === 'QUARANTINED' || targetUniverse.status === 'TRANSCENDED') continue;
         if (targetUniverse.status === 'LIBERATED') continue;
         if (targetUniverse.status === 'PRESERVED' && effectValue > 0) continue;
 
@@ -953,6 +976,7 @@ app.post('/api/codes/finalize', async (req, res) => {
         if (!targetUniverse) continue;
 
         // Status-based blocking
+        if (targetUniverse.status === 'QUARANTINED' || targetUniverse.status === 'TRANSCENDED') continue;
         if (targetUniverse.status === 'LIBERATED') continue;
         if (targetUniverse.status === 'PRESERVED' && effectValue > 0) continue;
 

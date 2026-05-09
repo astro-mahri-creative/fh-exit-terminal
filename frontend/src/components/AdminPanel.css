@@ -503,21 +503,33 @@
 }
 
 .status-badge.compromised {
-  background: rgba(230, 145, 26, 0.12);
-  color: #e6911a;
-  border: 1px solid rgba(230, 145, 26, 0.3);
+  background: rgba(126, 200, 139, 0.12);
+  color: #7ec88b;
+  border: 1px solid rgba(126, 200, 139, 0.3);
 }
 
 .status-badge.liberated {
-  background: rgba(160, 120, 74, 0.12);
-  color: #c4a06a;
-  border: 1px solid rgba(160, 120, 74, 0.3);
+  background: rgba(212, 160, 50, 0.12);
+  color: #d4a032;
+  border: 1px solid rgba(212, 160, 50, 0.3);
 }
 
 .status-badge.preserved {
   background: rgba(74, 144, 217, 0.12);
   color: #4a90d9;
   border: 1px solid rgba(74, 144, 217, 0.3);
+}
+
+.status-badge.quarantined {
+  background: rgba(201, 64, 64, 0.12);
+  color: #c94040;
+  border: 1px solid rgba(201, 64, 64, 0.3);
+}
+
+.status-badge.transcended {
+  background: rgba(149, 117, 205, 0.12);
+  color: #9575cd;
+  border: 1px solid rgba(149, 117, 205, 0.3);
 }
 
 .capacity-cell {
@@ -539,9 +551,11 @@
   transition: width 0.3s ease;
 }
 
-.capacity-fill.compromised { background: #e6911a; }
-.capacity-fill.liberated   { background: #a0784a; }
-.capacity-fill.preserved   { background: #4a90d9; }
+.capacity-fill.compromised  { background: #7ec88b; }
+.capacity-fill.liberated    { background: #d4a032; }
+.capacity-fill.preserved    { background: #4a90d9; }
+.capacity-fill.quarantined  { background: #c94040; }
+.capacity-fill.transcended  { background: #9575cd; }
 
 /* ── Responsive ── */
 @media (max-width: 768px) {

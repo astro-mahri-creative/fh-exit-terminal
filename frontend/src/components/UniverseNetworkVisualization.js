@@ -35,15 +35,19 @@ const CONFIG = {
 };
 
 const STATUS_COLORS = {
+  TRANSCENDED:  '#9575cd',
   PRESERVED:    '#4a90d9',
-  COMPROMISED:  '#e6911a',
-  LIBERATED:    '#a0784a',
+  COMPROMISED:  '#7ec88b',
+  LIBERATED:    '#d4a032',
+  QUARANTINED:  '#c94040',
 };
 
 const STATUS_EMISSIVE = {
+  TRANSCENDED:  3.0,
   PRESERVED:    1.8,
   COMPROMISED:  2.2,
   LIBERATED:    1.6,
+  QUARANTINED:  2.4,
 };
 
 // ─── Deterministic per-universe random helpers ─────────────────────────────
@@ -425,16 +429,19 @@ function NetworkScene({ networkData, interactive, onHover, onReady, boundingRadi
 
     for (let i = 0; i < CONFIG.forceSimTicks; i++) sim.tick();
 
-    // Scale positions inward so the furthest universe sits at boundingRadius.
-    const effectiveRadius = boundingRadius && boundingRadius > 0 ? boundingRadius : 8;
-    let maxR = 0;
-    nodes.forEach(n => {
-      const r = Math.hypot(n.x ?? 0, n.y ?? 0, n.z ?? 0);
-      if (r > maxR) maxR = r;
-    });
-    if (maxR > effectiveRadius) {
-      const s = effectiveRadius / maxR;
-      nodes.forEach(n => { n.x = (n.x ?? 0) * s; n.y = (n.y ?? 0) * s; n.z = (n.z ?? 0) * s; });
+    // Optional: scale positions inward so the furthest universe sits at
+    // boundingRadius. Lets the camera be placed at a known distance and
+    // actually feel "outside" the multiverse cluster.
+    if (boundingRadius && boundingRadius > 0) {
+      let maxR = 0;
+      nodes.forEach(n => {
+        const r = Math.hypot(n.x ?? 0, n.y ?? 0, n.z ?? 0);
+        if (r > maxR) maxR = r;
+      });
+      if (maxR > boundingRadius) {
+        const s = boundingRadius / maxR;
+        nodes.forEach(n => { n.x = (n.x ?? 0) * s; n.y = (n.y ?? 0) * s; n.z = (n.z ?? 0) * s; });
+      }
     }
 
     const positions = {};
@@ -498,13 +505,23 @@ function NetworkScene({ networkData, interactive, onHover, onReady, boundingRadi
   const minR      = Math.min(...radii);
   const rRange    = maxR - minR || 1;
 
+  const lockedStatuses = new Set(['QUARANTINED', 'TRANSCENDED']);
+  const lockedIds = new Set(
+    universes.filter(u => lockedStatuses.has(u.status)).map(u => u._id.toString())
+  );
+  const activeLinks = links.filter(link => {
+    const srcId = typeof link.source === 'object' ? link.source.id : link.source;
+    const tgtId = typeof link.target === 'object' ? link.target.id : link.target;
+    return !lockedIds.has(srcId) && !lockedIds.has(tgtId);
+  });
+
   return (
     <>
       <ambientLight intensity={0.08} />
       <pointLight position={[0, 0, 0]} intensity={0.6} color="#aac4ff" decay={2} />
 
       {/* Static edge lines */}
-      {links.map((link, i) => {
+      {activeLinks.map((link, i) => {
         const srcId = typeof link.source === 'object' ? link.source.id : link.source;
         const tgtId = typeof link.target === 'object' ? link.target.id : link.target;
         const src = positions[srcId];
@@ -517,7 +534,7 @@ function NetworkScene({ networkData, interactive, onHover, onReady, boundingRadi
 
       {/* Global particle pool — sparse, color-coded by origin universe */}
       <NetworkParticles
-        links={links}
+        links={activeLinks}
         positions={positions}
         universeColors={universeColors}
       />

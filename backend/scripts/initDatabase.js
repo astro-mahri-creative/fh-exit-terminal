@@ -38,6 +38,15 @@ async function initDatabase() {
     console.log('Creating universe status thresholds...');
     await UniverseStatusThreshold.create([
       {
+        statusName: 'TRANSCENDED',
+        minCases: null,
+        maxCases: null,
+        canSpread: false,
+        description: 'Dimensional transcendence - completely locked, no effects',
+        colorPrimary: '#9575cd',
+        colorSecondary: '#5e35b1'
+      },
+      {
         statusName: 'PRESERVED',
         minCases: null,
         maxCases: null,
@@ -63,32 +72,47 @@ async function initDatabase() {
         description: 'FHEELS victory - fully locked from all effects',
         colorPrimary: '#8B4513',
         colorSecondary: '#FFD700'
+      },
+      {
+        statusName: 'QUARANTINED',
+        minCases: null,
+        maxCases: null,
+        canSpread: false,
+        description: 'Total quarantine - completely locked, no effects',
+        colorPrimary: '#c94040',
+        colorSecondary: '#7b1a1a'
       }
     ]);
 
     // Initialize Universes
     console.log('Creating universes...');
     const universeData = [
-      { name: 'D3N.74L', initCases: 437291 },
-      { name: 'M1D.H00', initCases: 1823054 },
-      { name: 'PL4.N75', initCases: 19182 },
-      { name: '789.YKK', initCases: 891437 },
-      { name: 'L0K.R99', initCases: 2544763 },
-      { name: 'R4I.K1N', initCases: 156820 },
-      { name: '50H.YP3', initCases: 72459 },
-      { name: 'DP4.35T', initCases: 614388 },
-      { name: 'GA1.A14', initCases: 1247901 },
-      { name: 'BX9.R55', initCases: 308547 }
+      { name: 'D3N.74L', initCases: 437291, startPct: 0.28 },
+      { name: 'M1D.H00', initCases: 1823054, startPct: 0.55 },
+      { name: 'PL4.N75', initCases: 19182, startPct: 0.40 },
+      { name: '789.YKK', initCases: 891437, startPct: 0.35 },
+      { name: 'L0K.R99', initCases: 2544763, startPct: 0.65 },
+      { name: 'R4I.K1N', initCases: 156820, startPct: 0.45 },
+      { name: '50H.YP3', initCases: 72459, startPct: 0.60 },
+      { name: 'DP4.35T', initCases: 614388, startPct: 0.72 },
+      { name: 'GA1.A14', initCases: 1247901, startPct: 0.30 },
+      { name: 'BX9.R55', initCases: 308547, startPct: 0.70 }
     ];
 
     const createdUniverses = [];
     for (let i = 0; i < universeData.length; i++) {
       const u = universeData[i];
-      const currentCases = Math.floor(u.initCases * 0.5);
+      const currentCases = Math.floor(u.initCases * u.startPct);
       let status = 'COMPROMISED';
       let canSpread = true;
 
-      if (currentCases >= u.initCases * 0.85) {
+      if (currentCases >= u.initCases) {
+        status = 'QUARANTINED';
+        canSpread = false;
+      } else if (currentCases <= 0) {
+        status = 'TRANSCENDED';
+        canSpread = false;
+      } else if (currentCases >= u.initCases * 0.85) {
         status = 'LIBERATED';
         canSpread = false;
       } else if (currentCases <= u.initCases * 0.15) {
@@ -340,10 +364,10 @@ async function initDatabase() {
       { text: 'EMERGENCY PROTOCOLS ACTIVATED. UNAUTHORIZED LIBERATION SEQUENCE DETECTED.', trigger: 'liberated_states' },
       { text: 'CATASTROPHIC CONTAINMENT FAILURE. PHAX AUTHORITY UNDERMINED.', trigger: 'liberated_states' },
       
-      // Quarantined states
-      { text: 'EMERGENCY QUARANTINE INITIATED. SECTOR ISOLATED FOR SYSTEM PROTECTION.', trigger: 'quarantined_states' },
-      { text: 'CRITICAL INSTABILITY DETECTED. RAPID FLUCTUATION CONTAINMENT IN PROGRESS.', trigger: 'quarantined_states' },
-      { text: 'DIMENSIONAL QUARANTINE ACTIVE. UNAUTHORIZED ACCESS RESTRICTED.', trigger: 'quarantined_states' },
+      // Locked states (QUARANTINED or TRANSCENDED)
+      { text: 'DIMENSIONAL LOCK DETECTED. ONE OR MORE SECTORS BEYOND OPERATIONAL REACH.', trigger: 'locked_states' },
+      { text: 'PERMANENT STATUS LOCK CONFIRMED. AFFECTED SECTORS NO LONGER RESPOND TO CODE INPUT.', trigger: 'locked_states' },
+      { text: 'IRREVERSIBLE STATE ACHIEVED. LOCKED DIMENSIONS REQUIRE ADMINISTRATIVE OVERRIDE.', trigger: 'locked_states' },
       
       // Cure discovery
       { text: 'ALERT: ANOMALOUS HEALING PROTOCOL DETECTED. SOURCE UNKNOWN. ANALYZING...', trigger: 'cure_discovery' },
