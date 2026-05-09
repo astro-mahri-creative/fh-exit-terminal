@@ -29,15 +29,26 @@ async function migrate() {
       $set: { targetMode: 'random', universeId: null }
     });
 
-    // 2. For RMPI/PRWC: delete duplicate rows (keep 1 per code)
-    for (const codeName of ['RMPI', 'PRWC']) {
+    // 2. For RMPI/PRWC: ensure 10 independent random-target rows each
+    const amplifyTargetCount = 10;
+    for (const [codeName, effectVal] of [['RMPI', 2.4], ['PRWC', 1.3]]) {
       const code = await Code.findOne({ code: codeName });
       if (!code) continue;
-      const effects = await CodeEffect.find({ codeId: code._id }).sort({ _id: 1 });
-      if (effects.length > 1) {
-        const idsToDelete = effects.slice(1).map(e => e._id);
-        await CodeEffect.deleteMany({ _id: { $in: idsToDelete } });
-        console.log(`  Removed ${idsToDelete.length} duplicate effects for ${codeName}`);
+      const existing = await CodeEffect.find({ codeId: code._id });
+      if (existing.length < amplifyTargetCount) {
+        const toCreate = amplifyTargetCount - existing.length;
+        for (let i = 0; i < toCreate; i++) {
+          await CodeEffect.create({
+            codeId: code._id,
+            universeId: null,
+            targetMode: 'random',
+            effectValue: effectVal,
+            effectType: 'amplify'
+          });
+        }
+        console.log(`  Added ${toCreate} effect rows for ${codeName} (now ${amplifyTargetCount} total)`);
+      } else {
+        console.log(`  ${codeName} already has ${existing.length} effect rows`);
       }
     }
 
@@ -83,16 +94,32 @@ async function migrate() {
       console.log('  Created CURE code and effect');
     }
 
-    // 5. Reset all universe currentCases to 50% of init and recalculate statuses
-    console.log('Resetting universe cases to 50% of init...');
+    // 5. Update initializationCases to new values, reset currentCases to 50%, recalculate statuses
+    const initCasesMap = {
+      'D3N.74L': 437291,
+      'M1D.H00': 1823054,
+      'PL4.N75': 19182,
+      '789.YKK': 891437,
+      'L0K.R99': 2544763,
+      'R4I.K1N': 156820,
+      '50H.YP3': 72459,
+      'DP4.35T': 614388,
+      'GA1.A14': 1247901,
+      'BX9.R55': 308547
+    };
+
+    console.log('Updating universe initializationCases and resetting to 50%...');
     const universes = await Universe.find();
     for (const universe of universes) {
+      if (initCasesMap[universe.name]) {
+        universe.initializationCases = initCasesMap[universe.name];
+      }
       universe.currentCases = Math.floor(universe.initializationCases * 0.5);
       universe.status = calculateUniverseStatus(universe.currentCases, universe.initializationCases);
       universe.canSpread = universe.status === 'COMPROMISED';
       universe.lastUpdated = new Date();
       await universe.save();
-      console.log(`  ${universe.name}: ${universe.currentCases} cases -> ${universe.status}`);
+      console.log(`  ${universe.name}: init=${universe.initializationCases}, current=${universe.currentCases} -> ${universe.status}`);
     }
 
     // 6. Ensure effectScale exists in AdminSettings

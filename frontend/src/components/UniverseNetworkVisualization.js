@@ -494,10 +494,12 @@ function NetworkScene({ networkData, interactive, onHover, onReady, boundingRadi
   if (!layout) return null;
 
   const { universes, links, positions, maxWeight } = layout;
-  const cases    = universes.map(u => u.currentCases);
-  const maxCases = Math.max(1, ...cases);
-  const minCases = Math.min(...cases);
-  const caseRange = maxCases - minCases || 1;
+  // Treat initializationCases as diameter — radius = initCases / 2.
+  // Normalize across universes to fit within the configured radius range.
+  const radii     = universes.map(u => (u.initializationCases || 1) / 2);
+  const maxR      = Math.max(...radii);
+  const minR      = Math.min(...radii);
+  const rRange    = maxR - minR || 1;
 
   return (
     <>
@@ -528,8 +530,9 @@ function NetworkScene({ networkData, interactive, onHover, onReady, boundingRadi
         const id = u._id.toString();
         const pos = positions[id];
         if (!pos) return null;
-        const radius = CONFIG.nodeRadiusMin +
-          ((u.currentCases - minCases) / caseRange) *
+        const uR = (u.initializationCases || 1) / 2;
+      const radius = CONFIG.nodeRadiusMin +
+          ((uR - minR) / rRange) *
           (CONFIG.nodeRadiusMax - CONFIG.nodeRadiusMin);
         return (
           <UniverseNode
