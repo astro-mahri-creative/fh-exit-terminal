@@ -176,8 +176,8 @@ function getDailyResetTime() {
 function calculateUniverseStatus(currentCases, initializationCases) {
   if (currentCases >= initializationCases) return 'QUARANTINED';
   if (currentCases <= 0) return 'TRANSCENDED';
-  if (currentCases >= initializationCases * 0.85) return 'LIBERATED';
-  if (currentCases <= initializationCases * 0.15) return 'PRESERVED';
+  if (currentCases >= initializationCases * 0.70) return 'LIBERATED';
+  if (currentCases <= initializationCases * 0.30) return 'PRESERVED';
   return 'COMPROMISED';
 }
 

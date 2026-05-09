@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import * as THREE from 'three';
-import { Canvas, useFrame } from '@react-three/fiber';
+import { Canvas, useFrame, useThree } from '@react-three/fiber';
 import { OrbitControls, Stars, Html, Line } from '@react-three/drei';
 import { EffectComposer, Bloom } from '@react-three/postprocessing';
 import { forceSimulation, forceManyBody, forceLink, forceCenter, forceCollide } from 'd3-force-3d';
@@ -75,9 +75,9 @@ function seededRand(seed) {
 // These are generous — erring well clear of satellites and shells.
 const VARIANT_LABEL_OFFSET = [
   // 0: Nebula — satellites reach radius*2.8
-  (r) => Math.round(r * 65 + 38),
+  (r) => Math.round(r * 70 + 40),
   // 1: Pulsing — shells reach up to radius*1.75
-  (r) => Math.round(r * 60 + 34),
+  (r) => Math.round(r * 65 + 35),
 ];
 
 // ─── Variant 0: Nebula Cluster ─────────────────────────────────────────────
@@ -354,7 +354,7 @@ function UniverseNode({ position, universe, radius, interactive, onHover, isHove
       <Variant radius={radius} color={color} emissive={emissive} isHovered={isHovered} seed={seed} />
 
       {/* Label — always screen-right via CSS translateX */}
-      <Html distanceFactor={16} zIndexRange={[1, 2]}>
+      <Html distanceFactor={22} zIndexRange={[1, 2]}>
         <div
           className="universe-node-label"
           style={{
@@ -377,10 +377,30 @@ function UniverseNode({ position, universe, radius, interactive, onHover, isHove
   );
 }
 
-// Camera orbits around origin via OrbitControls — no lookAt override needed.
+// ─── Camera orientation override ──────────────────────────────────────────
+// OrbitControls orbits the camera around its target [0,0,0] — that keeps
+// the orbit axis at the cluster origin so the camera circles the entire
+// cluster (not the focus universe). Each frame, after OrbitControls has
+// positioned the camera, we override camera.lookAt() to face the focused
+// universe — so the camera CIRCLES the cluster but always LOOKS at the
+// most-affected node.
+//
+// Using priority 0 the override can race with OrbitControls' own
+// camera.lookAt(target) call and lose. We register at priority 0 but
+// place this component AFTER <OrbitControls> in JSX so it mounts (and
+// thus its useFrame fires) last.
+function LookAtFocused({ target }) {
+  const { camera } = useThree();
+  useFrame(() => {
+    if (!target) return;
+    camera.lookAt(target[0], target[1], target[2]);
+    camera.updateMatrixWorld();
+  });
+  return null;
+}
 
 // ─── Scene Contents ────────────────────────────────────────────────────────
-function NetworkScene({ networkData, interactive, onHover, onReady, boundingRadius, caseDeltas, animateNumbers, focusUniverseId }) {
+function NetworkScene({ networkData, interactive, onHover, onReady, boundingRadius, caseDeltas, animateNumbers, focusUniverseId, onFocusPosition }) {
   const layout = useMemo(() => {
     if (!networkData) return null;
 
@@ -422,23 +442,6 @@ function NetworkScene({ networkData, interactive, onHover, onReady, boundingRadi
       }
     }
 
-    // Rotate the entire layout so the focus universe faces the camera (+Z).
-    if (focusUniverseId) {
-      const fn = nodes.find(n => n.id === focusUniverseId);
-      if (fn) {
-        const fx = fn.x ?? 0, fz = fn.z ?? 0;
-        const dist = Math.hypot(fx, fz);
-        if (dist > 0.01) {
-          const angle = Math.atan2(fx, fz);
-          const cos = Math.cos(angle), sin = Math.sin(angle);
-          nodes.forEach(n => {
-            const nx = n.x ?? 0, nz = n.z ?? 0;
-            n.x = nx * cos - nz * sin;
-            n.z = nx * sin + nz * cos;
-          });
-        }
-      }
-    }
 
     const positions = {};
     nodes.forEach(n => { positions[n.id] = [n.x ?? 0, n.y ?? 0, n.z ?? 0]; });
@@ -446,7 +449,17 @@ function NetworkScene({ networkData, interactive, onHover, onReady, boundingRadi
     const maxWeight = Math.max(1, ...links.map(l => l.weight));
 
     return { universes, links, positions, maxWeight };
-  }, [networkData, boundingRadius, focusUniverseId]);
+  }, [networkData, boundingRadius]);
+
+  // Emit the focused universe's position whenever layout/focus changes.
+  // useEffect (not useLayoutEffect) is fine: LookAtFocused runs every
+  // frame and falls back to default lookAt(origin) until the position
+  // arrives, which happens within one render.
+  useEffect(() => {
+    if (!layout || !focusUniverseId || !onFocusPosition) return;
+    const pos = layout.positions[focusUniverseId];
+    if (pos) onFocusPosition(pos);
+  }, [layout, focusUniverseId, onFocusPosition]);
 
   const [hovered, setHovered] = useState(null);
 
@@ -554,6 +567,12 @@ function UniverseNetworkVisualization({ mode = 'display', autoRotate = true, onC
   const [loading,         setLoading]         = useState(true);
   const [error,           setError]           = useState(null);
   const [hoveredUniverse, setHoveredUniverse] = useState(null);
+  const [focusTarget,     setFocusTarget]     = useState(null);
+  // True once the user manually rotates the orbit, OR after autoRotate
+  // kicks in (i.e. the initial focus window has elapsed). Either condition
+  // disables the LookAtFocused override so the camera goes back to looking
+  // at the cluster origin and labels stay locked to their nodes.
+  const [userRotated,     setUserRotated]     = useState(false);
 
   useEffect(() => {
     let cancelled = false;
@@ -571,9 +590,15 @@ function UniverseNetworkVisualization({ mode = 'display', autoRotate = true, onC
     };
 
     fetchData();
+    // Skip auto-refresh on the impact report. focusUniverseId is only set
+    // in that flow, where the data is a snapshot in time and should not
+    // change underneath the user — refreshing scrambles the force layout.
+    if (focusUniverseId) {
+      return () => { cancelled = true; };
+    }
     const interval = setInterval(fetchData, CONFIG.refreshIntervalMs);
     return () => { cancelled = true; clearInterval(interval); };
-  }, []);
+  }, [focusUniverseId]);
 
   const interactive = mode === 'interactive';
 
@@ -598,6 +623,7 @@ function UniverseNetworkVisualization({ mode = 'display', autoRotate = true, onC
             caseDeltas={caseDeltas}
             animateNumbers={animateNumbers}
             focusUniverseId={focusUniverseId}
+            onFocusPosition={setFocusTarget}
           />
           <OrbitControls
             target={[0, 0, 0]}
@@ -607,6 +633,18 @@ function UniverseNetworkVisualization({ mode = 'display', autoRotate = true, onC
             enablePan={false}
             maxDistance={Math.max(38, (cameraZ ?? CONFIG.cameraDistance) + 4)}
             minDistance={8}
+            onStart={() => setUserRotated(true)}
+          />
+          {/* Mounts AFTER OrbitControls so its useFrame callback runs
+              after OrbitControls' update each frame and its lookAt wins.
+              Only active during the initial focus window: once the user
+              manually rotates OR autoRotate kicks in (after the parent's
+              10-second pause), target becomes null and the camera reverts
+              to OrbitControls' default lookAt(origin). This also stops
+              drei's Html projection from drifting against the rotating
+              camera, so labels stay locked to their nodes. */}
+          <LookAtFocused
+            target={(autoRotate || userRotated) ? null : focusTarget}
           />
           <Stars
             radius={CONFIG.starRadius}
