@@ -1,6 +1,6 @@
-import React, { useState, useEffect, useLayoutEffect, useMemo, useRef } from 'react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
 import * as THREE from 'three';
-import { Canvas, useFrame, useThree } from '@react-three/fiber';
+import { Canvas, useFrame } from '@react-three/fiber';
 import { OrbitControls, Stars, Html, Line } from '@react-three/drei';
 import { EffectComposer, Bloom } from '@react-three/postprocessing';
 import { forceSimulation, forceManyBody, forceLink, forceCenter, forceCollide } from 'd3-force-3d';
@@ -74,10 +74,10 @@ function seededRand(seed) {
 // translateX is always screen-right because Html faces the camera.
 // These are generous — erring well clear of satellites and shells.
 const VARIANT_LABEL_OFFSET = [
-  // 0: Nebula — satellites reach radius*2.8; use large clearance
-  (r) => Math.round(r * 95 + 55),
-  // 1: Pulsing — shells reach up to radius*1.75; generous clearance
-  (r) => Math.round(r * 88 + 48),
+  // 0: Nebula — satellites reach radius*2.8
+  (r) => Math.round(r * 24 + 14),
+  // 1: Pulsing — shells reach up to radius*1.75
+  (r) => Math.round(r * 22 + 12),
 ];
 
 // ─── Variant 0: Nebula Cluster ─────────────────────────────────────────────
@@ -354,7 +354,7 @@ function UniverseNode({ position, universe, radius, interactive, onHover, isHove
       <Variant radius={radius} color={color} emissive={emissive} isHovered={isHovered} seed={seed} />
 
       {/* Label — always screen-right via CSS translateX */}
-      <Html distanceFactor={22} zIndexRange={[1, 2]}>
+      <Html distanceFactor={5.5} zIndexRange={[1, 2]}>
         <div
           className="universe-node-label"
           style={{
@@ -377,32 +377,10 @@ function UniverseNode({ position, universe, radius, interactive, onHover, isHove
   );
 }
 
-// ─── Camera orientation override ──────────────────────────────────────────
-// OrbitControls handles position/rotation around its target — we leave that
-// pointed at origin so the orbit axis stays exactly where the primary
-// topology view already had it. After OrbitControls updates each frame we
-// override camera.lookAt() to face the focused universe, so the camera
-// orbits the original axis but always *looks at* the most-affected node.
-//
-// Priority MUST be 0 (default). Using positive priority disables R3F's
-// auto-render, and using negative priority would run before OrbitControls'
-// own lookAt(target) — losing the override. At priority 0, callbacks run
-// in mount order, and this component mounts after <OrbitControls>, so its
-// useFrame fires last each frame and its lookAt wins.
-function LookAtFocused({ target }) {
-  const { camera } = useThree();
-  useFrame(() => {
-    if (!target) return;
-    camera.lookAt(target[0], target[1], target[2]);
-    // matrixWorldNeedsUpdate = true so the new orientation reaches render
-    // before any other system reads the matrix.
-    camera.updateMatrixWorld();
-  });
-  return null;
-}
+// Camera orbits around origin via OrbitControls — no lookAt override needed.
 
 // ─── Scene Contents ────────────────────────────────────────────────────────
-function NetworkScene({ networkData, interactive, onHover, onReady, boundingRadius, caseDeltas, animateNumbers, focusUniverseId, onFocusPosition }) {
+function NetworkScene({ networkData, interactive, onHover, onReady, boundingRadius, caseDeltas, animateNumbers, focusUniverseId }) {
   const layout = useMemo(() => {
     if (!networkData) return null;
 
@@ -454,31 +432,16 @@ function NetworkScene({ networkData, interactive, onHover, onReady, boundingRadi
 
   const [hovered, setHovered] = useState(null);
 
-  // Emit the focused universe's position whenever the layout or focus
-  // selection changes; the parent uses it to drive camera.lookAt(). Runs
-  // as useLayoutEffect so the parent has the position set before the next
-  // frame paints (and so the very first frame already faces the focus).
-  useLayoutEffect(() => {
-    if (!layout || !focusUniverseId || !onFocusPosition) return;
-    const pos = layout.positions[focusUniverseId];
-    if (pos) {
-      onFocusPosition(pos);
-    } else {
-      // Diagnostic for the case the user hit: focus id from finalize did
-      // not match any node id from /api/network. Falls back to origin.
-      // eslint-disable-next-line no-console
-      console.warn('[UniverseNetworkVisualization] focusUniverseId not found in layout positions', {
-        focusUniverseId,
-        availableIds: Object.keys(layout.positions),
-      });
-    }
-  }, [layout, focusUniverseId, onFocusPosition]);
-
   // Must be called before any early return to respect hooks rules
   const universeColors = useMemo(() => {
     if (!layout) return {};
     return Object.fromEntries(
-      layout.universes.map(u => [u._id.toString(), STATUS_COLORS[u.status] || STATUS_COLORS.COMPROMISED])
+      layout.universes.map(u => {
+        const id = u._id.toString();
+        if (u.lastImpactDirection === 'positive') return [id, STATUS_COLORS.LIBERATED];
+        if (u.lastImpactDirection === 'negative') return [id, STATUS_COLORS.PRESERVED];
+        return [id, STATUS_COLORS[u.status] || STATUS_COLORS.COMPROMISED];
+      })
     );
   }, [layout]);
 
@@ -573,10 +536,6 @@ function UniverseNetworkVisualization({ mode = 'display', autoRotate = true, onC
   const [loading,         setLoading]         = useState(true);
   const [error,           setError]           = useState(null);
   const [hoveredUniverse, setHoveredUniverse] = useState(null);
-  // Position of the focused universe — set by NetworkScene once the layout
-  // is computed. Used as the OrbitControls target so the camera orients
-  // onto that universe without changing how the camera moves or orbits.
-  const [focusTarget, setFocusTarget] = useState(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -621,12 +580,7 @@ function UniverseNetworkVisualization({ mode = 'display', autoRotate = true, onC
             caseDeltas={caseDeltas}
             animateNumbers={animateNumbers}
             focusUniverseId={focusUniverseId}
-            onFocusPosition={setFocusTarget}
           />
-          {/* Note: target stays at origin so orbit (auto-rotate AND user
-              drag) keeps using the same axis as the primary topology view.
-              The LookAtFocused below overrides camera orientation each
-              frame so the focused universe stays centered in view. */}
           <OrbitControls
             target={[0, 0, 0]}
             autoRotate={autoRotate}
@@ -636,7 +590,6 @@ function UniverseNetworkVisualization({ mode = 'display', autoRotate = true, onC
             maxDistance={Math.max(38, (cameraZ ?? CONFIG.cameraDistance) + 4)}
             minDistance={8}
           />
-          <LookAtFocused target={focusTarget} />
           <Stars
             radius={CONFIG.starRadius}
             depth={50}
