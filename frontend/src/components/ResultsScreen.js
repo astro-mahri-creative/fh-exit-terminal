@@ -12,9 +12,11 @@ const STEPPED_COUNT_STEPS = 5;       // 5 intermediate ticks between from and to
 const STEPPED_COUNT_DURATION_MS = 670; // (steps + 1) * duration ≈ 4s total
 
 const STATUS_COLORS = {
+  TRANSCENDED:  { primary: '#9575cd', secondary: '#5e35b1', textColor: '#f0eeeb' },
   PRESERVED:    { primary: '#4a90d9', secondary: '#2a5a8a', textColor: '#f0eeeb' },
-  COMPROMISED:  { primary: '#e6911a', secondary: '#a05c08', textColor: '#0a0a0a' },
-  LIBERATED:    { primary: '#a0784a', secondary: '#5c3d20', textColor: '#f0eeeb' },
+  COMPROMISED:  { primary: '#7ec88b', secondary: '#4a8a54', textColor: '#0a0a0a' },
+  LIBERATED:    { primary: '#d4a032', secondary: '#8a6a1a', textColor: '#0a0a0a' },
+  QUARANTINED:  { primary: '#c94040', secondary: '#7b1a1a', textColor: '#f0eeeb' },
 };
 
 function UniverseCard({ universe, idx, numbersVisible, isFheels }) {
