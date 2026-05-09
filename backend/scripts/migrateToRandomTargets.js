@@ -83,16 +83,32 @@ async function migrate() {
       console.log('  Created CURE code and effect');
     }
 
-    // 5. Reset all universe currentCases to 50% of init and recalculate statuses
-    console.log('Resetting universe cases to 50% of init...');
+    // 5. Update initializationCases to new values, reset currentCases to 50%, recalculate statuses
+    const initCasesMap = {
+      'D3N.74L': 437291,
+      'M1D.H00': 1823054,
+      'PL4.N75': 19182,
+      '789.YKK': 891437,
+      'L0K.R99': 2544763,
+      'R4I.K1N': 156820,
+      '50H.YP3': 72459,
+      'DP4.35T': 614388,
+      'GA1.A14': 1247901,
+      'BX9.R55': 308547
+    };
+
+    console.log('Updating universe initializationCases and resetting to 50%...');
     const universes = await Universe.find();
     for (const universe of universes) {
+      if (initCasesMap[universe.name]) {
+        universe.initializationCases = initCasesMap[universe.name];
+      }
       universe.currentCases = Math.floor(universe.initializationCases * 0.5);
       universe.status = calculateUniverseStatus(universe.currentCases, universe.initializationCases);
       universe.canSpread = universe.status === 'COMPROMISED';
       universe.lastUpdated = new Date();
       await universe.save();
-      console.log(`  ${universe.name}: ${universe.currentCases} cases -> ${universe.status}`);
+      console.log(`  ${universe.name}: init=${universe.initializationCases}, current=${universe.currentCases} -> ${universe.status}`);
     }
 
     // 6. Ensure effectScale exists in AdminSettings
