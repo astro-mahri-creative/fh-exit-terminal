@@ -8,6 +8,7 @@ const universeSchema = new mongoose.Schema({
   currentCases: { type: Number, required: true },
   status: { type: String, required: true, default: 'COMPROMISED' },
   canSpread: { type: Boolean, default: true },
+  lastImpactDirection: { type: String, enum: ['positive', 'negative', null], default: null },
   lastUpdated: { type: Date, default: Date.now }
 }, { timestamps: true });
 

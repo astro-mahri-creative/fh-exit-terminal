@@ -1049,8 +1049,11 @@ app.post('/api/codes/finalize', async (req, res) => {
       
       const newCases = Math.max(0, universe.currentCases + changeData.change);
       universe.currentCases = newCases;
+      if (changeData.change !== 0) {
+        universe.lastImpactDirection = changeData.change > 0 ? 'positive' : 'negative';
+      }
       await universe.save();
-      
+
       // Update status
       await updateUniverseStatus(universeId);
       
