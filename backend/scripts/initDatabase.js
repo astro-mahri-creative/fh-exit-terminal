@@ -262,29 +262,11 @@ async function initDatabase() {
       // SGMA effects (Tier 4 — Spread)
       { code: 'SGMA', effect: 2200, effectType: 'standard' },
 
-      // RMPI effects (Tier 4 — Amplify 2.4x, 10 independent random targets)
-      { code: 'RMPI', effect: 2.4, effectType: 'amplify' },
-      { code: 'RMPI', effect: 2.4, effectType: 'amplify' },
-      { code: 'RMPI', effect: 2.4, effectType: 'amplify' },
-      { code: 'RMPI', effect: 2.4, effectType: 'amplify' },
-      { code: 'RMPI', effect: 2.4, effectType: 'amplify' },
-      { code: 'RMPI', effect: 2.4, effectType: 'amplify' },
-      { code: 'RMPI', effect: 2.4, effectType: 'amplify' },
-      { code: 'RMPI', effect: 2.4, effectType: 'amplify' },
-      { code: 'RMPI', effect: 2.4, effectType: 'amplify' },
-      { code: 'RMPI', effect: 2.4, effectType: 'amplify' },
+      // RMPI effects (Tier 4 — Amplify 2.4x, applies to all universes)
+      { code: 'RMPI', effect: 2.4, effectType: 'amplify', targetMode: 'all' },
 
-      // PRWC effects (Tier 2 — Amplify 1.3x, 10 independent random targets)
-      { code: 'PRWC', effect: 1.3, effectType: 'amplify' },
-      { code: 'PRWC', effect: 1.3, effectType: 'amplify' },
-      { code: 'PRWC', effect: 1.3, effectType: 'amplify' },
-      { code: 'PRWC', effect: 1.3, effectType: 'amplify' },
-      { code: 'PRWC', effect: 1.3, effectType: 'amplify' },
-      { code: 'PRWC', effect: 1.3, effectType: 'amplify' },
-      { code: 'PRWC', effect: 1.3, effectType: 'amplify' },
-      { code: 'PRWC', effect: 1.3, effectType: 'amplify' },
-      { code: 'PRWC', effect: 1.3, effectType: 'amplify' },
-      { code: 'PRWC', effect: 1.3, effectType: 'amplify' },
+      // PRWC effects (Tier 2 — Amplify 1.3x, applies to all universes)
+      { code: 'PRWC', effect: 1.3, effectType: 'amplify', targetMode: 'all' },
 
       // RVLT effects (Tier 5 — Break Preserved)
       { code: 'RVLT', effect: 0, effectType: 'break_preserved' },
@@ -299,7 +281,7 @@ async function initDatabase() {
         await CodeEffect.create({
           codeId: code._id,
           universeId: null,
-          targetMode: 'random',
+          targetMode: effectData.targetMode || 'random',
           effectValue: effectData.effect,
           effectType: effectData.effectType
         });
