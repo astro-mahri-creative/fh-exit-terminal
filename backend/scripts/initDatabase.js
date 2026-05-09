@@ -124,6 +124,7 @@ async function initDatabase() {
         name: u.name,
         displayOrder: i + 1,
         initializationCases: u.initCases,
+        initialCurrentCases: currentCases,
         currentCases,
         status,
         canSpread
