@@ -687,11 +687,8 @@ app.post('/api/codes/preview', async (req, res) => {
             projected_cases: 0,
             masked: true,
           });
-          previewStatusMessages.push({
-            code: code.code,
-            option: 'b',
-            message: `${code.code} will restore an unknown universe to active spread`
-          });
+          // No status message — the masked row alone signals "something
+          // will happen", without naming the code as the cause.
           continue;
         }
         if (effect.effectType === 'break_liberated') {
@@ -714,11 +711,8 @@ app.post('/api/codes/preview', async (req, res) => {
             projected_cases: 0,
             masked: true,
           });
-          previewStatusMessages.push({
-            code: code.code,
-            option: 'a',
-            message: `${code.code} will break an unknown containment lock`
-          });
+          // No status message — the masked row alone signals "something
+          // will happen", without naming the code as the cause.
           continue;
         }
       }
