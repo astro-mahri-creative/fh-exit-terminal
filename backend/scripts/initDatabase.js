@@ -88,15 +88,15 @@ async function initDatabase() {
     console.log('Creating universes...');
     const universeData = [
       { name: 'D3N.74L', initCases: 437291, startPct: 0.28 },
-      { name: 'M1D.H00', initCases: 1823054, startPct: 0.55 },
+      { name: 'M1D.H00', initCases: 1823054, startPct: 0.50 },
       { name: 'PL4.N75', initCases: 19182, startPct: 0.40 },
-      { name: '789.YKK', initCases: 891437, startPct: 0.35 },
-      { name: 'L0K.R99', initCases: 2544763, startPct: 0.65 },
+      { name: '789.YKK', initCases: 891437, startPct: 0.38 },
+      { name: 'L0K.R99', initCases: 2544763, startPct: 0.60 },
       { name: 'R4I.K1N', initCases: 156820, startPct: 0.45 },
-      { name: '50H.YP3', initCases: 72459, startPct: 0.60 },
+      { name: '50H.YP3', initCases: 72459, startPct: 0.55 },
       { name: 'DP4.35T', initCases: 614388, startPct: 0.72 },
-      { name: 'GA1.A14', initCases: 1247901, startPct: 0.30 },
-      { name: 'BX9.R55', initCases: 308547, startPct: 0.70 }
+      { name: 'GA1.A14', initCases: 1247901, startPct: 0.35 },
+      { name: 'BX9.R55', initCases: 308547, startPct: 0.62 }
     ];
 
     const createdUniverses = [];
@@ -112,10 +112,10 @@ async function initDatabase() {
       } else if (currentCases <= 0) {
         status = 'TRANSCENDED';
         canSpread = false;
-      } else if (currentCases >= u.initCases * 0.85) {
+      } else if (currentCases >= u.initCases * 0.70) {
         status = 'LIBERATED';
         canSpread = false;
-      } else if (currentCases <= u.initCases * 0.15) {
+      } else if (currentCases <= u.initCases * 0.30) {
         status = 'PRESERVED';
         canSpread = false;
       }
