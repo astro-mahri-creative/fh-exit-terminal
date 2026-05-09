@@ -41,8 +41,13 @@ function ChoiceScreen({ choiceData, sessionData, onChoiceConfirmed }) {
 
   const optionA = choiceData.option_a;
   const optionB = choiceData.option_b;
-  const optionADisabled = optionA.net_change === 0;
-  const optionBDisabled = optionB.net_change === 0;
+  // An option is "available" if it produces ANY effect — either a real
+  // delta on a known universe, OR a masked CURE/RVLT row whose impact
+  // is hidden until finalize. Net change alone misses the masked case.
+  const hasOptionEffect = (opt) =>
+    opt.universes.some(u => u.masked || (typeof u.change === 'number' && u.change !== 0));
+  const optionADisabled = !hasOptionEffect(optionA);
+  const optionBDisabled = !hasOptionEffect(optionB);
   const selectedOption = selectedChoice === 'a' ? optionA : optionB;
 
   return (
@@ -68,15 +73,15 @@ function ChoiceScreen({ choiceData, sessionData, onChoiceConfirmed }) {
           <p className="option-description">{optionA.description}</p>
 
           <div className="option-universes">
-            {optionA.universes.filter(u => u.change !== 0).map(u => (
+            {optionA.universes.filter(u => u.masked || u.change !== 0).map(u => (
               <div key={u.id} className="option-universe-row">
-                <span className="universe-name">{u.name}</span>
-                <span className="universe-delta negative">
-                  {u.change.toLocaleString()} <span className="unit-label">cases</span>
+                <span className={`universe-name${u.masked ? ' masked' : ''}`}>{u.name}</span>
+                <span className={`universe-delta negative${u.masked ? ' masked' : ''}`}>
+                  {u.masked ? '???' : u.change.toLocaleString()} <span className="unit-label">cases</span>
                 </span>
               </div>
             ))}
-            {optionA.universes.every(u => u.change === 0) && (
+            {!hasOptionEffect(optionA) && (
               <div className="no-effects">No iFLU containment effects detected</div>
             )}
           </div>
@@ -108,15 +113,15 @@ function ChoiceScreen({ choiceData, sessionData, onChoiceConfirmed }) {
           <p className="option-description">{optionB.description}</p>
 
           <div className="option-universes">
-            {optionB.universes.filter(u => u.change !== 0).map(u => (
+            {optionB.universes.filter(u => u.masked || u.change !== 0).map(u => (
               <div key={u.id} className="option-universe-row">
-                <span className="universe-name">{u.name}</span>
-                <span className="universe-delta positive">
-                  +{u.change.toLocaleString()} <span className="unit-label">cases</span>
+                <span className={`universe-name${u.masked ? ' masked' : ''}`}>{u.name}</span>
+                <span className={`universe-delta positive${u.masked ? ' masked' : ''}`}>
+                  {u.masked ? '+???' : `+${u.change.toLocaleString()}`} <span className="unit-label">cases</span>
                 </span>
               </div>
             ))}
-            {optionB.universes.every(u => u.change === 0) && (
+            {!hasOptionEffect(optionB) && (
               <div className="no-effects">No iFLU proliferation effects detected</div>
             )}
           </div>

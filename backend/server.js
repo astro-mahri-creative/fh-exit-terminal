@@ -676,11 +676,18 @@ app.post('/api/codes/preview', async (req, res) => {
     const simUniversesB = simUniverses.map(u => ({ ...u }));
     const excludedA = new Set();
     const excludedB = new Set();
+    // Synthetic masked rows for CURE/RVLT — the user knows the code WILL
+    // act, but the universe and magnitude are hidden until finalize so
+    // the choice retains a "?" element. The actual delta is NOT added to
+    // negativeChanges/positiveChanges and NOT factored into net_change.
+    const optionAMaskedRows = [];
+    const optionBMaskedRows = [];
 
     // --- Pass 1: process status-breaking codes (RVLT/CURE) first ---
     // CURE (break_liberated) is a containment effect — only contributes
     // to option A. RVLT (break_preserved) is a proliferation effect —
     // only contributes to option B. The other bucket sees no change.
+    // Each individual code activation picks ONE random eligible universe.
     for (const sessionCode of sessionCodes) {
       const code = sessionCode.codeId;
       const effects = await CodeEffect.find({ codeId: code._id });
@@ -697,17 +704,19 @@ app.post('/api/codes/preview', async (req, res) => {
           // actually changes to COMPROMISED. Always an increase from
           // any PRESERVED universe (which is at ≤30%).
           const newCases = Math.ceil(target.initializationCases * 0.35);
-          const delta = newCases - target.currentCases;
           target.currentCases = newCases;
           target.status = calculateUniverseStatus(newCases, target.initializationCases);
           excludedB.add(target._id.toString());
-          const uid = target._id.toString();
-          if (positiveChanges[uid]) positiveChanges[uid].change += delta;
-          previewStatusMessages.push({
-            code: code.code,
-            option: 'b',
-            message: `${code.code} restores ${target.name} to active spread`
+          optionBMaskedRows.push({
+            id: `masked-${code.code}-${optionBMaskedRows.length}`,
+            name: '?????',
+            current_cases: 0,
+            change: '???',
+            projected_cases: 0,
+            masked: true,
           });
+          // No status message — the masked row alone signals "something
+          // will happen", without naming the code as the cause.
           continue;
         }
         if (effect.effectType === 'break_liberated') {
@@ -719,17 +728,19 @@ app.post('/api/codes/preview', async (req, res) => {
           // actually changes to COMPROMISED. Always a decrease from
           // any LIBERATED universe (which is at ≥70%).
           const newCases = Math.floor(target.initializationCases * 0.65);
-          const delta = newCases - target.currentCases;
           target.currentCases = newCases;
           target.status = calculateUniverseStatus(newCases, target.initializationCases);
           excludedA.add(target._id.toString());
-          const uid = target._id.toString();
-          if (negativeChanges[uid]) negativeChanges[uid].change += delta;
-          previewStatusMessages.push({
-            code: code.code,
-            option: 'a',
-            message: `${code.code} breaks ${target.name} containment lock`
+          optionAMaskedRows.push({
+            id: `masked-${code.code}-${optionAMaskedRows.length}`,
+            name: '?????',
+            current_cases: 0,
+            change: '???',
+            projected_cases: 0,
+            masked: true,
           });
+          // No status message — the masked row alone signals "something
+          // will happen", without naming the code as the cause.
           continue;
         }
       }
@@ -832,19 +843,25 @@ app.post('/api/codes/preview', async (req, res) => {
       option_a: {
         label: 'iFLU CONTAINMENT PROTOCOL',
         description: 'Apply infection reduction effects',
-        universes: Object.values(negativeChanges).map(u => ({
-          ...u,
-          projected_cases: Math.max(0, u.current_cases + u.change)
-        })),
+        universes: [
+          ...Object.values(negativeChanges).map(u => ({
+            ...u,
+            projected_cases: Math.max(0, u.current_cases + u.change)
+          })),
+          ...optionAMaskedRows,
+        ],
         net_change: netNegative
       },
       option_b: {
         label: 'iFLU PROLIFERATION PROTOCOL',
         description: 'Apply infection increase effects',
-        universes: Object.values(positiveChanges).map(u => ({
-          ...u,
-          projected_cases: Math.max(0, u.current_cases + u.change)
-        })),
+        universes: [
+          ...Object.values(positiveChanges).map(u => ({
+            ...u,
+            projected_cases: Math.max(0, u.current_cases + u.change)
+          })),
+          ...optionBMaskedRows,
+        ],
         net_change: netPositive
       },
       cure_triggered: isCureActive,
