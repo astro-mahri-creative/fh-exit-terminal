@@ -670,9 +670,17 @@ app.post('/api/codes/preview', async (req, res) => {
     });
 
     const previewStatusMessages = [];
-    const excludedUniverseIds = new Set();
+    // Independent sim copies for option A vs option B so RVLT/CURE only
+    // affect the bucket they belong to (CURE -> A only, RVLT -> B only).
+    const simUniversesA = simUniverses.map(u => ({ ...u }));
+    const simUniversesB = simUniverses.map(u => ({ ...u }));
+    const excludedA = new Set();
+    const excludedB = new Set();
 
     // --- Pass 1: process status-breaking codes (RVLT/CURE) first ---
+    // CURE (break_liberated) is a containment effect — only contributes
+    // to option A. RVLT (break_preserved) is a proliferation effect —
+    // only contributes to option B. The other bucket sees no change.
     for (const sessionCode of sessionCodes) {
       const code = sessionCode.codeId;
       const effects = await CodeEffect.find({ codeId: code._id });
@@ -681,37 +689,57 @@ app.post('/api/codes/preview', async (req, res) => {
         if (effect.isPostCure && !isCureActive) continue;
 
         if (effect.effectType === 'break_preserved') {
-          const preserved = simUniverses.filter(u => u.status === 'PRESERVED');
-          if (preserved.length === 0) {
-            previewStatusMessages.push({ code: code.code, message: '???' });
-            continue;
-          }
+          // Proliferation: only affects option B's sim
+          const preserved = simUniversesB.filter(u => u.status === 'PRESERVED');
+          if (preserved.length === 0) continue;
           const target = preserved[Math.floor(Math.random() * preserved.length)];
-          const newCases = Math.ceil(target.initializationCases * 0.25);
+          // 35% — past the PRESERVED upper bound (30%) so the status
+          // actually changes to COMPROMISED. Always an increase from
+          // any PRESERVED universe (which is at ≤30%).
+          const newCases = Math.ceil(target.initializationCases * 0.35);
+          const delta = newCases - target.currentCases;
           target.currentCases = newCases;
           target.status = calculateUniverseStatus(newCases, target.initializationCases);
-          excludedUniverseIds.add(target._id.toString());
-          previewStatusMessages.push({ code: code.code, message: '???' });
+          excludedB.add(target._id.toString());
+          const uid = target._id.toString();
+          if (positiveChanges[uid]) positiveChanges[uid].change += delta;
+          previewStatusMessages.push({
+            code: code.code,
+            option: 'b',
+            message: `${code.code} restores ${target.name} to active spread`
+          });
           continue;
         }
         if (effect.effectType === 'break_liberated') {
-          const liberated = simUniverses.filter(u => u.status === 'LIBERATED');
-          if (liberated.length === 0) {
-            previewStatusMessages.push({ code: code.code, message: '???' });
-            continue;
-          }
+          // Containment: only affects option A's sim
+          const liberated = simUniversesA.filter(u => u.status === 'LIBERATED');
+          if (liberated.length === 0) continue;
           const target = liberated[Math.floor(Math.random() * liberated.length)];
-          const newCases = Math.floor(target.initializationCases * 0.75);
+          // 65% — past the LIBERATED lower bound (70%) so the status
+          // actually changes to COMPROMISED. Always a decrease from
+          // any LIBERATED universe (which is at ≥70%).
+          const newCases = Math.floor(target.initializationCases * 0.65);
+          const delta = newCases - target.currentCases;
           target.currentCases = newCases;
           target.status = calculateUniverseStatus(newCases, target.initializationCases);
-          excludedUniverseIds.add(target._id.toString());
-          previewStatusMessages.push({ code: code.code, message: '???' });
+          excludedA.add(target._id.toString());
+          const uid = target._id.toString();
+          if (negativeChanges[uid]) negativeChanges[uid].change += delta;
+          previewStatusMessages.push({
+            code: code.code,
+            option: 'a',
+            message: `${code.code} breaks ${target.name} containment lock`
+          });
           continue;
         }
       }
     }
 
     // --- Pass 2: process all standard numerical effects ---
+    // Each effect runs against the sim for its sign-aligned bucket only:
+    // negative effects mutate simUniversesA (containment); positive
+    // mutate simUniversesB (proliferation). This keeps the two options
+    // independent, which is what the choice screen represents.
     const amplifyMultipliers = [];
     for (const sessionCode of sessionCodes) {
       const code = sessionCode.codeId;
@@ -728,15 +756,20 @@ app.post('/api/codes/preview', async (req, res) => {
         }
 
         const effectValue = Math.floor(effect.effectValue * tierMultiplier * effectScale);
+        if (effectValue === 0) continue;
+        const isNegative = effectValue < 0;
+        const sim = isNegative ? simUniversesA : simUniversesB;
+        const excluded = isNegative ? excludedA : excludedB;
+        const bucket = isNegative ? negativeChanges : positiveChanges;
 
         // Resolve random target (excluding RVLT/CURE universes)
         let targetUniverse;
         if (effect.targetMode === 'random') {
-          targetUniverse = selectRandomCompromised(simUniverses.filter(u => !excludedUniverseIds.has(u._id.toString())));
+          targetUniverse = selectRandomCompromised(sim.filter(u => !excluded.has(u._id.toString())));
           if (!targetUniverse) continue;
         } else {
-          targetUniverse = simUniverses.find(u => u._id.equals(effect.universeId));
-          if (targetUniverse && excludedUniverseIds.has(targetUniverse._id.toString())) continue;
+          targetUniverse = sim.find(u => u._id.equals(effect.universeId));
+          if (targetUniverse && excluded.has(targetUniverse._id.toString())) continue;
         }
         if (!targetUniverse) continue;
 
@@ -746,19 +779,19 @@ app.post('/api/codes/preview', async (req, res) => {
         if (targetUniverse.status === 'PRESERVED' && effectValue > 0) continue;
 
         const universeId = targetUniverse._id.toString();
-        if (effectValue < 0 && negativeChanges[universeId]) {
-          negativeChanges[universeId].change += effectValue;
-        } else if (effectValue > 0 && positiveChanges[universeId]) {
-          positiveChanges[universeId].change += effectValue;
-        }
+        if (bucket[universeId]) bucket[universeId].change += effectValue;
 
-        // Update sim state
+        // Update sim state for the active bucket only
         const previousStatus = targetUniverse.status;
         targetUniverse.currentCases = Math.max(0, targetUniverse.currentCases + effectValue);
         targetUniverse.status = calculateUniverseStatus(targetUniverse.currentCases, targetUniverse.initializationCases);
 
         if (targetUniverse.status !== previousStatus) {
-          previewStatusMessages.push({ code: code.code, message: `STATUS of ${targetUniverse.name} is now ${targetUniverse.status}` });
+          previewStatusMessages.push({
+            code: code.code,
+            option: isNegative ? 'a' : 'b',
+            message: `STATUS of ${targetUniverse.name} is now ${targetUniverse.status}`
+          });
         }
       }
     }
@@ -934,6 +967,12 @@ app.post('/api/codes/finalize', async (req, res) => {
     const excludedUniverseIds = new Set();
 
     // --- Pass 1: process status-breaking codes (RVLT/CURE) first ---
+    // Status-breaking codes are tied to a specific choice direction:
+    //   CURE   (break_liberated)  -> containment (option A) only
+    //   RVLT   (break_preserved)  -> proliferation (option B) only
+    // If the user picked the opposite option, the code does NOT execute
+    // and produces no change/messaging. This keeps the impact strictly
+    // single-direction, matching the choice the user made.
     for (const sessionCode of sessionCodes) {
       const code = sessionCode.codeId;
       const effects = await CodeEffect.find({ codeId: code._id });
@@ -942,13 +981,17 @@ app.post('/api/codes/finalize', async (req, res) => {
         if (effect.isPostCure && !isCureActive) continue;
 
         if (effect.effectType === 'break_preserved') {
+          if (choice !== 'b') continue; // RVLT only fires on proliferation
           const preserved = liveUniverses.filter(u => u.status === 'PRESERVED');
           if (preserved.length === 0) {
             statusMessages.push({ code: code.code, message: 'NO IMPACT' });
             continue;
           }
           const target = preserved[Math.floor(Math.random() * preserved.length)];
-          const newCases = Math.ceil(target.initializationCases * 0.25);
+          // 35% — past the PRESERVED upper bound (30%) so the status
+          // actually changes to COMPROMISED. Always an increase from
+          // any PRESERVED universe (≤30%).
+          const newCases = Math.ceil(target.initializationCases * 0.35);
           const uid = target._id.toString();
           universeChanges[uid].change += newCases - target.currentCases;
           target.currentCases = newCases;
@@ -959,13 +1002,17 @@ app.post('/api/codes/finalize', async (req, res) => {
           continue;
         }
         if (effect.effectType === 'break_liberated') {
+          if (choice !== 'a') continue; // CURE only fires on containment
           const liberated = liveUniverses.filter(u => u.status === 'LIBERATED');
           if (liberated.length === 0) {
             statusMessages.push({ code: code.code, message: 'NO IMPACT' });
             continue;
           }
           const target = liberated[Math.floor(Math.random() * liberated.length)];
-          const newCases = Math.floor(target.initializationCases * 0.75);
+          // 65% — past the LIBERATED lower bound (70%) so the status
+          // actually changes to COMPROMISED. Always a decrease from
+          // any LIBERATED universe (≥70%).
+          const newCases = Math.floor(target.initializationCases * 0.65);
           const uid = target._id.toString();
           universeChanges[uid].change += newCases - target.currentCases;
           target.currentCases = newCases;
