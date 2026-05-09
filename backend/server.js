@@ -1173,23 +1173,31 @@ app.post('/api/email/send', async (req, res) => {
       optIn,
     });
 
-    // Send email via Gmail SMTP
-    if (transporter) {
-      const fromAddr = process.env.GMAIL_USER;
-      const result = await transporter.sendMail({
-        from: `Future Hooman Exit Terminal <${fromAddr}>`,
-        to: email,
-        subject,
-        html,
-        text,
+    // Send email via Gmail SMTP. If credentials aren't configured we MUST
+    // NOT report success — that's been silently dropping emails on hosts
+    // that lack GMAIL_USER / GMAIL_APP_PASSWORD env vars while telling
+    // the user "Impact report sent successfully".
+    if (!transporter) {
+      console.error('Email send aborted: Gmail SMTP not configured (GMAIL_USER / GMAIL_APP_PASSWORD missing). Email NOT delivered.');
+      console.error('Would have sent to:', email);
+      return res.status(503).json({
+        success: false,
+        error: 'EMAIL_NOT_CONFIGURED',
+        message: 'Email service is not configured on this server'
       });
-      console.log('Email sent to:', email, '(message id:', result.messageId + ')');
-    } else {
-      console.log('Gmail not configured — email logged only');
-      console.log('Would send to:', email);
     }
 
-    // Update session
+    const fromAddr = process.env.GMAIL_USER;
+    const result = await transporter.sendMail({
+      from: `Future Hooman Exit Terminal <${fromAddr}>`,
+      to: email,
+      subject,
+      html,
+      text,
+    });
+    console.log('Email sent to:', email, '(message id:', result.messageId + ')');
+
+    // Update session — only after the SMTP send actually resolved
     session.emailAddress = email;
     session.emailSent = true;
     session.optInMessaging = optIn;
