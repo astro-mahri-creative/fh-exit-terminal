@@ -75,9 +75,9 @@ function seededRand(seed) {
 // These are generous — erring well clear of satellites and shells.
 const VARIANT_LABEL_OFFSET = [
   // 0: Nebula — satellites reach radius*2.8
-  (r) => Math.round(r * 95 + 55),
+  (r) => Math.round(r * 70 + 40),
   // 1: Pulsing — shells reach up to radius*1.75
-  (r) => Math.round(r * 88 + 48),
+  (r) => Math.round(r * 65 + 35),
 ];
 
 // ─── Variant 0: Nebula Cluster ─────────────────────────────────────────────
