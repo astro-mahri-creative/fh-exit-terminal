@@ -8,9 +8,36 @@ const rateLimit = require('express-rate-limit');
 const nodemailer = require('nodemailer');
 const buildImpactReportEmail = require('./templates/impactReport');
 
-// Initialize Gmail SMTP transporter
+// ── Email transporter ─────────────────────────────────────────────────────
+// Provider-agnostic: prefers generic SMTP env vars so we can swap to
+// SendGrid / Mailgun / SES / Postmark / any SMTP host without touching code.
+// Falls back to the legacy Gmail App Password setup for backward compat
+// with existing deployments. Configure ONE of:
+//
+//   Generic SMTP (preferred):
+//     EMAIL_HOST, EMAIL_PORT (default 587), EMAIL_SECURE (true/false),
+//     EMAIL_USER, EMAIL_PASSWORD, EMAIL_FROM (display + address)
+//
+//   Legacy Gmail App Password:
+//     GMAIL_USER, GMAIL_APP_PASSWORD
+//
+// If neither is set, transporter stays null and /api/email/send returns
+// a 503 with a provider-neutral error.
 let transporter = null;
-if (process.env.GMAIL_USER && process.env.GMAIL_APP_PASSWORD) {
+let emailFrom = process.env.EMAIL_FROM || null;
+
+if (process.env.EMAIL_HOST) {
+  transporter = nodemailer.createTransport({
+    host: process.env.EMAIL_HOST,
+    port: Number(process.env.EMAIL_PORT) || 587,
+    secure: process.env.EMAIL_SECURE === 'true',
+    auth: process.env.EMAIL_USER
+      ? { user: process.env.EMAIL_USER, pass: process.env.EMAIL_PASSWORD }
+      : undefined,
+  });
+  if (!emailFrom) emailFrom = process.env.EMAIL_USER || null;
+  console.log('Email transporter initialized via SMTP (host:', process.env.EMAIL_HOST + ')');
+} else if (process.env.GMAIL_USER && process.env.GMAIL_APP_PASSWORD) {
   transporter = nodemailer.createTransport({
     service: 'gmail',
     auth: {
@@ -18,9 +45,10 @@ if (process.env.GMAIL_USER && process.env.GMAIL_APP_PASSWORD) {
       pass: process.env.GMAIL_APP_PASSWORD,
     },
   });
-  console.log('Gmail SMTP initialized (user:', process.env.GMAIL_USER + ')');
+  if (!emailFrom) emailFrom = process.env.GMAIL_USER;
+  console.log('Email transporter initialized via Gmail App Password');
 } else {
-  console.warn('GMAIL_USER or GMAIL_APP_PASSWORD not set — emails will be logged only');
+  console.warn('No email transporter configured. Set EMAIL_HOST + EMAIL_USER + EMAIL_PASSWORD (preferred) or GMAIL_USER + GMAIL_APP_PASSWORD. Email sends will return 503.');
 }
 
 const {
@@ -1173,23 +1201,44 @@ app.post('/api/email/send', async (req, res) => {
       optIn,
     });
 
-    // Send email via Gmail SMTP
-    if (transporter) {
-      const fromAddr = process.env.GMAIL_USER;
-      const result = await transporter.sendMail({
-        from: `Future Hooman Exit Terminal <${fromAddr}>`,
+    // Don't report success if no transporter is configured — that path
+    // was silently dropping outbound mail while the client got a "sent"
+    // toast. Surface a real error instead.
+    if (!transporter) {
+      console.error('Email send aborted: no email transporter configured. Email NOT delivered.');
+      console.error('Intended recipient:', email);
+      return res.status(503).json({
+        success: false,
+        error: 'EMAIL_NOT_CONFIGURED',
+        message: 'Email service is not configured on this server'
+      });
+    }
+
+    let result;
+    try {
+      result = await transporter.sendMail({
+        from: emailFrom
+          ? `Future Hooman Exit Terminal <${emailFrom}>`
+          : 'Future Hooman Exit Terminal',
         to: email,
         subject,
         html,
         text,
       });
-      console.log('Email sent to:', email, '(message id:', result.messageId + ')');
-    } else {
-      console.log('Gmail not configured — email logged only');
-      console.log('Would send to:', email);
+    } catch (sendErr) {
+      // Surface the actual provider-side failure to the client (and logs)
+      // instead of pretending the send succeeded.
+      console.error('Email transport rejected the send:', sendErr);
+      return res.status(502).json({
+        success: false,
+        error: 'EMAIL_DELIVERY_FAILED',
+        message: 'Email could not be delivered',
+        detail: sendErr.message
+      });
     }
+    console.log('Email sent to:', email, '(message id:', result.messageId + ')');
 
-    // Update session
+    // Session state only flips after the transport actually resolved.
     session.emailAddress = email;
     session.emailSent = true;
     session.optInMessaging = optIn;
@@ -1201,13 +1250,14 @@ app.post('/api/email/send', async (req, res) => {
       success: true,
       message: 'Impact report sent successfully'
     });
-    
+
   } catch (error) {
-    console.error('Error sending email:', error);
+    console.error('Error in /api/email/send handler:', error);
     res.status(500).json({
       success: false,
       error: 'SERVER_ERROR',
-      message: 'Error sending email'
+      message: 'Error processing email request',
+      detail: error.message
     });
   }
 });
