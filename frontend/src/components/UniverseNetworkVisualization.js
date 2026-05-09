@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import * as THREE from 'three';
-import { Canvas, useFrame, useThree } from '@react-three/fiber';
+import { Canvas, useFrame } from '@react-three/fiber';
 import { OrbitControls, Stars, Html, Line } from '@react-three/drei';
 import { EffectComposer, Bloom } from '@react-three/postprocessing';
 import { forceSimulation, forceManyBody, forceLink, forceCenter, forceCollide } from 'd3-force-3d';
@@ -377,25 +377,60 @@ function UniverseNode({ position, universe, radius, interactive, onHover, isHove
   );
 }
 
-// ─── Camera orientation override ──────────────────────────────────────────
-// OrbitControls orbits the camera around its target [0,0,0] — that keeps
-// the orbit axis at the cluster origin so the camera circles the entire
-// cluster (not the focus universe). Each frame, after OrbitControls has
-// positioned the camera, we override camera.lookAt() to face the focused
-// universe — so the camera CIRCLES the cluster but always LOOKS at the
-// most-affected node.
+// ─── OrbitControls target driver ──────────────────────────────────────────
+// Drives OrbitControls' own `target` directly via its ref instead of
+// overriding camera.lookAt() in a competing useFrame. The win: OrbitControls'
+// internal state (target + camera spherical coords) always reflects the
+// camera's actual orientation, so the moment the user grabs control there
+// is NO orientation jump.
 //
-// Using priority 0 the override can race with OrbitControls' own
-// camera.lookAt(target) call and lose. We register at priority 0 but
-// place this component AFTER <OrbitControls> in JSX so it mounts (and
-// thus its useFrame fires) last.
-function LookAtFocused({ target }) {
-  const { camera } = useThree();
-  useFrame(() => {
-    if (!target) return;
-    camera.lookAt(target[0], target[1], target[2]);
-    camera.updateMatrixWorld();
+// Phase 1 — initial focus: target sits at the most-affected universe's
+// position so OrbitControls' built-in lookAt(target) keeps that universe
+// centered.
+// Phase 2 — release: when autoRotate kicks in OR the user manually
+// rotates, smoothly slerp the target from the focus position back to the
+// cluster origin over ~1.2s. The camera orientation continues to track
+// the moving target each frame so there is no visible discontinuity.
+function OrbitTargetController({ orbitRef, focusPosition, releaseTrigger }) {
+  const startedRef   = useRef(false);
+  const releaseStart = useRef(null); // [x, y, z] target at moment of release
+  const releaseTime  = useRef(0);
+  const TWEEN_DUR    = 1.2; // seconds
+
+  // Set target to focus position on initial mount. Doing this in useEffect
+  // (and again every time the focus prop changes) is enough — OrbitControls
+  // re-reads target during its useFrame.
+  useEffect(() => {
+    if (!orbitRef.current || !focusPosition || startedRef.current) return;
+    orbitRef.current.target.set(focusPosition[0], focusPosition[1], focusPosition[2]);
+    orbitRef.current.update();
+    startedRef.current = true;
+  }, [orbitRef, focusPosition]);
+
+  // Each frame, advance the release tween if it has been triggered.
+  useFrame((_, dt) => {
+    if (!orbitRef.current || !releaseTrigger || !focusPosition) return;
+    if (!releaseStart.current) {
+      // Capture current target as the tween start point. This means a
+      // partly-tweened user-interaction stop still resumes from where we
+      // left off rather than snapping.
+      const t = orbitRef.current.target;
+      releaseStart.current = [t.x, t.y, t.z];
+      releaseTime.current  = 0;
+    }
+    if (releaseTime.current >= TWEEN_DUR) return;
+    releaseTime.current = Math.min(TWEEN_DUR, releaseTime.current + dt);
+    const u = releaseTime.current / TWEEN_DUR;
+    // ease-in-out cubic
+    const e = u < 0.5 ? 4 * u * u * u : 1 - Math.pow(-2 * u + 2, 3) / 2;
+    orbitRef.current.target.set(
+      releaseStart.current[0] * (1 - e),
+      releaseStart.current[1] * (1 - e),
+      releaseStart.current[2] * (1 - e),
+    );
+    orbitRef.current.update();
   });
+
   return null;
 }
 
@@ -570,9 +605,10 @@ function UniverseNetworkVisualization({ mode = 'display', autoRotate = true, onC
   const [focusTarget,     setFocusTarget]     = useState(null);
   // True once the user manually rotates the orbit, OR after autoRotate
   // kicks in (i.e. the initial focus window has elapsed). Either condition
-  // disables the LookAtFocused override so the camera goes back to looking
-  // at the cluster origin and labels stay locked to their nodes.
+  // triggers the OrbitTargetController to slerp OrbitControls' target
+  // from the focus universe back to the cluster origin.
   const [userRotated,     setUserRotated]     = useState(false);
+  const orbitRef = useRef();
 
   useEffect(() => {
     let cancelled = false;
@@ -626,7 +662,7 @@ function UniverseNetworkVisualization({ mode = 'display', autoRotate = true, onC
             onFocusPosition={setFocusTarget}
           />
           <OrbitControls
-            target={[0, 0, 0]}
+            ref={orbitRef}
             autoRotate={autoRotate}
             autoRotateSpeed={CONFIG.autoRotateSpeed}
             enableZoom={interactive}
@@ -635,16 +671,14 @@ function UniverseNetworkVisualization({ mode = 'display', autoRotate = true, onC
             minDistance={8}
             onStart={() => setUserRotated(true)}
           />
-          {/* Mounts AFTER OrbitControls so its useFrame callback runs
-              after OrbitControls' update each frame and its lookAt wins.
-              Only active during the initial focus window: once the user
-              manually rotates OR autoRotate kicks in (after the parent's
-              10-second pause), target becomes null and the camera reverts
-              to OrbitControls' default lookAt(origin). This also stops
-              drei's Html projection from drifting against the rotating
-              camera, so labels stay locked to their nodes. */}
-          <LookAtFocused
-            target={(autoRotate || userRotated) ? null : focusTarget}
+          {/* Drives OrbitControls' target so the camera looks at the
+              focus universe initially, then smoothly tweens target back
+              to origin once the focus phase ends — no orientation jump
+              when the user grabs control. */}
+          <OrbitTargetController
+            orbitRef={orbitRef}
+            focusPosition={focusTarget}
+            releaseTrigger={autoRotate || userRotated}
           />
           <Stars
             radius={CONFIG.starRadius}
