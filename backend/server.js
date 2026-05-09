@@ -654,6 +654,7 @@ app.post('/api/codes/preview', async (req, res) => {
     }
 
     // --- Pass 2: process all standard numerical effects ---
+    const amplifyMultipliers = [];
     for (const sessionCode of sessionCodes) {
       const code = sessionCode.codeId;
       const effects = await CodeEffect.find({ codeId: code._id });
@@ -662,6 +663,11 @@ app.post('/api/codes/preview', async (req, res) => {
       for (const effect of effects) {
         if (effect.isPostCure && !isCureActive) continue;
         if (effect.effectType === 'break_preserved' || effect.effectType === 'break_liberated') continue;
+
+        if (effect.effectType === 'amplify') {
+          amplifyMultipliers.push(effect.effectValue);
+          continue;
+        }
 
         const effectValue = Math.floor(effect.effectValue * tierMultiplier * effectScale);
 
@@ -695,6 +701,17 @@ app.post('/api/codes/preview', async (req, res) => {
         if (targetUniverse.status !== previousStatus) {
           previewStatusMessages.push({ code: code.code, message: `STATUS of ${targetUniverse.name} is now ${targetUniverse.status}` });
         }
+      }
+    }
+
+    // --- Pass 3: apply amplify multipliers to all accumulated changes ---
+    if (amplifyMultipliers.length > 0) {
+      const combinedMultiplier = amplifyMultipliers.reduce((acc, m) => acc * m, 1);
+      for (const uid of Object.keys(negativeChanges)) {
+        negativeChanges[uid].change = Math.floor(negativeChanges[uid].change * combinedMultiplier);
+      }
+      for (const uid of Object.keys(positiveChanges)) {
+        positiveChanges[uid].change = Math.floor(positiveChanges[uid].change * combinedMultiplier);
       }
     }
 
@@ -903,6 +920,7 @@ app.post('/api/codes/finalize', async (req, res) => {
     }
 
     // --- Pass 2: process standard numerical effects ---
+    const finalizeAmplifyMultipliers = [];
     for (const sessionCode of sessionCodes) {
       const code = sessionCode.codeId;
       const effects = await CodeEffect.find({ codeId: code._id });
@@ -911,6 +929,11 @@ app.post('/api/codes/finalize', async (req, res) => {
       for (const effect of effects) {
         if (effect.isPostCure && !isCureActive) continue;
         if (effect.effectType === 'break_preserved' || effect.effectType === 'break_liberated') continue;
+
+        if (effect.effectType === 'amplify') {
+          finalizeAmplifyMultipliers.push(effect.effectValue);
+          continue;
+        }
 
         const effectValue = Math.floor(effect.effectValue * tierMultiplier * effectScale);
 
@@ -965,6 +988,14 @@ app.post('/api/codes/finalize', async (req, res) => {
           await cureStatus.save();
         }
         isCureActive = true;
+      }
+    }
+
+    // --- Pass 3: apply amplify multipliers to all accumulated changes ---
+    if (finalizeAmplifyMultipliers.length > 0) {
+      const combinedMultiplier = finalizeAmplifyMultipliers.reduce((acc, m) => acc * m, 1);
+      for (const universeId in universeChanges) {
+        universeChanges[universeId].change = Math.floor(universeChanges[universeId].change * combinedMultiplier);
       }
     }
 
@@ -1520,7 +1551,7 @@ app.get('/api/admin/codes', async (req, res) => {
       const codeId = effect.codeId.toString();
       if (!effectsByCode[codeId]) effectsByCode[codeId] = [];
       effectsByCode[codeId].push({
-        universe: effect.targetMode === 'random' ? 'RANDOM' : (effect.universeId?.name || 'Unknown'),
+        universe: effect.targetMode === 'all' ? 'ALL' : effect.targetMode === 'random' ? 'RANDOM' : (effect.universeId?.name || 'Unknown'),
         effect_value: effect.effectValue,
         effect_type: effect.effectType,
         is_post_cure: effect.isPostCure
