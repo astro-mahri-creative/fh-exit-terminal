@@ -580,6 +580,14 @@
 }
 
 /* ── Responsive ── */
+/* Masked rows for CURE/RVLT — universe and magnitude obscured until finalize */
+.universe-name.masked,
+.universe-delta.masked {
+  letter-spacing: 0.3em;
+  opacity: 0.85;
+  font-style: italic;
+}
+
 @media (max-width: 900px) {
   .options-grid {
     grid-template-columns: 1fr;
