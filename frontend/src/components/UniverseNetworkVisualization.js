@@ -425,19 +425,16 @@ function NetworkScene({ networkData, interactive, onHover, onReady, boundingRadi
 
     for (let i = 0; i < CONFIG.forceSimTicks; i++) sim.tick();
 
-    // Optional: scale positions inward so the furthest universe sits at
-    // boundingRadius. Lets the camera be placed at a known distance and
-    // actually feel "outside" the multiverse cluster.
-    if (boundingRadius && boundingRadius > 0) {
-      let maxR = 0;
-      nodes.forEach(n => {
-        const r = Math.hypot(n.x ?? 0, n.y ?? 0, n.z ?? 0);
-        if (r > maxR) maxR = r;
-      });
-      if (maxR > boundingRadius) {
-        const s = boundingRadius / maxR;
-        nodes.forEach(n => { n.x = (n.x ?? 0) * s; n.y = (n.y ?? 0) * s; n.z = (n.z ?? 0) * s; });
-      }
+    // Scale positions inward so the furthest universe sits at boundingRadius.
+    const effectiveRadius = boundingRadius && boundingRadius > 0 ? boundingRadius : 8;
+    let maxR = 0;
+    nodes.forEach(n => {
+      const r = Math.hypot(n.x ?? 0, n.y ?? 0, n.z ?? 0);
+      if (r > maxR) maxR = r;
+    });
+    if (maxR > effectiveRadius) {
+      const s = effectiveRadius / maxR;
+      nodes.forEach(n => { n.x = (n.x ?? 0) * s; n.y = (n.y ?? 0) * s; n.z = (n.z ?? 0) * s; });
     }
 
     const positions = {};
