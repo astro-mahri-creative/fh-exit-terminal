@@ -58,6 +58,11 @@ const sessionSchema = new mongoose.Schema({
   finalizedAt: { type: Date },
   totalCodesEntered: { type: Number, default: 0 },
   alignmentScore: { type: Number, default: 0 },
+  // Which option the user picked at the choice screen on finalize.
+  // 'a' = containment (negative effects applied), 'b' = proliferation
+  // (positive effects applied). Null on sessions that predate this field
+  // or were never finalized.
+  choice: { type: String, enum: ['a', 'b', null], default: null },
   emailAddress: { type: String },
   emailSent: { type: Boolean, default: false },
   optInMessaging: { type: Boolean, default: false },

@@ -1166,6 +1166,7 @@ app.post('/api/codes/finalize', async (req, res) => {
     
     // Update session
     session.alignmentScore = totalAlignmentScore;
+    session.choice = choice;
     session.finalizedAt = new Date();
     session.isComplete = true;
     await session.save();
@@ -1582,6 +1583,174 @@ app.get('/api/admin/analytics', async (req, res) => {
       error: 'SERVER_ERROR',
       message: 'Error fetching analytics'
     });
+  }
+});
+
+// GET /api/admin/analytics/detailed - Dataset age + per-user + per-code stats (admin only)
+app.get('/api/admin/analytics/detailed', async (req, res) => {
+  try {
+    const { session_token } = req.query;
+
+    const session = await Session.findOne({ sessionToken: session_token });
+    if (!session) {
+      return res.status(404).json({ success: false, error: 'INVALID_SESSION', message: 'Session not found' });
+    }
+
+    const adminUser = await UserId.findOne({ userId: session.userId });
+    if (!adminUser || !adminUser.isAdmin) {
+      return res.status(403).json({ success: false, error: 'UNAUTHORIZED', message: 'Admin access required' });
+    }
+
+    // Resolve admin user ids so we can exclude them from user/code stats
+    const adminIds = (await UserId.find({ isAdmin: true }).select('userId')).map(u => u.userId);
+
+    // Dataset age — days since the oldest non-admin session record
+    const oldestSession = await Session.findOne({ userId: { $nin: adminIds } })
+      .sort({ startedAt: 1 })
+      .select('startedAt');
+    const datasetAgeDays = oldestSession
+      ? Math.floor((Date.now() - new Date(oldestSession.startedAt).getTime()) / 86400000)
+      : 0;
+
+    // Group sessions by non-admin userId — one row per user with login count + sessionIds
+    const userSessionGroups = await Session.aggregate([
+      { $match: { userId: { $nin: adminIds } } },
+      { $group: {
+          _id: '$userId',
+          loginCount: { $sum: 1 },
+          sessionIds: { $push: '$_id' }
+        }
+      }
+    ]);
+
+    // Pre-load every SessionCode with its session and code populated, then bucket
+    // them per-user / per-code. Doing one batched fetch is cheaper than N queries
+    // when there are lots of users or codes.
+    const allSessionCodes = await SessionCode.find()
+      .populate({ path: 'sessionId', select: 'userId isComplete alignmentScore choice' })
+      .populate({ path: 'codeId', select: 'code alignment' });
+
+    const nonAdminSessionCodes = allSessionCodes.filter(sc =>
+      sc.sessionId && sc.codeId && !adminIds.includes(sc.sessionId.userId)
+    );
+
+    // Per-user stats — codes_used = unique codes ever entered across all sessions
+    const codesByUser = {};
+    for (const sc of nonAdminSessionCodes) {
+      const uid = sc.sessionId.userId;
+      if (!codesByUser[uid]) codesByUser[uid] = new Set();
+      codesByUser[uid].add(sc.codeId._id.toString());
+    }
+
+    const users = userSessionGroups
+      .filter(u => u.loginCount > 0)
+      .map(u => ({
+        user_id: u._id,
+        login_count: u.loginCount,
+        codes_used_count: (codesByUser[u._id]?.size) || 0
+      }));
+
+    const totalNonAdminUsers = users.length;
+
+    // Choice popularity — each non-admin user contributes once, by their most
+    // recent finalized choice. Sessions without a persisted `choice` fall back
+    // to the alignmentScore-sign heuristic, same as transmissions.
+    const finalizedNonAdminSessions = await Session.find({
+      userId: { $nin: adminIds },
+      isComplete: true
+    })
+      .select('userId choice alignmentScore finalizedAt')
+      .sort({ finalizedAt: -1 });
+
+    const seenUsersForChoice = new Set();
+    let containmentUsers = 0;
+    let proliferationUsers = 0;
+    for (const s of finalizedNonAdminSessions) {
+      if (seenUsersForChoice.has(s.userId)) continue;
+      seenUsersForChoice.add(s.userId);
+      let inferredChoice = s.choice;
+      if (!inferredChoice && s.alignmentScore !== 0) {
+        inferredChoice = s.alignmentScore < 0 ? 'a' : 'b';
+      }
+      if (inferredChoice === 'a') containmentUsers += 1;
+      else if (inferredChoice === 'b') proliferationUsers += 1;
+    }
+    const choiceUserTotal = containmentUsers + proliferationUsers;
+    const choiceDistribution = {
+      containment_count: containmentUsers,
+      proliferation_count: proliferationUsers,
+      total_users: choiceUserTotal,
+      containment_pct: choiceUserTotal > 0 ? (containmentUsers / choiceUserTotal) * 100 : 0,
+      proliferation_pct: choiceUserTotal > 0 ? (proliferationUsers / choiceUserTotal) * 100 : 0
+    };
+
+    // Per-code stats. activations = total entries (any session). transmissions =
+    // entered in a finalized session whose alignmentScore sign matches the code's
+    // alignment, since the choice itself isn't stored. user_percentage = share of
+    // logged-in non-admin users who entered this code at least once.
+    const codesByCodeId = {};
+    for (const sc of nonAdminSessionCodes) {
+      const cid = sc.codeId._id.toString();
+      if (!codesByCodeId[cid]) {
+        codesByCodeId[cid] = {
+          code: sc.codeId.code,
+          alignment: sc.codeId.alignment,
+          activations: 0,
+          transmissions: 0,
+          users: new Set()
+        };
+      }
+      const bucket = codesByCodeId[cid];
+      bucket.activations += 1;
+      bucket.users.add(sc.sessionId.userId);
+
+      const sess = sc.sessionId;
+      if (sess.isComplete) {
+        // Prefer persisted choice; fall back to alignmentScore sign for
+        // legacy sessions finalized before the choice field was added.
+        let choice = sess.choice;
+        if (!choice && sess.alignmentScore !== 0) {
+          choice = sess.alignmentScore < 0 ? 'a' : 'b';
+        }
+        if (choice) {
+          const align = sc.codeId.alignment;
+          const matches =
+            (align === 'PHAX' && choice === 'a') ||
+            (align === 'FHEELS' && choice === 'b') ||
+            align === 'SIGSEV';
+          if (matches) bucket.transmissions += 1;
+        }
+      }
+    }
+
+    // Include codes that are defined but never entered, so the table reflects the
+    // full code catalog rather than only-used codes.
+    const allCodes = await Code.find().select('code alignment');
+    const codes = allCodes.map(c => {
+      const bucket = codesByCodeId[c._id.toString()];
+      const userCount = bucket ? bucket.users.size : 0;
+      return {
+        code: c.code,
+        activations: bucket?.activations || 0,
+        transmissions: bucket?.transmissions || 0,
+        user_percentage: totalNonAdminUsers > 0 ? (userCount / totalNonAdminUsers) * 100 : 0
+      };
+    });
+
+    res.json({
+      success: true,
+      analytics: {
+        dataset_age_days: datasetAgeDays,
+        total_non_admin_users: totalNonAdminUsers,
+        choice_distribution: choiceDistribution,
+        users,
+        codes
+      }
+    });
+
+  } catch (error) {
+    console.error('Error fetching detailed analytics:', error);
+    res.status(500).json({ success: false, error: 'SERVER_ERROR', message: 'Error fetching detailed analytics' });
   }
 });
 

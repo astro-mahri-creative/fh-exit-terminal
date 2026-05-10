@@ -13,6 +13,8 @@ function AdminPanel({ sessionData }) {
   const [userFilter, setUserFilter] = useState('all'); // 'all', 'used', 'unused'
   const [returnMode, setReturnMode] = useState('resume');
   const [effectScale, setEffectScale] = useState(1);
+  const [analytics, setAnalytics] = useState(null);
+  const [userSort, setUserSort] = useState('logins'); // 'logins' | 'codes'
 
   const loadUsers = useCallback(async () => {
     setLoading(true);
@@ -50,6 +52,18 @@ function AdminPanel({ sessionData }) {
     }
   }, []);
 
+  const loadAnalytics = useCallback(async () => {
+    setLoading(true);
+    try {
+      const response = await adminService.getDetailedAnalytics(sessionData.session_token);
+      if (response.success) setAnalytics(response.analytics);
+    } catch (err) {
+      console.error('Error loading analytics:', err);
+    } finally {
+      setLoading(false);
+    }
+  }, [sessionData.session_token]);
+
   useEffect(() => {
     adminService.getAnalytics(sessionData.session_token).then(res => {
       if (res.success) {
@@ -66,8 +80,10 @@ function AdminPanel({ sessionData }) {
       loadCodes();
     } else if (activeTab === 'universes') {
       loadUniverses();
+    } else if (activeTab === 'analytics' && !analytics) {
+      loadAnalytics();
     }
-  }, [activeTab, users.length, codes.length, loadUsers, loadCodes, loadUniverses]);
+  }, [activeTab, users.length, codes.length, analytics, loadUsers, loadCodes, loadUniverses, loadAnalytics]);
 
   const handleToggleReturnMode = async () => {
     try {
@@ -153,6 +169,12 @@ function AdminPanel({ sessionData }) {
           onClick={() => setActiveTab('codes')}
         >
           CODES & EFFECTS
+        </button>
+        <button
+          className={`admin-tab ${activeTab === 'analytics' ? 'active' : ''}`}
+          onClick={() => setActiveTab('analytics')}
+        >
+          ANALYTICS
         </button>
       </div>
 
@@ -396,6 +418,145 @@ function AdminPanel({ sessionData }) {
                       )}
                     </div>
                   ))}
+                </div>
+              </>
+            )}
+          </div>
+        )}
+
+        {activeTab === 'analytics' && (
+          <div className="admin-analytics">
+            {loading || !analytics ? (
+              <div className="admin-loading">Loading analytics...</div>
+            ) : (
+              <>
+                <div className="admin-list-header">
+                  <div className="dataset-age">
+                    <span className="dataset-age-label">DATASET AGE</span>
+                    <span className="dataset-age-value">
+                      {analytics.dataset_age_days} {analytics.dataset_age_days === 1 ? 'DAY' : 'DAYS'}
+                    </span>
+                  </div>
+                  <button onClick={loadAnalytics} className="admin-refresh">REFRESH</button>
+                </div>
+
+                {analytics.choice_distribution && (
+                  <div className="analytics-section">
+                    <div className="analytics-section-header">
+                      <h4 className="analytics-section-title">CHOICE POPULARITY</h4>
+                      <span className="analytics-meta">
+                        {analytics.choice_distribution.total_users} {analytics.choice_distribution.total_users === 1 ? 'USER' : 'USERS'}
+                      </span>
+                    </div>
+                    {analytics.choice_distribution.total_users === 0 ? (
+                      <div className="no-effects-msg">No finalized sessions yet</div>
+                    ) : (
+                      <>
+                        <div className="choice-popularity">
+                          <div className="choice-stat containment">
+                            <span className="choice-label">CONTAINMENT</span>
+                            <span className="choice-value">
+                              {analytics.choice_distribution.containment_pct.toFixed(1)}%
+                            </span>
+                          </div>
+                          <div className="choice-stat proliferation">
+                            <span className="choice-label">PROLIFERATION</span>
+                            <span className="choice-value">
+                              {analytics.choice_distribution.proliferation_pct.toFixed(1)}%
+                            </span>
+                          </div>
+                        </div>
+                        <div className="choice-bar">
+                          <div
+                            className="choice-bar-fill containment"
+                            style={{ width: `${analytics.choice_distribution.containment_pct}%` }}
+                          />
+                          <div
+                            className="choice-bar-fill proliferation"
+                            style={{ width: `${analytics.choice_distribution.proliferation_pct}%` }}
+                          />
+                        </div>
+                      </>
+                    )}
+                  </div>
+                )}
+
+                <div className="analytics-section">
+                  <div className="analytics-section-header">
+                    <h4 className="analytics-section-title">TOP 10 USERS</h4>
+                    <div className="user-filter-buttons">
+                      <button
+                        className={`filter-btn ${userSort === 'logins' ? 'active' : ''}`}
+                        onClick={() => setUserSort('logins')}
+                      >LOGINS</button>
+                      <button
+                        className={`filter-btn ${userSort === 'codes' ? 'active' : ''}`}
+                        onClick={() => setUserSort('codes')}
+                      >CODES</button>
+                    </div>
+                  </div>
+                  <div className="admin-table-wrap">
+                    <table className="admin-table">
+                      <thead>
+                        <tr>
+                          <th>USER ID</th>
+                          <th>LOGINS</th>
+                          <th>CODES USED</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {[...analytics.users]
+                          .sort((a, b) => userSort === 'logins'
+                            ? b.login_count - a.login_count
+                            : b.codes_used_count - a.codes_used_count)
+                          .slice(0, 10)
+                          .map(u => (
+                            <tr key={u.user_id}>
+                              <td className="user-id-cell">{u.user_id}</td>
+                              <td className="count-cell">{u.login_count}</td>
+                              <td className="count-cell">{u.codes_used_count}</td>
+                            </tr>
+                          ))}
+                        {analytics.users.length === 0 && (
+                          <tr><td colSpan="3" className="no-effects-msg">No users with logins yet</td></tr>
+                        )}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+
+                <div className="analytics-section">
+                  <div className="analytics-section-header">
+                    <h4 className="analytics-section-title">TOP 10 CODES</h4>
+                  </div>
+                  <div className="admin-table-wrap">
+                    <table className="admin-table">
+                      <thead>
+                        <tr>
+                          <th>CODE</th>
+                          <th>ACTIVATIONS</th>
+                          <th>TRANSMISSIONS</th>
+                          <th>% OF USERS</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {[...analytics.codes]
+                          .sort((a, b) => b.activations - a.activations)
+                          .slice(0, 10)
+                          .map(c => (
+                            <tr key={c.code}>
+                              <td className="user-id-cell">{c.code}</td>
+                              <td className="count-cell">{c.activations}</td>
+                              <td className="count-cell">{c.transmissions}</td>
+                              <td className="count-cell">{c.user_percentage.toFixed(1)}%</td>
+                            </tr>
+                          ))}
+                        {analytics.codes.length === 0 && (
+                          <tr><td colSpan="4" className="no-effects-msg">No codes recorded</td></tr>
+                        )}
+                      </tbody>
+                    </table>
+                  </div>
                 </div>
               </>
             )}
