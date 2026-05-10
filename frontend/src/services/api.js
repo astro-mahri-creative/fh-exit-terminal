@@ -88,6 +88,13 @@ export const adminService = {
     return response.data;
   },
 
+  getDetailedAnalytics: async (sessionToken) => {
+    const response = await api.get('/admin/analytics/detailed', {
+      params: { session_token: sessionToken }
+    });
+    return response.data;
+  },
+
   getUsers: async (sessionToken) => {
     const response = await api.get('/admin/users', {
       params: { session_token: sessionToken }
