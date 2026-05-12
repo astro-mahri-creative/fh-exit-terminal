@@ -40,6 +40,7 @@ export default function TVWallScreen() {
           <TVWallCell
             key={u?._id ?? `slot-${i}`}
             universe={u}
+            variantIndex={i}
             delta={u ? (deltas[u._id] ?? 0) : 0}
             lastChangedAt={u ? lastChangedAt[u._id] : null}
           />

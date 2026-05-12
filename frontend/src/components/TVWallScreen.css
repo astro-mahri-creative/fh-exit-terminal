@@ -95,11 +95,14 @@
 }
 
 .tv-wall-cell__cases-unit {
-  font-size: 0.9cqw;
+  font-family: var(--font-mono);
+  font-size: 1.0cqw;
   font-weight: 400;
-  letter-spacing: 0.18em;
+  letter-spacing: 0.32em;
+  text-transform: uppercase;
   color: var(--text-secondary);
-  margin-left: 0.4cqw;
+  margin-top: 0.5cqw;
+  white-space: nowrap;
 }
 
 .tv-wall-cell__delta {

@@ -1,4 +1,4 @@
-import React, { useRef, useState, useCallback } from 'react';
+import React, { useRef, useState, useMemo, useCallback } from 'react';
 import { Canvas, useFrame } from '@react-three/fiber';
 import { Stars } from '@react-three/drei';
 import { EffectComposer, Bloom } from '@react-three/postprocessing';
@@ -10,6 +10,7 @@ import {
   STATUS_EMISSIVE,
   UNIVERSE_VARIANTS,
   hashId,
+  seededRand,
 } from './universeVariants';
 
 // Sculpture fits the right half of a 4:3 cell — a 2:3 portrait canvas.
@@ -17,13 +18,14 @@ import {
 // radius * 2.5) without clipping the canvas edges.
 const CELL_SCULPTURE_RADIUS = 1.0;
 const CELL_CAMERA_Z = 9;
-const CELL_AUTO_ROTATE_SPEED = 0.4;         // matches CONFIG.autoRotateSpeed
 const CELL_BLOOM_INTENSITY = 0.9;           // slightly under the network's 1.2
 
-function AutoRotate({ children, speed = CELL_AUTO_ROTATE_SPEED }) {
+function AutoRotate({ children, speedX, speedY }) {
   const ref = useRef();
   useFrame((_, dt) => {
-    if (ref.current) ref.current.rotation.y += speed * dt;
+    if (!ref.current) return;
+    ref.current.rotation.y += speedY * dt;
+    ref.current.rotation.x += speedX * dt;
   });
   return <group ref={ref}>{children}</group>;
 }
@@ -36,16 +38,36 @@ function formatTime(date) {
   return `${hh}:${mm}:${ss}`;
 }
 
+// At/above 1M, abbreviate as `X.XXX M` rounded UP to 3 decimals so the panel
+// never overflows. Below 1M we keep the full count for fidelity.
+function formatCases(n) {
+  if (n >= 1_000_000) {
+    return (Math.ceil(n / 1000) / 1000).toFixed(3) + ' M';
+  }
+  return n.toLocaleString();
+}
+
 // Single 3×3-grid cell. Left half = info panel, right half = isolated 3D sculpture.
-export default function TVWallCell({ universe, delta = 0, lastChangedAt }) {
-  // Force-remount the canvas on WebGL context loss — defensive for a 24/7 wall.
+// `variantIndex` picks the sculpture by displayOrder (collision-free across 9
+// universes); falling back to a hash of the universe _id only if no index is
+// supplied. Matches the Topology View's index-based dispatch.
+export default function TVWallCell({ universe, variantIndex, delta = 0, lastChangedAt }) {
+  // Force-remount the canvas if Three.js can't auto-recover from context loss.
+  // Defensive for a 24/7 wall. We give the browser a second to restore the
+  // context naturally before tearing down — without this delay an immediate
+  // remount during transient context pressure (e.g. HMR) creates a loop.
   const [canvasKey, setCanvasKey] = useState(0);
   const onCanvasCreated = useCallback(({ gl }) => {
-    const handler = (e) => {
+    const canvas = gl.domElement;
+    let pendingRemount = null;
+    canvas.addEventListener('webglcontextlost', (e) => {
       e.preventDefault();
-      setCanvasKey(k => k + 1);
-    };
-    gl.domElement.addEventListener('webglcontextlost', handler);
+      if (pendingRemount) clearTimeout(pendingRemount);
+      pendingRemount = setTimeout(() => setCanvasKey(k => k + 1), 1500);
+    });
+    canvas.addEventListener('webglcontextrestored', () => {
+      if (pendingRemount) { clearTimeout(pendingRemount); pendingRemount = null; }
+    });
   }, []);
 
   // Compute everything regardless of `universe` so hook order is stable.
@@ -58,6 +80,27 @@ export default function TVWallCell({ universe, delta = 0, lastChangedAt }) {
     !!universe && delta !== 0,
     0,
   );
+
+  // Per-universe rotation speeds — seeded from the universe id (or slot index
+  // when no universe is mounted) so each cell is stable across reloads but
+  // visually distinct from its neighbours. Y is the dominant spin; X is
+  // slower so the sculpture doesn't tumble chaotically. We mix the hash with
+  // a Knuth-style constant and discard a few warm-up values because the LCG's
+  // first outputs correlate across similar input seeds (which would make all
+  // 9 cells spin at nearly the same Y speed).
+  const rotation = useMemo(() => {
+    const seed = universe?._id?.toString() ?? `slot-${variantIndex ?? 0}`;
+    const mixed = (hashId(seed) * 2654435761) >>> 0;
+    const rand = seededRand(mixed);
+    rand(); rand(); rand(); // decorrelate
+    // Randomly flip direction so neighbours don't all turn the same way.
+    const dirY = rand() < 0.5 ? -1 : 1;
+    const dirX = rand() < 0.5 ? -1 : 1;
+    return {
+      speedY: dirY * (0.22 + rand() * 0.45),   // |0.22..0.67| rad/s
+      speedX: dirX * (0.05 + rand() * 0.28),   // |0.05..0.33| rad/s
+    };
+  }, [universe?._id, variantIndex]);
 
   // NO-SIGNAL placeholder when this cell has no universe assigned.
   if (!universe) {
@@ -75,7 +118,11 @@ export default function TVWallCell({ universe, delta = 0, lastChangedAt }) {
   const color    = STATUS_COLORS[universe.status] || STATUS_COLORS.COMPROMISED;
   const emissive = STATUS_EMISSIVE[universe.status] || 1.0;
   const seed     = universe._id.toString();
-  const Variant  = UNIVERSE_VARIANTS[hashId(seed) % UNIVERSE_VARIANTS.length];
+  // Prefer the supplied variantIndex (collision-free across 9 cells).
+  // Fall back to the id hash for safety if the prop is missing.
+  const idxSource = Number.isInteger(variantIndex) ? variantIndex : hashId(seed);
+  const safeIndex = ((idxSource % UNIVERSE_VARIANTS.length) + UNIVERSE_VARIANTS.length) % UNIVERSE_VARIANTS.length;
+  const Variant   = UNIVERSE_VARIANTS[safeIndex];
 
   const deltaClass =
     delta > 0 ? 'cases-up'
@@ -94,9 +141,9 @@ export default function TVWallCell({ universe, delta = 0, lastChangedAt }) {
 
         <div>
           <div className={`tv-wall-cell__cases ${deltaClass}`}>
-            {displayedCases.toLocaleString()}
-            <span className="tv-wall-cell__cases-unit"> iFLU</span>
+            {formatCases(displayedCases)}
           </div>
+          <div className="tv-wall-cell__cases-unit">iFLU CASES</div>
           <div className="tv-wall-cell__delta">
             {delta !== 0
               ? <>{delta > 0 ? '▲' : '▼'} {deltaSign}{delta.toLocaleString()} at {lastChangedLabel}</>
@@ -120,7 +167,7 @@ export default function TVWallCell({ universe, delta = 0, lastChangedAt }) {
           <ambientLight intensity={0.08} />
           <pointLight position={[0, 0, 0]} intensity={0.6} color="#aac4ff" decay={2} />
           <Stars radius={30} depth={20} count={200} factor={2} saturation={0.12} fade speed={0.3} />
-          <AutoRotate>
+          <AutoRotate speedX={rotation.speedX} speedY={rotation.speedY}>
             <Variant
               radius={CELL_SCULPTURE_RADIUS}
               color={color}
