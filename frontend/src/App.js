@@ -5,15 +5,21 @@ import CodeEntryScreen from './components/CodeEntryScreen';
 import ChoiceScreen from './components/ChoiceScreen';
 import ResultsScreen from './components/ResultsScreen';
 import NetworkScreen from './components/NetworkScreen';
+import TVWallScreen from './components/TVWallScreen';
 
 function App() {
-  const [screen, setScreen] = useState('welcome'); // 'welcome', 'codeEntry', 'choice', 'results', 'network'
+  const [screen, setScreen] = useState('welcome'); // 'welcome', 'codeEntry', 'choice', 'results', 'network', 'tvwall'
   const [sessionData, setSessionData] = useState(null);
   const [choiceData, setChoiceData] = useState(null);
   const [resultsData, setResultsData] = useState(null);
 
   const handleSessionStart = (data) => {
     setSessionData(data);
+    // Kiosk login: this user only ever sees the TV Wall view.
+    if (data?.user_id === 'tvwall') {
+      setScreen('tvwall');
+      return;
+    }
     setScreen('codeEntry');
   };
 
@@ -63,6 +69,7 @@ function App() {
       {screen === 'network' && (
         <NetworkScreen onBack={() => setScreen('welcome')} />
       )}
+      {screen === 'tvwall' && <TVWallScreen />}
     </div>
   );
 }
