@@ -26,7 +26,7 @@
   background: var(--bg-surface);
   border: 1px dashed rgba(68, 119, 238, 0.15);
   border-radius: var(--radius-lg);
-  padding: 56px 40px 48px;
+  padding: 64px 48px 56px;
   position: relative;
   animation: terminalBorderFlicker 14s ease-in-out infinite;
 }
@@ -183,8 +183,8 @@
 .begin-button {
   background: var(--phax-blue);
   color: #ffffff;
-  font-size: 1.3rem;
-  padding: 20px 72px;
+  font-size: 1.55rem;
+  padding: 22px 80px;
   border-radius: var(--radius-md);
   letter-spacing: 0.22em;
   margin-top: 20px;
@@ -228,8 +228,8 @@
   border: 1px solid var(--phax-blue);
   color: var(--phax-light);
   font-family: var(--font-mono);
-  font-size: 0.82rem;
-  padding: 14px 28px;
+  font-size: 1rem;
+  padding: 16px 32px;
   letter-spacing: 0.16em;
   cursor: pointer;
   border-radius: var(--radius-md);

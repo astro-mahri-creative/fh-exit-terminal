@@ -89,7 +89,15 @@ body {
   display: flex;
   align-items: center;
   justify-content: center;
-  padding: 20px;
+  padding: clamp(16px, 2vw, 28px);
+}
+
+/* On portrait viewports, keep page content from stretching wider than a
+   3:4 portrait screen comfortably allows. */
+@media (max-aspect-ratio: 1/1) {
+  .App > * {
+    max-width: min(100%, 90vh);
+  }
 }
 
 /* ===================== BUTTONS ===================== */
