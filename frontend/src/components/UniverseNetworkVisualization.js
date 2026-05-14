@@ -26,8 +26,8 @@ const CONFIG = {
   bloomSmoothing:       0.9,
   edgeOpacityMin:       0.10,
   edgeOpacityMax:       0.42,
-  nodeRadiusMin:        0.55,   // enlarged
-  nodeRadiusMax:        2.0,    // enlarged
+  nodeRadiusMin:        1.15,   // raised so the smallest universes read closer in size to the largest
+  nodeRadiusMax:        2.2,    // enlarged
   nodeSphereSegments:   32,
   forceCharge:         -280,    // more repulsion to spread larger nodes apart
   forceLinkDistance:    9,      // wider spacing
@@ -477,9 +477,10 @@ function UniverseNetworkVisualization({ mode = 'display', autoRotate = true, onC
             ref={orbitRef}
             autoRotate={autoRotate}
             autoRotateSpeed={CONFIG.autoRotateSpeed}
-            enableZoom={interactive}
+            enableZoom={true}
+            enableRotate={true}
             enablePan={false}
-            maxDistance={Math.max(40, (cameraZ ?? CONFIG.cameraDistance) + 6)}
+            maxDistance={Math.max(80, (cameraZ ?? CONFIG.cameraDistance) + 40)}
             minDistance={8}
             onStart={() => setUserRotated(true)}
           />

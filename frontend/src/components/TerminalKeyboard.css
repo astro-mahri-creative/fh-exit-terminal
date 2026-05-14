@@ -2,25 +2,25 @@
 .keyboard {
   margin: 28px auto;
   width: 90%;
-  max-width: 600px;
+  max-width: 760px;
 }
 
 .keyboard-row {
   display: flex;
   justify-content: center;
-  gap: 7px;
-  margin-bottom: 7px;
+  gap: 10px;
+  margin-bottom: 10px;
 }
 
 .keyboard-key {
   flex: 1;
-  max-width: 72px;
-  height: 56px;
+  max-width: 92px;
+  height: 68px;
   background: var(--bg-raised);
   border: 1px solid var(--border-mid);
   color: var(--text-primary);
   font-family: var(--font-mono);
-  font-size: 1.5rem;
+  font-size: 1.7rem;
   border-radius: var(--radius-md);
   transition: background 0.1s ease, border-color 0.1s ease;
 }
@@ -58,7 +58,7 @@
   background: rgba(212, 137, 10, 0.08);
   border-color: var(--color-warning);
   color: #e0a040;
-  font-size: 1.6rem;
+  font-size: 1.85rem;
 }
 
 .backspace-key:hover:not(:disabled) {
@@ -72,7 +72,7 @@
   color: var(--fheels-light, #7cd492);
   font-family: var(--font-sans);
   font-weight: 700;
-  font-size: 1.7rem;
+  font-size: 1.95rem;
 }
 
 .special-key:hover:not(:disabled) {
@@ -84,8 +84,8 @@
 /* ── Responsive ── */
 @media (max-width: 1024px) {
   .keyboard-key {
-    height: 50px;
-    font-size: 1.3rem;
+    height: 62px;
+    font-size: 1.5rem;
   }
 }
 
