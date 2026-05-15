@@ -437,6 +437,39 @@ app.post('/api/session/start', async (req, res) => {
   }
 });
 
+// POST /api/session/save-email - Save email address to session (no email sent)
+app.post('/api/session/save-email', async (req, res) => {
+  try {
+    const { session_token, email } = req.body;
+
+    if (!session_token || !email) {
+      return res.status(400).json({ success: false, error: 'MISSING_FIELDS', message: 'session_token and email are required' });
+    }
+
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(email)) {
+      return res.status(400).json({ success: false, error: 'INVALID_EMAIL', message: 'Invalid email address' });
+    }
+
+    const session = await Session.findOne({ sessionToken: session_token });
+    if (!session) {
+      return res.status(404).json({ success: false, error: 'SESSION_NOT_FOUND', message: 'Session not found' });
+    }
+
+    session.emailAddress = email.toLowerCase();
+    await session.save();
+
+    await logEvent('email_registered', session._id, session.userId, { email: email.toLowerCase() });
+
+    console.log('Email registered for session:', session_token, '→', email.toLowerCase());
+
+    res.json({ success: true, message: 'Email saved successfully' });
+  } catch (error) {
+    console.error('Error saving email:', error);
+    res.status(500).json({ success: false, error: 'SERVER_ERROR', message: 'Error saving email' });
+  }
+});
+
 // GET /api/universes - Get all universe data
 app.get('/api/universes', async (req, res) => {
   try {

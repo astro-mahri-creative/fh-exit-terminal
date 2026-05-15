@@ -489,6 +489,14 @@
   text-align: center;
 }
 
+.email-section-label {
+  font-family: var(--font-mono);
+  font-size: 0.85rem;
+  color: var(--text-secondary);
+  margin: 0 0 14px;
+  letter-spacing: 0.04em;
+}
+
 .email-display {
   display: inline-flex;
   align-items: center;

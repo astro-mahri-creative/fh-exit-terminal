@@ -13,6 +13,14 @@ export const sessionService = {
   start: async (userId) => {
     const response = await api.post('/session/start', { user_id: userId });
     return response.data;
+  },
+
+  saveEmail: async (sessionToken, email) => {
+    const response = await api.post('/session/save-email', {
+      session_token: sessionToken,
+      email,
+    });
+    return response.data;
   }
 };
 
