@@ -34,12 +34,19 @@
   position: relative;
 }
 
+/* The single shared WebGL canvas is positioned via the <Canvas> style prop
+   (position:absolute; inset:0; z-index:0) so it sits behind the 3×3 panel
+   grid and is removed from grid flow — see TVWallScreen.js. */
+
 .tv-wall-cell {
   display: grid;
   grid-template-columns: 1fr 1fr;
   overflow: hidden;
-  background: var(--bg-base);
+  /* Transparent so the shared canvas shows through the right half; the
+     left-half panel keeps its own opaque background. */
+  background: transparent;
   position: relative;
+  z-index: 1;
 }
 
 .tv-wall-cell__panel {
@@ -51,6 +58,8 @@
   position: relative;
   min-width: 0;
   overflow: hidden;
+  /* Opaque — occludes the shared canvas behind the panel (left) half. */
+  background: var(--bg-base);
 }
 
 .tv-wall-cell__name {
@@ -124,13 +133,11 @@
   white-space: nowrap;
 }
 
-.tv-wall-cell__canvas {
+/* Transparent right-half spacer — preserves the cell's 1fr 1fr split so the
+   panel stays at 50% width. The shared canvas behind shows through here. */
+.tv-wall-cell__window {
   position: relative;
   overflow: hidden;
-}
-
-.tv-wall-cell__canvas canvas {
-  display: block;
 }
 
 .tv-wall-error {
