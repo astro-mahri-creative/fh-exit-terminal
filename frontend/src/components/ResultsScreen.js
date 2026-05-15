@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
-import { emailService } from '../services/api';
+import { sessionService } from '../services/api';
 import UniverseNetworkVisualization from './UniverseNetworkVisualization';
 import TerminalKeyboard from './TerminalKeyboard';
 import useSteppedCountUp from '../hooks/useSteppedCountUp';
@@ -80,9 +80,8 @@ function UniverseCard({ universe, idx, numbersVisible, isFheels }) {
 
 function ResultsScreen({ resultsData, sessionData, onReset }) {
   const [email, setEmail] = useState('');
-  const [emailSent, setEmailSent] = useState(false);
+  const [emailSaved, setEmailSaved] = useState(false);
   const [emailError, setEmailError] = useState('');
-  const [optInMessaging, setOptInMessaging] = useState(false);
   const [multiverseReady, setMultiverseReady] = useState(false);
   const [numbersVisible, setNumbersVisible]   = useState(false);
   const [countdown, setCountdown] = useState(FIRST_IDLE_TIMEOUT);
@@ -214,26 +213,9 @@ function ResultsScreen({ resultsData, sessionData, onReset }) {
     recordActivity();
   }, [recordActivity]);
 
-  // Physical keyboard support for email input
-  useEffect(() => {
-    const handlePhysicalKey = (e) => {
-      if (emailSent) return;
-      const key = e.key;
-      if (/^[a-zA-Z0-9@._\-+]$/.test(key)) {
-        handleEmailKeyPress(key.toUpperCase());
-      } else if (e.key === 'Backspace') {
-        handleEmailBackspace();
-      } else if (e.key === 'Delete') {
-        handleEmailClear();
-      }
-    };
-    window.addEventListener('keydown', handlePhysicalKey);
-    return () => window.removeEventListener('keydown', handlePhysicalKey);
-  }, [emailSent, handleEmailKeyPress, handleEmailBackspace, handleEmailClear]);
-
-  const handleSendEmail = async () => {
+  const handleSaveEmail = useCallback(async () => {
     setEmailError('');
-    
+
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
     if (!email || !emailRegex.test(email)) {
       setEmailError('Please enter a valid email address');
@@ -241,17 +223,35 @@ function ResultsScreen({ resultsData, sessionData, onReset }) {
     }
 
     try {
-      const response = await emailService.send(sessionData.session_token, email, optInMessaging);
-
+      const response = await sessionService.saveEmail(sessionData.session_token, email);
       if (response.success) {
-        setEmailSent(true);
+        setEmailSaved(true);
       } else {
-        setEmailError(response.message || 'Error sending email');
+        setEmailError(response.message || 'Error saving email');
       }
     } catch (err) {
-      setEmailError('Error sending email. Please try again.');
+      setEmailError('Error saving email. Please try again.');
     }
-  };
+  }, [email, sessionData.session_token]);
+
+  // Physical keyboard support for email input
+  useEffect(() => {
+    const handlePhysicalKey = (e) => {
+      if (emailSaved) return;
+      const key = e.key;
+      if (/^[a-zA-Z0-9@._\-+]$/.test(key)) {
+        handleEmailKeyPress(key.toUpperCase());
+      } else if (key === 'Backspace') {
+        handleEmailBackspace();
+      } else if (key === 'Delete') {
+        handleEmailClear();
+      } else if (key === 'Enter' && email.length > 0) {
+        handleSaveEmail();
+      }
+    };
+    window.addEventListener('keydown', handlePhysicalKey);
+    return () => window.removeEventListener('keydown', handlePhysicalKey);
+  }, [emailSaved, email, handleEmailKeyPress, handleEmailBackspace, handleEmailClear, handleSaveEmail]);
 
   return (
     <div className="results-screen" onClick={recordActivity} onKeyDown={recordActivity}>
@@ -348,8 +348,9 @@ function ResultsScreen({ resultsData, sessionData, onReset }) {
       </div>
 
       <div className="email-section">
-        {!emailSent ? (
+        {!emailSaved ? (
           <>
+            <p className="email-section-label">Enter your email to save your progress</p>
             <div className="email-display">
               <span className="email-display-text">
                 {email || <span className="email-placeholder">enter email address</span>}
@@ -365,21 +366,10 @@ function ResultsScreen({ resultsData, sessionData, onReset }) {
               showNumbers
               extraBottomKeys={{ left: '@', right: '.' }}
             />
-            <label className="email-optin">
-              <input
-                type="checkbox"
-                checked={optInMessaging}
-                onChange={(e) => { setOptInMessaging(e.target.checked); recordActivity(); }}
-              />
-              <span>
-                Yes, I'd like to receive occasional updates from Future Hooman about new releases,
-                events, and dimensional broadcasts. You can unsubscribe at any time.
-              </span>
-            </label>
             {emailError && <div className="error-message">{emailError}</div>}
             <div className="action-buttons">
-              <button onClick={handleSendEmail} className="send-button">
-                SEND IMPACT REPORT
+              <button onClick={handleSaveEmail} className="send-button" disabled={email.length === 0}>
+                SAVE MY PROGRESS
               </button>
               <button onClick={onReset} className="reset-button">
                 RETURN TO HOME
@@ -388,7 +378,7 @@ function ResultsScreen({ resultsData, sessionData, onReset }) {
           </>
         ) : (
           <div className="email-success">
-            ✓ Impact report sent to {email}
+            ✓ Progress saved for {email}
             <button onClick={onReset} className="reset-button">
               RETURN TO HOME
             </button>
