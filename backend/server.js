@@ -232,27 +232,35 @@ async function updateUniverseStatus(universeId) {
 }
 
 // Auto-activate CERT (the orientation-issued PHAX containment code) when
-// EVERY code in the round is an amplifier-only code (PRWC/RMPI).
-// Amplifiers multiply existing changes but produce nothing on their own,
-// so a transmit consisting only of amplifiers would leave both choice
-// options disabled. CERT gives the user a baseline containment effect
-// for the amplifiers to act on. Other empty cases (e.g. CURE/RVLT with
-// no eligible target) are NOT auto-fixed here — the preview surfaces a
-// targeted error in those cases instead.
+// the round can't produce any actionable effect on its own. CERT acts as
+// a universal fallback so the user always reaches a usable choice screen
+// instead of a dead-end error. Triggers for:
+//   - Amplifier-only rounds (PRWC/RMPI alone) — amplifiers need something
+//     to multiply, CERT provides the base containment.
+//   - Break-code rounds with no eligible target (CURE with no LIBERATED,
+//     RVLT with no PRESERVED) — the user's chosen action can't fire on
+//     the current universe state, CERT keeps the transmission productive.
+//   - Any mix of the above (e.g. PRWC + CURE when no LIBERATED exists).
 //
 // Returns the (possibly augmented) sessionCodes array. Idempotent: skipped
 // if CERT is already in this round.
 async function ensureActionableCodes(sessionCodes, session, universes, codesQuery) {
-  // Only fire when EVERY code's effects are pure amplify. One non-amplify
-  // effect anywhere in the round is enough to leave the user's mix alone.
-  let allAmplifierOnly = sessionCodes.length > 0;
+  const hasLiberated = universes.some(u => u.status === 'LIBERATED');
+  const hasPreserved = universes.some(u => u.status === 'PRESERVED');
+
+  // A code is "actionable right now" if at least one of its effects can
+  // produce a change given the current universe state.
+  let actionable = false;
   for (const sc of sessionCodes) {
     const effects = await CodeEffect.find({ codeId: sc.codeId._id });
-    const isAmplifierOnly = effects.length > 0
-      && effects.every(e => e.effectType === 'amplify');
-    if (!isAmplifierOnly) { allAmplifierOnly = false; break; }
+    for (const e of effects) {
+      if (e.effectType === 'standard') { actionable = true; break; }
+      if (e.effectType === 'break_liberated' && hasLiberated) { actionable = true; break; }
+      if (e.effectType === 'break_preserved' && hasPreserved) { actionable = true; break; }
+    }
+    if (actionable) break;
   }
-  if (!allAmplifierOnly) return sessionCodes;
+  if (actionable) return sessionCodes;
 
   // Idempotency: don't re-add CERT if it's already in this round.
   if (sessionCodes.some(sc => sc.codeId.code === 'CERT')) return sessionCodes;
@@ -270,7 +278,7 @@ async function ensureActionableCodes(sessionCodes, session, universes, codesQuer
   session.totalCodesEntered = newSequence;
   await session.save();
   await logEvent('cert_auto_applied', session._id, session.userId, {
-    reason: 'amplifier_only_transmission',
+    reason: 'no_actionable_effect_in_round',
   });
 
   // Re-fetch with the new CERT included
@@ -899,15 +907,17 @@ app.post('/api/codes/preview', async (req, res) => {
     // changes but produce nothing on their own.
     const hasOptionA = netNegative !== 0 || optionAMaskedRows.length > 0;
     const hasOptionB = netPositive !== 0 || optionBMaskedRows.length > 0;
-    // If we still have no actionable effect, CERT-fallback didn't apply
-    // (round had non-amplifier codes), but those codes can't act on the
-    // current universe state — for example CURE with no LIBERATED
-    // universe, or RVLT with no PRESERVED universe. Tell the user.
+    // Safety net: with the CERT fallback in ensureActionableCodes this
+    // should be unreachable. It can only fire if CERT is missing from
+    // the codes collection or has been deactivated, which would be a
+    // deployment/admin issue worth surfacing rather than a silent UI
+    // dead-end.
     if (!hasOptionA && !hasOptionB) {
-      return res.status(400).json({
+      console.error('Preview empty even after CERT fallback — verify CERT exists and isActive in the codes collection.');
+      return res.status(500).json({
         success: false,
         error: 'NO_ACTIONABLE_EFFECT',
-        message: 'Your activated codes have no targetable universes right now. Activate additional codes and try again.'
+        message: 'No actionable effect could be computed for this transmission. Contact an admin.'
       });
     }
 
