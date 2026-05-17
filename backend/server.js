@@ -838,6 +838,31 @@ app.post('/api/codes/preview', async (req, res) => {
     const netNegative = Object.values(negativeChanges).reduce((sum, u) => sum + u.change, 0);
     const netPositive = Object.values(positiveChanges).reduce((sum, u) => sum + u.change, 0);
 
+    // Guard: if neither option has any real or masked effect the user
+    // would land on a choice screen with both buttons disabled and no
+    // way forward. This happens most often when only SIGSEV amplifier
+    // codes (PRWC/RMPI) were activated — amplifiers multiply existing
+    // changes but produce nothing on their own.
+    const hasOptionA = netNegative !== 0 || optionAMaskedRows.length > 0;
+    const hasOptionB = netPositive !== 0 || optionBMaskedRows.length > 0;
+    if (!hasOptionA && !hasOptionB) {
+      // Tailor the message: pure amplifier-only transmissions are common
+      // enough to call out explicitly. Anything else falls back to a
+      // generic "no actionable effect" hint.
+      const codeIds = sessionCodes.map(sc => sc.codeId._id);
+      const allEffects = await CodeEffect.find({ codeId: { $in: codeIds } });
+      const allAmplify = allEffects.length > 0
+        && allEffects.every(e => e.effectType === 'amplify');
+      const message = allAmplify
+        ? 'SIGSEV amplifiers have no effect on their own. Activate at least one PHAX (containment) or FHEELS (proliferation) code, then transmit.'
+        : 'Your activated codes produced no actionable effect (their targets may already be locked). Activate additional codes and try again.';
+      return res.status(400).json({
+        success: false,
+        error: 'NO_ACTIONABLE_EFFECT',
+        message
+      });
+    }
+
     res.json({
       success: true,
       option_a: {
