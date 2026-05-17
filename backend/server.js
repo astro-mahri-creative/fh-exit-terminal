@@ -232,25 +232,27 @@ async function updateUniverseStatus(universeId) {
 }
 
 // Auto-activate CERT (the orientation-issued PHAX containment code) when
-// a transmission would otherwise produce no actionable effect. Examples:
-// only amplifiers (PRWC/RMPI), or only break_* codes whose target status
-// is currently absent. Returns the (possibly augmented) sessionCodes
-// array; if CERT is already in this round, nothing changes.
+// EVERY code in the round is an amplifier-only code (PRWC/RMPI).
+// Amplifiers multiply existing changes but produce nothing on their own,
+// so a transmit consisting only of amplifiers would leave both choice
+// options disabled. CERT gives the user a baseline containment effect
+// for the amplifiers to act on. Other empty cases (e.g. CURE/RVLT with
+// no eligible target) are NOT auto-fixed here — the preview surfaces a
+// targeted error in those cases instead.
+//
+// Returns the (possibly augmented) sessionCodes array. Idempotent: skipped
+// if CERT is already in this round.
 async function ensureActionableCodes(sessionCodes, session, universes, codesQuery) {
-  const hasLiberated = universes.some(u => u.status === 'LIBERATED');
-  const hasPreserved = universes.some(u => u.status === 'PRESERVED');
-
-  let actionable = false;
+  // Only fire when EVERY code's effects are pure amplify. One non-amplify
+  // effect anywhere in the round is enough to leave the user's mix alone.
+  let allAmplifierOnly = sessionCodes.length > 0;
   for (const sc of sessionCodes) {
     const effects = await CodeEffect.find({ codeId: sc.codeId._id });
-    for (const e of effects) {
-      if (e.effectType === 'standard') { actionable = true; break; }
-      if (e.effectType === 'break_liberated' && hasLiberated) { actionable = true; break; }
-      if (e.effectType === 'break_preserved' && hasPreserved) { actionable = true; break; }
-    }
-    if (actionable) break;
+    const isAmplifierOnly = effects.length > 0
+      && effects.every(e => e.effectType === 'amplify');
+    if (!isAmplifierOnly) { allAmplifierOnly = false; break; }
   }
-  if (actionable) return sessionCodes;
+  if (!allAmplifierOnly) return sessionCodes;
 
   // Idempotency: don't re-add CERT if it's already in this round.
   if (sessionCodes.some(sc => sc.codeId.code === 'CERT')) return sessionCodes;
@@ -268,7 +270,7 @@ async function ensureActionableCodes(sessionCodes, session, universes, codesQuer
   session.totalCodesEntered = newSequence;
   await session.save();
   await logEvent('cert_auto_applied', session._id, session.userId, {
-    reason: 'no_actionable_effect_from_user_codes',
+    reason: 'amplifier_only_transmission',
   });
 
   // Re-fetch with the new CERT included
@@ -897,16 +899,15 @@ app.post('/api/codes/preview', async (req, res) => {
     // changes but produce nothing on their own.
     const hasOptionA = netNegative !== 0 || optionAMaskedRows.length > 0;
     const hasOptionB = netPositive !== 0 || optionBMaskedRows.length > 0;
-    // Note: the empty-choice case is normally prevented upstream by
-    // ensureActionableCodes auto-applying CERT. If we still end up
-    // here (CERT missing from DB, or some other anomaly), surface a
-    // clear server error rather than a stuck UI.
+    // If we still have no actionable effect, CERT-fallback didn't apply
+    // (round had non-amplifier codes), but those codes can't act on the
+    // current universe state — for example CURE with no LIBERATED
+    // universe, or RVLT with no PRESERVED universe. Tell the user.
     if (!hasOptionA && !hasOptionB) {
-      console.error('Preview empty even after CERT fallback — check that CERT exists and is active in the codes collection.');
-      return res.status(500).json({
+      return res.status(400).json({
         success: false,
         error: 'NO_ACTIONABLE_EFFECT',
-        message: 'No actionable effect could be computed for this transmission. Contact an admin.'
+        message: 'Your activated codes have no targetable universes right now. Activate additional codes and try again.'
       });
     }
 
