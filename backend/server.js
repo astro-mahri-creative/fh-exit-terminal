@@ -231,6 +231,50 @@ async function updateUniverseStatus(universeId) {
   return universe;
 }
 
+// Auto-activate CERT (the orientation-issued PHAX containment code) when
+// a transmission would otherwise produce no actionable effect. Examples:
+// only amplifiers (PRWC/RMPI), or only break_* codes whose target status
+// is currently absent. Returns the (possibly augmented) sessionCodes
+// array; if CERT is already in this round, nothing changes.
+async function ensureActionableCodes(sessionCodes, session, universes, codesQuery) {
+  const hasLiberated = universes.some(u => u.status === 'LIBERATED');
+  const hasPreserved = universes.some(u => u.status === 'PRESERVED');
+
+  let actionable = false;
+  for (const sc of sessionCodes) {
+    const effects = await CodeEffect.find({ codeId: sc.codeId._id });
+    for (const e of effects) {
+      if (e.effectType === 'standard') { actionable = true; break; }
+      if (e.effectType === 'break_liberated' && hasLiberated) { actionable = true; break; }
+      if (e.effectType === 'break_preserved' && hasPreserved) { actionable = true; break; }
+    }
+    if (actionable) break;
+  }
+  if (actionable) return sessionCodes;
+
+  // Idempotency: don't re-add CERT if it's already in this round.
+  if (sessionCodes.some(sc => sc.codeId.code === 'CERT')) return sessionCodes;
+
+  const cert = await Code.findOne({ code: 'CERT', isActive: true });
+  if (!cert) return sessionCodes; // CERT not in DB — bail gracefully
+
+  const newSequence = (session.totalCodesEntered || 0) + 1;
+  await SessionCode.create({
+    sessionId: session._id,
+    codeId: cert._id,
+    enteredAt: new Date(),
+    sequenceOrder: newSequence,
+  });
+  session.totalCodesEntered = newSequence;
+  await session.save();
+  await logEvent('cert_auto_applied', session._id, session.userId, {
+    reason: 'no_actionable_effect_from_user_codes',
+  });
+
+  // Re-fetch with the new CERT included
+  return await SessionCode.find(codesQuery).populate('codeId');
+}
+
 // Select a random universe with COMPROMISED status and >0 cases
 function selectRandomCompromised(universes) {
   const eligible = universes.filter(u => u.currentCases > 0 && u.status === 'COMPROMISED');
@@ -636,7 +680,7 @@ app.post('/api/codes/preview', async (req, res) => {
     // First-time finalize: finalizedAt is null and we include every entry.
     const codesQuery = { sessionId: session._id };
     if (session.finalizedAt) codesQuery.enteredAt = { $gt: session.finalizedAt };
-    const sessionCodes = await SessionCode.find(codesQuery).populate('codeId');
+    let sessionCodes = await SessionCode.find(codesQuery).populate('codeId');
 
     if (sessionCodes.length === 0) {
       return res.status(400).json({ success: false, error: 'NO_CODES_ENTERED', message: 'Please enter at least one code' });
@@ -644,6 +688,14 @@ app.post('/api/codes/preview', async (req, res) => {
     const universes = await Universe.find();
     let cureStatus = await CureStatus.findOne();
     let isCureActive = cureStatus?.isDiscovered || false;
+
+    // Fallback: every visitor is supposed to have CERT from orientation.
+    // If none of their activated codes can produce an actionable effect on
+    // their own (e.g. only SIGSEV amplifiers like PRWC/RMPI, or break
+    // codes whose target status is currently absent), auto-activate CERT
+    // so the choice screen always has at least one selectable option.
+    // Idempotent: skipped if CERT is already in this round's codes.
+    sessionCodes = await ensureActionableCodes(sessionCodes, session, universes, codesQuery);
 
     const { tierMultipliers, bonusEffects, triggerCure } = await applyMetaGameRules(sessionCodes, universes);
     if (triggerCure && !isCureActive) isCureActive = true;
@@ -845,21 +897,16 @@ app.post('/api/codes/preview', async (req, res) => {
     // changes but produce nothing on their own.
     const hasOptionA = netNegative !== 0 || optionAMaskedRows.length > 0;
     const hasOptionB = netPositive !== 0 || optionBMaskedRows.length > 0;
+    // Note: the empty-choice case is normally prevented upstream by
+    // ensureActionableCodes auto-applying CERT. If we still end up
+    // here (CERT missing from DB, or some other anomaly), surface a
+    // clear server error rather than a stuck UI.
     if (!hasOptionA && !hasOptionB) {
-      // Tailor the message: pure amplifier-only transmissions are common
-      // enough to call out explicitly. Anything else falls back to a
-      // generic "no actionable effect" hint.
-      const codeIds = sessionCodes.map(sc => sc.codeId._id);
-      const allEffects = await CodeEffect.find({ codeId: { $in: codeIds } });
-      const allAmplify = allEffects.length > 0
-        && allEffects.every(e => e.effectType === 'amplify');
-      const message = allAmplify
-        ? 'SIGSEV amplifiers have no effect on their own. Activate at least one PHAX (containment) or FHEELS (proliferation) code, then transmit.'
-        : 'Your activated codes produced no actionable effect (their targets may already be locked). Activate additional codes and try again.';
-      return res.status(400).json({
+      console.error('Preview empty even after CERT fallback — check that CERT exists and is active in the codes collection.');
+      return res.status(500).json({
         success: false,
         error: 'NO_ACTIONABLE_EFFECT',
-        message
+        message: 'No actionable effect could be computed for this transmission. Contact an admin.'
       });
     }
 
@@ -941,7 +988,7 @@ app.post('/api/codes/finalize', async (req, res) => {
     // finalize sees every code; subsequent rounds only see new entries.
     const codesQuery = { sessionId: session._id };
     if (session.finalizedAt) codesQuery.enteredAt = { $gt: session.finalizedAt };
-    const sessionCodes = await SessionCode.find(codesQuery).populate('codeId');
+    let sessionCodes = await SessionCode.find(codesQuery).populate('codeId');
 
     if (sessionCodes.length === 0) {
       return res.status(400).json({
@@ -951,12 +998,19 @@ app.post('/api/codes/finalize', async (req, res) => {
       });
     }
 
+    // Get all universes (needed for both CERT-fallback check and the
+    // main computation below)
+    const universes = await Universe.find();
+
+    // Defense in depth: preview should have already auto-applied CERT
+    // when needed, but if finalize is hit directly (or in resume mode
+    // after no preview), make sure the same fallback runs here too.
+    sessionCodes = await ensureActionableCodes(sessionCodes, session, universes, codesQuery);
+
     // Get cure status
     let cureStatus = await CureStatus.findOne();
     let isCureActive = cureStatus?.isDiscovered || false;
 
-    // Get all universes
-    const universes = await Universe.find();
     const universeChanges = {};
 
     // Initialize tracking
