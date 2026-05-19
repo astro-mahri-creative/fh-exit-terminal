@@ -1308,7 +1308,8 @@ app.post('/api/codes/finalize', async (req, res) => {
     
     await logEvent('session_finalized', session._id, session.userId, {
       totalCodes: session.totalCodesEntered,
-      alignmentScore: totalAlignmentScore
+      alignmentScore: totalAlignmentScore,
+      choice
     });
 
     const totalAvailableCodes = await Code.countDocuments({ isActive: true });
@@ -1727,76 +1728,157 @@ app.get('/api/admin/analytics/detailed', async (req, res) => {
     // Resolve admin user ids so we can exclude them from user/code stats
     const adminIds = (await UserId.find({ isAdmin: true }).select('userId')).map(u => u.userId);
 
-    // Dataset age — days since the oldest non-admin session record
-    const oldestSession = await Session.findOne({ userId: { $nin: adminIds } })
-      .sort({ startedAt: 1 })
-      .select('startedAt');
-    const datasetAgeDays = oldestSession
-      ? Math.floor((Date.now() - new Date(oldestSession.startedAt).getTime()) / 86400000)
+    // ──────────────────────────────────────────────────────────────────────
+    // Source of truth: AnalyticsLog. Earlier versions of this endpoint
+    // joined Sessions → SessionCodes → Codes, which silently zeroed out
+    // whenever those collections were wiped or regenerated (leaving orphan
+    // session_codes behind). AnalyticsLog rows are append-only and survive
+    // resets, so they give us a stable historical picture. The current
+    // Code collection is still used to look up alignment for transmissions
+    // and to enumerate the code catalog in the response.
+    //
+    // Cutoff: anchored to the most recent `system_reset` event (logged by
+    // the in-app "Reset Dimension Statistics" admin action and by the
+    // initDatabase.js seed script). Anything before that moment is dev
+    // noise from a prior incarnation of the dataset and is hidden from
+    // the analytics tab. If no reset has ever been recorded, no cutoff is
+    // applied and every event counts. The same moment also drives the
+    // "Dataset Age" display, so the admin always sees "X days since the
+    // last reset."
+    // ──────────────────────────────────────────────────────────────────────
+    const latestReset = await AnalyticsLog.findOne({ eventType: 'system_reset' })
+      .sort({ timestamp: -1 })
+      .select('timestamp');
+    const resetCutoff = latestReset ? latestReset.timestamp : null;
+
+    const eventFilter = {
+      eventType: { $in: ['session_start', 'code_entered', 'session_finalized'] }
+    };
+    if (resetCutoff) eventFilter.timestamp = { $gte: resetCutoff };
+
+    const events = await AnalyticsLog.find(eventFilter)
+      .select('eventType sessionId userId eventData timestamp')
+      .sort({ timestamp: 1 });
+
+    const parseEventData = (e) => {
+      try { return e.eventData ? JSON.parse(e.eventData) : {}; }
+      catch { return {}; }
+    };
+    const inferChoice = (data) => {
+      if (data.choice === 'a' || data.choice === 'b') return data.choice;
+      if (typeof data.alignmentScore === 'number' && data.alignmentScore !== 0) {
+        return data.alignmentScore < 0 ? 'a' : 'b';
+      }
+      return null;
+    };
+
+    // Split + filter out admins. userId can be null on some legacy event rows;
+    // those get dropped since we can't attribute them.
+    const nonAdminEvents = events.filter(e => e.userId && !adminIds.includes(e.userId));
+    const startEvents = nonAdminEvents.filter(e => e.eventType === 'session_start');
+    const codeEvents = nonAdminEvents.filter(e => e.eventType === 'code_entered');
+    const finalizeEvents = nonAdminEvents.filter(e => e.eventType === 'session_finalized');
+
+    // Dataset age — days since the most recent reset. The reset moment is
+    // the "epoch" of the current analytics period: everything we're showing
+    // happened on or after this point. If no reset has been recorded yet,
+    // fall back to the oldest non-admin session_start event so the field
+    // still shows something meaningful on a fresh deployment.
+    const ageAnchor = resetCutoff
+      ? new Date(resetCutoff)
+      : (startEvents[0] ? new Date(startEvents[0].timestamp) : null);
+    const datasetAgeDays = ageAnchor
+      ? Math.floor((Date.now() - ageAnchor.getTime()) / 86400000)
       : 0;
 
-    // Group sessions by non-admin userId — one row per user with login count + sessionIds
-    const userSessionGroups = await Session.aggregate([
-      { $match: { userId: { $nin: adminIds } } },
-      { $group: {
-          _id: '$userId',
-          loginCount: { $sum: 1 },
-          sessionIds: { $push: '$_id' }
-        }
-      }
-    ]);
-
-    // Pre-load every SessionCode with its session and code populated, then bucket
-    // them per-user / per-code. Doing one batched fetch is cheaper than N queries
-    // when there are lots of users or codes.
-    const allSessionCodes = await SessionCode.find()
-      .populate({ path: 'sessionId', select: 'userId isComplete alignmentScore choice' })
-      .populate({ path: 'codeId', select: 'code alignment' });
-
-    const nonAdminSessionCodes = allSessionCodes.filter(sc =>
-      sc.sessionId && sc.codeId && !adminIds.includes(sc.sessionId.userId)
-    );
-
-    // Per-user stats — codes_used = unique codes ever entered across all sessions
-    const codesByUser = {};
-    for (const sc of nonAdminSessionCodes) {
-      const uid = sc.sessionId.userId;
-      if (!codesByUser[uid]) codesByUser[uid] = new Set();
-      codesByUser[uid].add(sc.codeId._id.toString());
+    // Per-user stats. login_count = number of session_start events. codes_used =
+    // unique code texts from the user's code_entered events.
+    const userStats = {};
+    const ensureUser = (uid) => {
+      if (!userStats[uid]) userStats[uid] = { user_id: uid, login_count: 0, codes: new Set() };
+      return userStats[uid];
+    };
+    for (const e of startEvents) ensureUser(e.userId).login_count += 1;
+    for (const e of codeEvents) {
+      const data = parseEventData(e);
+      if (data.code) ensureUser(e.userId).codes.add(data.code);
     }
-
-    const users = userSessionGroups
-      .filter(u => u.loginCount > 0)
+    const users = Object.values(userStats)
+      .filter(u => u.login_count > 0)
       .map(u => ({
-        user_id: u._id,
-        login_count: u.loginCount,
-        codes_used_count: (codesByUser[u._id]?.size) || 0
+        user_id: u.user_id,
+        login_count: u.login_count,
+        codes_used_count: u.codes.size
       }));
-
     const totalNonAdminUsers = users.length;
 
-    // Choice popularity — each non-admin user contributes once, by their most
-    // recent finalized choice. Sessions without a persisted `choice` fall back
-    // to the alignmentScore-sign heuristic, same as transmissions.
-    const finalizedNonAdminSessions = await Session.find({
-      userId: { $nin: adminIds },
-      isComplete: true
-    })
-      .select('userId choice alignmentScore finalizedAt')
-      .sort({ finalizedAt: -1 });
+    // Map sessionId → final choice for any finalized session (used for
+    // transmissions). Built from finalize events so orphaned/wiped Sessions
+    // don't drop these rows.
+    const sessionChoiceMap = new Map();
+    for (const e of finalizeEvents) {
+      if (!e.sessionId) continue;
+      sessionChoiceMap.set(e.sessionId.toString(), inferChoice(parseEventData(e)));
+    }
 
-    const seenUsersForChoice = new Set();
+    // Per-code stats — aggregated by code TEXT (not ObjectId), since codeIds
+    // get regenerated on reseed. Codes that no longer exist in the catalog
+    // still contribute to activations/users but won't get transmissions
+    // because we can't resolve their alignment.
+    const allCodes = await Code.find().select('code alignment');
+    const alignByCode = Object.fromEntries(allCodes.map(c => [c.code, c.alignment]));
+
+    const codeBucket = {};
+    for (const e of codeEvents) {
+      const data = parseEventData(e);
+      const codeText = data.code;
+      if (!codeText) continue;
+      if (!codeBucket[codeText]) {
+        codeBucket[codeText] = { activations: 0, transmissions: 0, users: new Set() };
+      }
+      const b = codeBucket[codeText];
+      b.activations += 1;
+      b.users.add(e.userId);
+
+      const choice = e.sessionId ? sessionChoiceMap.get(e.sessionId.toString()) : null;
+      const align = alignByCode[codeText];
+      if (choice && align) {
+        const matches =
+          (align === 'PHAX' && choice === 'a') ||
+          (align === 'FHEELS' && choice === 'b') ||
+          align === 'SIGSEV';
+        if (matches) b.transmissions += 1;
+      }
+    }
+
+    // Emit one row per code in the current catalog.
+    const codes = allCodes.map(c => {
+      const b = codeBucket[c.code];
+      const userCount = b ? b.users.size : 0;
+      return {
+        code: c.code,
+        activations: b?.activations || 0,
+        transmissions: b?.transmissions || 0,
+        user_percentage: totalNonAdminUsers > 0 ? (userCount / totalNonAdminUsers) * 100 : 0
+      };
+    });
+
+    // Choice popularity — each non-admin user contributes once, by their
+    // most recent finalized choice. Falls back to alignmentScore sign when
+    // the event didn't carry an explicit choice field (pre-fix events).
+    const mostRecentFinalizeByUser = {};
+    for (const e of finalizeEvents) {
+      const cur = mostRecentFinalizeByUser[e.userId];
+      if (!cur || new Date(e.timestamp) > new Date(cur.timestamp)) {
+        mostRecentFinalizeByUser[e.userId] = e;
+      }
+    }
     let containmentUsers = 0;
     let proliferationUsers = 0;
-    for (const s of finalizedNonAdminSessions) {
-      if (seenUsersForChoice.has(s.userId)) continue;
-      seenUsersForChoice.add(s.userId);
-      let inferredChoice = s.choice;
-      if (!inferredChoice && s.alignmentScore !== 0) {
-        inferredChoice = s.alignmentScore < 0 ? 'a' : 'b';
-      }
-      if (inferredChoice === 'a') containmentUsers += 1;
-      else if (inferredChoice === 'b') proliferationUsers += 1;
+    for (const e of Object.values(mostRecentFinalizeByUser)) {
+      const choice = inferChoice(parseEventData(e));
+      if (choice === 'a') containmentUsers += 1;
+      else if (choice === 'b') proliferationUsers += 1;
     }
     const choiceUserTotal = containmentUsers + proliferationUsers;
     const choiceDistribution = {
@@ -1806,59 +1888,6 @@ app.get('/api/admin/analytics/detailed', async (req, res) => {
       containment_pct: choiceUserTotal > 0 ? (containmentUsers / choiceUserTotal) * 100 : 0,
       proliferation_pct: choiceUserTotal > 0 ? (proliferationUsers / choiceUserTotal) * 100 : 0
     };
-
-    // Per-code stats. activations = total entries (any session). transmissions =
-    // entered in a finalized session whose alignmentScore sign matches the code's
-    // alignment, since the choice itself isn't stored. user_percentage = share of
-    // logged-in non-admin users who entered this code at least once.
-    const codesByCodeId = {};
-    for (const sc of nonAdminSessionCodes) {
-      const cid = sc.codeId._id.toString();
-      if (!codesByCodeId[cid]) {
-        codesByCodeId[cid] = {
-          code: sc.codeId.code,
-          alignment: sc.codeId.alignment,
-          activations: 0,
-          transmissions: 0,
-          users: new Set()
-        };
-      }
-      const bucket = codesByCodeId[cid];
-      bucket.activations += 1;
-      bucket.users.add(sc.sessionId.userId);
-
-      const sess = sc.sessionId;
-      if (sess.isComplete) {
-        // Prefer persisted choice; fall back to alignmentScore sign for
-        // legacy sessions finalized before the choice field was added.
-        let choice = sess.choice;
-        if (!choice && sess.alignmentScore !== 0) {
-          choice = sess.alignmentScore < 0 ? 'a' : 'b';
-        }
-        if (choice) {
-          const align = sc.codeId.alignment;
-          const matches =
-            (align === 'PHAX' && choice === 'a') ||
-            (align === 'FHEELS' && choice === 'b') ||
-            align === 'SIGSEV';
-          if (matches) bucket.transmissions += 1;
-        }
-      }
-    }
-
-    // Include codes that are defined but never entered, so the table reflects the
-    // full code catalog rather than only-used codes.
-    const allCodes = await Code.find().select('code alignment');
-    const codes = allCodes.map(c => {
-      const bucket = codesByCodeId[c._id.toString()];
-      const userCount = bucket ? bucket.users.size : 0;
-      return {
-        code: c.code,
-        activations: bucket?.activations || 0,
-        transmissions: bucket?.transmissions || 0,
-        user_percentage: totalNonAdminUsers > 0 ? (userCount / totalNonAdminUsers) * 100 : 0
-      };
-    });
 
     res.json({
       success: true,
