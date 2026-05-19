@@ -1613,10 +1613,29 @@ app.get('/api/admin/analytics/detailed', async (req, res) => {
     // resets, so they give us a stable historical picture. The current
     // Code collection is still used to look up alignment for transmissions
     // and to enumerate the code catalog in the response.
+    //
+    // Cutoff: anchored to the most recent `system_reset` event (logged by
+    // the in-app "Reset Dimension Statistics" admin action and by the
+    // initDatabase.js seed script). Anything before that moment is dev
+    // noise from a prior incarnation of the dataset and is hidden from
+    // the analytics tab. If no reset has ever been recorded, no cutoff is
+    // applied and every event counts. The same moment also drives the
+    // "Dataset Age" display, so the admin always sees "X days since the
+    // last reset."
     // ──────────────────────────────────────────────────────────────────────
-    const events = await AnalyticsLog.find({
+    const latestReset = await AnalyticsLog.findOne({ eventType: 'system_reset' })
+      .sort({ timestamp: -1 })
+      .select('timestamp');
+    const resetCutoff = latestReset ? latestReset.timestamp : null;
+
+    const eventFilter = {
       eventType: { $in: ['session_start', 'code_entered', 'session_finalized'] }
-    }).select('eventType sessionId userId eventData timestamp').sort({ timestamp: 1 });
+    };
+    if (resetCutoff) eventFilter.timestamp = { $gte: resetCutoff };
+
+    const events = await AnalyticsLog.find(eventFilter)
+      .select('eventType sessionId userId eventData timestamp')
+      .sort({ timestamp: 1 });
 
     const parseEventData = (e) => {
       try { return e.eventData ? JSON.parse(e.eventData) : {}; }
@@ -1637,10 +1656,16 @@ app.get('/api/admin/analytics/detailed', async (req, res) => {
     const codeEvents = nonAdminEvents.filter(e => e.eventType === 'code_entered');
     const finalizeEvents = nonAdminEvents.filter(e => e.eventType === 'session_finalized');
 
-    // Dataset age — days since the oldest non-admin session_start event.
-    const oldestStart = startEvents[0];
-    const datasetAgeDays = oldestStart
-      ? Math.floor((Date.now() - new Date(oldestStart.timestamp).getTime()) / 86400000)
+    // Dataset age — days since the most recent reset. The reset moment is
+    // the "epoch" of the current analytics period: everything we're showing
+    // happened on or after this point. If no reset has been recorded yet,
+    // fall back to the oldest non-admin session_start event so the field
+    // still shows something meaningful on a fresh deployment.
+    const ageAnchor = resetCutoff
+      ? new Date(resetCutoff)
+      : (startEvents[0] ? new Date(startEvents[0].timestamp) : null);
+    const datasetAgeDays = ageAnchor
+      ? Math.floor((Date.now() - ageAnchor.getTime()) / 86400000)
       : 0;
 
     // Per-user stats. login_count = number of session_start events. codes_used =
