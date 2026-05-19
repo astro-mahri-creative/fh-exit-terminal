@@ -10,8 +10,40 @@ const {
   Phase,
   MetaGameRule,
   PhaxAlertMessage,
-  CureStatus
+  CureStatus,
+  Session,
+  SessionCode,
+  AnalyticsLog
 } = require('../models');
+
+// ─── Safety guard ─────────────────────────────────────────────────────
+// This script wipes foundational collections (Universe, Code, UserId, …)
+// and is destructive. backend/.env points at the production Atlas cluster
+// in this repo, so an accidental `npm run init-db` will nuke prod codes
+// and orphan every SessionCode that references them. Require an explicit
+// opt-in flag so the destructive run can never happen by reflex.
+//
+// To run intentionally:
+//   INIT_DB_FORCE=1 npm run init-db     (any shell)
+//   npm run init-db -- --force          (works through npm script forwarder)
+// ──────────────────────────────────────────────────────────────────────
+const forceFromArg = process.argv.slice(2).includes('--force');
+const forceFromEnv = process.env.INIT_DB_FORCE === '1' || process.env.INIT_DB_FORCE === 'true';
+if (!forceFromArg && !forceFromEnv) {
+  // Show what we'd be aiming at so a careful operator can sanity-check.
+  let host = 'unknown';
+  try {
+    const m = (process.env.MONGODB_URI || '').match(/@([^/?]+)/);
+    if (m) host = m[1];
+  } catch (_) { /* noop */ }
+  console.error('\n╳ initDatabase.js refused to run without an explicit force flag.');
+  console.error('  Target MongoDB host: ' + host);
+  console.error('  This will delete: Universe, UniverseStatusThreshold, Code, CodeEffect, UserId,');
+  console.error('                    Phase, MetaGameRule, PhaxAlertMessage, CureStatus, Session, SessionCode.');
+  console.error('  AnalyticsLog is preserved (it is the source of truth for the admin analytics tab).');
+  console.error('  Re-run with:  INIT_DB_FORCE=1 npm run init-db   OR   npm run init-db -- --force\n');
+  process.exit(1);
+}
 
 async function initDatabase() {
   try {
@@ -22,7 +54,11 @@ async function initDatabase() {
     });
     console.log('Connected to MongoDB');
 
-    // Clear existing data
+    // Clear existing data. AnalyticsLog is intentionally NOT wiped — the
+    // admin analytics endpoint sources from it and we want the historical
+    // signal to survive reseeds. Session + SessionCode ARE wiped so that
+    // regenerating Codes (new ObjectIds) doesn't leave a trail of orphan
+    // session_code rows pointing at deleted code documents.
     console.log('Clearing existing data...');
     await Universe.deleteMany({});
     await UniverseStatusThreshold.deleteMany({});
@@ -33,6 +69,8 @@ async function initDatabase() {
     await MetaGameRule.deleteMany({});
     await PhaxAlertMessage.deleteMany({});
     await CureStatus.deleteMany({});
+    await Session.deleteMany({});
+    await SessionCode.deleteMany({});
 
     // Initialize Universe Status Thresholds
     console.log('Creating universe status thresholds...');
@@ -429,6 +467,18 @@ async function initDatabase() {
     console.log('Creating cure status...');
     await CureStatus.create({
       isDiscovered: false
+    });
+
+    // Mark the seed completion as a system_reset in AnalyticsLog. The
+    // analytics endpoint uses the latest system_reset event as the cutoff
+    // for the active analytics period, so logging one here ensures the
+    // admin tab reflects "this incarnation of the dataset" only, instead
+    // of carrying over stats from before the reseed.
+    console.log('Recording analytics reset point...');
+    await AnalyticsLog.create({
+      eventType: 'system_reset',
+      userId: null,
+      eventData: JSON.stringify({ source: 'init-db-script' })
     });
 
     console.log('\n✅ Database initialization complete!');
