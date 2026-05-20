@@ -96,10 +96,12 @@ export const adminService = {
     return response.data;
   },
 
-  getDetailedAnalytics: async (sessionToken) => {
-    const response = await api.get('/admin/analytics/detailed', {
-      params: { session_token: sessionToken }
-    });
+  getDetailedAnalytics: async (sessionToken, startDate) => {
+    // startDate is an optional YYYY-MM-DD string. When provided, the
+    // backend filters events to >= that date (clamped to the reset moment).
+    const params = { session_token: sessionToken };
+    if (startDate) params.start_date = startDate;
+    const response = await api.get('/admin/analytics/detailed', { params });
     return response.data;
   },
 

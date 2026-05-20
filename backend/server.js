@@ -1741,20 +1741,33 @@ app.get('/api/admin/analytics/detailed', async (req, res) => {
     // the in-app "Reset Dimension Statistics" admin action and by the
     // initDatabase.js seed script). Anything before that moment is dev
     // noise from a prior incarnation of the dataset and is hidden from
-    // the analytics tab. If no reset has ever been recorded, no cutoff is
-    // applied and every event counts. The same moment also drives the
-    // "Dataset Age" display, so the admin always sees "X days since the
-    // last reset."
+    // the analytics tab. The admin can narrow the view further by passing
+    // ?start_date=YYYY-MM-DD — clamped to the reset moment, so they can
+    // never accidentally include pre-reset events.
     // ──────────────────────────────────────────────────────────────────────
     const latestReset = await AnalyticsLog.findOne({ eventType: 'system_reset' })
       .sort({ timestamp: -1 })
       .select('timestamp');
     const resetCutoff = latestReset ? latestReset.timestamp : null;
 
+    // Optional caller-supplied start date (YYYY-MM-DD, interpreted as UTC
+    // midnight). Falls back to the reset moment when absent or invalid;
+    // also clamped up to the reset moment so users can't go behind it.
+    const requestedStartRaw = req.query.start_date;
+    let requestedStart = null;
+    if (requestedStartRaw && /^\d{4}-\d{2}-\d{2}$/.test(requestedStartRaw)) {
+      const parsed = new Date(requestedStartRaw + 'T00:00:00.000Z');
+      if (!isNaN(parsed.getTime())) requestedStart = parsed;
+    }
+    let effectiveCutoff = resetCutoff ? new Date(resetCutoff) : null;
+    if (requestedStart && (!effectiveCutoff || requestedStart > effectiveCutoff)) {
+      effectiveCutoff = requestedStart;
+    }
+
     const eventFilter = {
       eventType: { $in: ['session_start', 'code_entered', 'session_finalized'] }
     };
-    if (resetCutoff) eventFilter.timestamp = { $gte: resetCutoff };
+    if (effectiveCutoff) eventFilter.timestamp = { $gte: effectiveCutoff };
 
     const events = await AnalyticsLog.find(eventFilter)
       .select('eventType sessionId userId eventData timestamp')
@@ -1779,13 +1792,13 @@ app.get('/api/admin/analytics/detailed', async (req, res) => {
     const codeEvents = nonAdminEvents.filter(e => e.eventType === 'code_entered');
     const finalizeEvents = nonAdminEvents.filter(e => e.eventType === 'session_finalized');
 
-    // Dataset age — days since the most recent reset. The reset moment is
-    // the "epoch" of the current analytics period: everything we're showing
-    // happened on or after this point. If no reset has been recorded yet,
-    // fall back to the oldest non-admin session_start event so the field
-    // still shows something meaningful on a fresh deployment.
-    const ageAnchor = resetCutoff
-      ? new Date(resetCutoff)
+    // Dataset age — days since the effective cutoff (which is the reset
+    // moment by default, or the caller-supplied start_date when narrower).
+    // If no reset has been recorded yet, fall back to the oldest non-admin
+    // session_start event so the field still shows something meaningful on
+    // a fresh deployment.
+    const ageAnchor = effectiveCutoff
+      ? new Date(effectiveCutoff)
       : (startEvents[0] ? new Date(startEvents[0].timestamp) : null);
     const datasetAgeDays = ageAnchor
       ? Math.floor((Date.now() - ageAnchor.getTime()) / 86400000)
@@ -1892,6 +1905,13 @@ app.get('/api/admin/analytics/detailed', async (req, res) => {
     res.json({
       success: true,
       analytics: {
+        // `reset_date` is the lower bound for the date picker — the admin
+        // can never go earlier than the most recent reset.
+        // `effective_start_date` is what we actually filtered on for this
+        // response (either the requested start_date or the reset moment).
+        // Both are ISO strings; null if no reset has happened yet.
+        reset_date: resetCutoff ? new Date(resetCutoff).toISOString() : null,
+        effective_start_date: effectiveCutoff ? effectiveCutoff.toISOString() : null,
         dataset_age_days: datasetAgeDays,
         total_non_admin_users: totalNonAdminUsers,
         choice_distribution: choiceDistribution,
