@@ -564,17 +564,17 @@
   gap: 18px;
 }
 
-.dataset-age {
+.dataset-since {
   display: flex;
-  align-items: baseline;
+  align-items: center;
   gap: 10px;
-  padding: 6px 12px;
+  padding: 4px 12px;
   background: var(--bg-raised);
   border: 1px solid var(--phax-light);
   border-radius: var(--radius-md);
 }
 
-.dataset-age-label {
+.dataset-since-label {
   font-family: var(--font-mono);
   font-size: 0.65rem;
   font-weight: 700;
@@ -582,12 +582,23 @@
   color: var(--text-secondary);
 }
 
-.dataset-age-value {
+.dataset-since-input {
   font-family: var(--font-mono);
-  font-size: 1rem;
+  font-size: 0.85rem;
   font-weight: 700;
-  letter-spacing: 0.12em;
+  letter-spacing: 0.08em;
   color: var(--phax-light);
+  background: var(--bg-base);
+  border: 1px solid var(--border-faint);
+  border-radius: var(--radius-sm);
+  padding: 4px 8px;
+  /* Surface the native date-picker affordance in the project's color scheme */
+  color-scheme: dark;
+}
+
+.dataset-since-input:focus {
+  outline: none;
+  border-color: var(--phax-light);
 }
 
 .analytics-section {

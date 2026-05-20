@@ -15,6 +15,10 @@ function AdminPanel({ sessionData }) {
   const [effectScale, setEffectScale] = useState(1);
   const [analytics, setAnalytics] = useState(null);
   const [userSort, setUserSort] = useState('logins'); // 'logins' | 'codes'
+  // YYYY-MM-DD string the admin picked for the analytics start date.
+  // Empty until the first response comes back; we then default it to the
+  // reset date so the picker shows the full post-reset period.
+  const [analyticsStartDate, setAnalyticsStartDate] = useState('');
 
   const loadUsers = useCallback(async () => {
     setLoading(true);
@@ -52,10 +56,10 @@ function AdminPanel({ sessionData }) {
     }
   }, []);
 
-  const loadAnalytics = useCallback(async () => {
+  const loadAnalytics = useCallback(async (startDate) => {
     setLoading(true);
     try {
-      const response = await adminService.getDetailedAnalytics(sessionData.session_token);
+      const response = await adminService.getDetailedAnalytics(sessionData.session_token, startDate);
       if (response.success) setAnalytics(response.analytics);
     } catch (err) {
       console.error('Error loading analytics:', err);
@@ -63,6 +67,19 @@ function AdminPanel({ sessionData }) {
       setLoading(false);
     }
   }, [sessionData.session_token]);
+
+  // After the first analytics response arrives, default the date picker
+  // to the reset date so the admin sees the full post-reset window.
+  useEffect(() => {
+    if (analytics && analytics.reset_date && !analyticsStartDate) {
+      setAnalyticsStartDate(analytics.reset_date.slice(0, 10));
+    }
+  }, [analytics, analyticsStartDate]);
+
+  const handleAnalyticsStartDateChange = (newDate) => {
+    setAnalyticsStartDate(newDate);
+    loadAnalytics(newDate);
+  };
 
   useEffect(() => {
     adminService.getAnalytics(sessionData.session_token).then(res => {
@@ -81,6 +98,8 @@ function AdminPanel({ sessionData }) {
     } else if (activeTab === 'universes') {
       loadUniverses();
     } else if (activeTab === 'analytics' && !analytics) {
+      // Initial fetch — no start_date so we get the full post-reset window;
+      // the response's reset_date then populates the picker.
       loadAnalytics();
     }
   }, [activeTab, users.length, codes.length, analytics, loadUsers, loadCodes, loadUniverses, loadAnalytics]);
@@ -431,13 +450,22 @@ function AdminPanel({ sessionData }) {
             ) : (
               <>
                 <div className="admin-list-header">
-                  <div className="dataset-age">
-                    <span className="dataset-age-label">DATASET AGE</span>
-                    <span className="dataset-age-value">
-                      {analytics.dataset_age_days} {analytics.dataset_age_days === 1 ? 'DAY' : 'DAYS'}
-                    </span>
+                  <div className="dataset-since">
+                    <label htmlFor="analytics-start-date" className="dataset-since-label">DATA SINCE</label>
+                    <input
+                      id="analytics-start-date"
+                      type="date"
+                      className="dataset-since-input"
+                      min={analytics.reset_date ? analytics.reset_date.slice(0, 10) : undefined}
+                      max={new Date().toISOString().slice(0, 10)}
+                      value={analyticsStartDate}
+                      onChange={(e) => handleAnalyticsStartDateChange(e.target.value)}
+                    />
                   </div>
-                  <button onClick={loadAnalytics} className="admin-refresh">REFRESH</button>
+                  <button
+                    onClick={() => loadAnalytics(analyticsStartDate)}
+                    className="admin-refresh"
+                  >REFRESH</button>
                 </div>
 
                 {analytics.choice_distribution && (
@@ -483,6 +511,40 @@ function AdminPanel({ sessionData }) {
 
                 <div className="analytics-section">
                   <div className="analytics-section-header">
+                    <h4 className="analytics-section-title">TOP 10 CODES</h4>
+                  </div>
+                  <div className="admin-table-wrap">
+                    <table className="admin-table">
+                      <thead>
+                        <tr>
+                          <th>CODE</th>
+                          <th>ACTIVATIONS</th>
+                          <th>TRANSMISSIONS</th>
+                          <th>% OF USERS</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {[...analytics.codes]
+                          .sort((a, b) => b.activations - a.activations)
+                          .slice(0, 10)
+                          .map(c => (
+                            <tr key={c.code}>
+                              <td className="user-id-cell">{c.code}</td>
+                              <td className="count-cell">{c.activations}</td>
+                              <td className="count-cell">{c.transmissions}</td>
+                              <td className="count-cell">{c.user_percentage.toFixed(1)}%</td>
+                            </tr>
+                          ))}
+                        {analytics.codes.length === 0 && (
+                          <tr><td colSpan="4" className="no-effects-msg">No codes recorded</td></tr>
+                        )}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+
+                <div className="analytics-section">
+                  <div className="analytics-section-header">
                     <h4 className="analytics-section-title">TOP 10 USERS</h4>
                     <div className="user-filter-buttons">
                       <button
@@ -519,40 +581,6 @@ function AdminPanel({ sessionData }) {
                           ))}
                         {analytics.users.length === 0 && (
                           <tr><td colSpan="3" className="no-effects-msg">No users with logins yet</td></tr>
-                        )}
-                      </tbody>
-                    </table>
-                  </div>
-                </div>
-
-                <div className="analytics-section">
-                  <div className="analytics-section-header">
-                    <h4 className="analytics-section-title">TOP 10 CODES</h4>
-                  </div>
-                  <div className="admin-table-wrap">
-                    <table className="admin-table">
-                      <thead>
-                        <tr>
-                          <th>CODE</th>
-                          <th>ACTIVATIONS</th>
-                          <th>TRANSMISSIONS</th>
-                          <th>% OF USERS</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {[...analytics.codes]
-                          .sort((a, b) => b.activations - a.activations)
-                          .slice(0, 10)
-                          .map(c => (
-                            <tr key={c.code}>
-                              <td className="user-id-cell">{c.code}</td>
-                              <td className="count-cell">{c.activations}</td>
-                              <td className="count-cell">{c.transmissions}</td>
-                              <td className="count-cell">{c.user_percentage.toFixed(1)}%</td>
-                            </tr>
-                          ))}
-                        {analytics.codes.length === 0 && (
-                          <tr><td colSpan="4" className="no-effects-msg">No codes recorded</td></tr>
                         )}
                       </tbody>
                     </table>
