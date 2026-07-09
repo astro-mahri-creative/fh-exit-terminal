@@ -484,6 +484,58 @@
   box-shadow: 0 0 10px rgba(212, 137, 10, 0.2);
 }
 
+/* ── PHAX Easter-Egg Warning ── */
+.phax-warning-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.9);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1100;
+  animation: fadeIn 0.2s ease;
+}
+
+.phax-warning-dialog {
+  background: var(--bg-surface);
+  border: 1px solid var(--color-warning);
+  border-radius: var(--radius-lg);
+  padding: 32px 36px;
+  max-width: 460px;
+  width: 90%;
+  text-align: center;
+  box-shadow: 0 0 30px rgba(212, 137, 10, 0.15);
+  position: relative;
+  animation: pulse 0.5s ease-in-out;
+}
+
+.phax-warning-text {
+  font-family: var(--font-mono);
+  font-size: 1.6rem;
+  font-weight: 700;
+  color: var(--color-warning);
+  letter-spacing: 0.06em;
+  margin-bottom: 24px;
+  line-height: 1.4;
+  text-shadow: 0 0 6px rgba(212, 137, 10, 0.3);
+}
+
+.phax-warning-dismiss {
+  margin-top: 8px;
+  padding: 14px 28px;
+  border-radius: var(--radius-md);
+  font-family: var(--font-mono);
+  font-size: 0.95rem;
+  font-weight: 700;
+  letter-spacing: 0.14em;
+  cursor: pointer;
+  min-height: 44px;
+  background: var(--color-warning);
+  border: none;
+  color: var(--bg-base);
+  box-shadow: 0 0 10px rgba(212, 137, 10, 0.2);
+}
+
 /* ── Responsive ── */
 @media (max-width: 1024px) {
   .main-content {

@@ -4,6 +4,19 @@ import AdminPanel from './AdminPanel';
 import TerminalKeyboard from './TerminalKeyboard';
 import './CodeEntryScreen.css';
 
+const PHAX_MESSAGES = [
+  'Plz don\'t make it weird.',
+  'Not today (and probably not tomorrow).',
+  'PHAX says hi 👋',
+  'Access DENIED. jkjk',
+  'You wish it was that easy 😏',
+  'Ha! Good one.',
+  'Don\'t worry, you\'re not the only one who tried it.',
+  'That\'s classified 🤫',
+  'Absolutely not lol',
+  'Caught you 👀',
+];
+
 function CodeEntryScreen({ sessionData, onPreview, onLogout }) {
   const [currentCode, setCurrentCode] = useState('');
   const [activatedCodes, setActivatedCodes] = useState([]);
@@ -12,6 +25,7 @@ function CodeEntryScreen({ sessionData, onPreview, onLogout }) {
   const [showActivation, setShowActivation] = useState(false);
   const [adminPanelOpen, setAdminPanelOpen] = useState(false);
   const [showTransmitConfirm, setShowTransmitConfirm] = useState(false);
+  const [phaxMessage, setPhaxMessage] = useState('');
 
   const isAdmin = sessionData.is_admin;
 
@@ -39,6 +53,14 @@ function CodeEntryScreen({ sessionData, onPreview, onLogout }) {
   const handleActivateCode = useCallback(async () => {
     if (currentCode.length !== 4) {
       setError('Code must be exactly 4 characters');
+      return;
+    }
+
+    // Easter egg: PHAX triggers a random jokey warning instead of validation
+    if (currentCode.toUpperCase() === 'PHAX') {
+      setPhaxMessage(PHAX_MESSAGES[Math.floor(Math.random() * PHAX_MESSAGES.length)]);
+      setCurrentCode('');
+      setError('');
       return;
     }
 
@@ -228,6 +250,20 @@ function CodeEntryScreen({ sessionData, onPreview, onLogout }) {
                 TRANSMIT NOW
               </button>
             </div>
+          </div>
+        </div>
+      )}
+
+      {phaxMessage && (
+        <div className="phax-warning-overlay" onClick={() => setPhaxMessage('')}>
+          <div className="phax-warning-dialog" onClick={(e) => e.stopPropagation()}>
+            <p className="phax-warning-text">{phaxMessage}</p>
+            <button
+              className="phax-warning-dismiss"
+              onClick={() => setPhaxMessage('')}
+            >
+              DISMISS
+            </button>
           </div>
         </div>
       )}
