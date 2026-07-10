@@ -7,6 +7,12 @@ import ResultsScreen from './components/ResultsScreen';
 import NetworkScreen from './components/NetworkScreen';
 import TVWallScreen from './components/TVWallScreen';
 
+// The kiosk TV Wall lives on its own route (/tvwall) entirely outside the
+// centered/padded .App shell, with no code entry. There's no router; we read the
+// path once. Netlify's /* → /index.html fallback (netlify.toml) serves it.
+const isTvWallPath = () =>
+  window.location.pathname.toLowerCase().replace(/\/+$/, '') === '/tvwall';
+
 function App() {
   const [screen, setScreen] = useState('welcome'); // 'welcome', 'codeEntry', 'choice', 'results', 'network', 'tvwall'
   const [sessionData, setSessionData] = useState(null);
@@ -15,11 +21,6 @@ function App() {
 
   const handleSessionStart = (data) => {
     setSessionData(data);
-    // Kiosk login: this user only ever sees the TV Wall view.
-    if (data?.user_id === 'tvwall') {
-      setScreen('tvwall');
-      return;
-    }
     setScreen('codeEntry');
   };
 
@@ -39,6 +40,11 @@ function App() {
     setChoiceData(null);
     setResultsData(null);
   };
+
+  // Standalone kiosk route — renders full-viewport, outside the .App shell.
+  if (isTvWallPath()) {
+    return <TVWallScreen />;
+  }
 
   return (
     <div className="App">
@@ -69,7 +75,6 @@ function App() {
       {screen === 'network' && (
         <NetworkScreen onBack={() => setScreen('welcome')} />
       )}
-      {screen === 'tvwall' && <TVWallScreen />}
     </div>
   );
 }
