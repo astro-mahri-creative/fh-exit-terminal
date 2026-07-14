@@ -1,0 +1,43 @@
+.email-field-row {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+  margin-bottom: 12px;
+}
+
+/* Matches the look of the old read-only .email-display box it replaces. */
+.email-input {
+  flex: 1 1 320px;
+  min-width: 0;
+  max-width: 460px;
+  min-height: 48px;
+  padding: 10px 16px;
+  background: var(--bg-raised);
+  border: 1px solid var(--border-mid);
+  border-radius: var(--radius-md);
+  font-family: var(--font-mono);
+  /* Never below 16px: mobile Safari zooms the viewport on focus otherwise. */
+  font-size: 1.1rem;
+  color: var(--phax-light);
+  letter-spacing: 0.05em;
+  text-align: center;
+  outline: none;
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+}
+
+.email-input:focus {
+  border-color: var(--phax-blue);
+  box-shadow: 0 0 10px rgba(68, 119, 238, 0.2);
+}
+
+.email-input::placeholder {
+  color: var(--text-dim);
+  font-style: italic;
+  letter-spacing: 0.08em;
+}
+
+.email-input:disabled {
+  opacity: 0.5;
+}

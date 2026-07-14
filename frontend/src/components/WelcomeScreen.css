@@ -22,11 +22,15 @@
   z-index: 999;
 }
 
+/* Vertical rhythm across this screen is deliberately tight and viewport-
+   relative: the terminal display is a fixed-aspect kiosk, and the new
+   [CREATE NEW USER ID] block has to earn its space without pushing LOGIN
+   below the fold. The clamp() lower bounds are what keep it on-screen. */
 .welcome-container {
   background: var(--bg-surface);
   border: 1px dashed rgba(68, 119, 238, 0.15);
   border-radius: var(--radius-lg);
-  padding: 64px 48px 56px;
+  padding: clamp(28px, 4vh, 56px) clamp(24px, 4vw, 48px) clamp(24px, 3.5vh, 48px);
   position: relative;
   animation: terminalBorderFlicker 14s ease-in-out infinite;
 }
@@ -63,27 +67,54 @@
 
 /* ── Logo / Title ── */
 .logo-container {
-  margin-bottom: 48px;
+  margin-bottom: clamp(16px, 3vh, 36px);
 }
 
+/* FUTURE HOOMAN — the parent brand, deliberately quiet. Its identity comes from
+   extreme letter-spacing and a pair of hairline rules rather than from size, so
+   it reads as a maker's mark and never competes with the terminal name. */
 .project-title {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
   font-family: var(--font-mono);
-  font-size: 2.6rem;
+  font-size: 0.66rem;
   font-weight: 700;
-  letter-spacing: 0.28em;
-  color: var(--text-primary);
-  margin-bottom: 8px;
-  animation: terminalGlitch 10s ease-in-out infinite;
+  /* The trailing letter-space would otherwise push the text off-center. */
+  letter-spacing: 0.42em;
+  text-indent: 0.42em;
+  text-transform: uppercase;
+  color: var(--phax-silver);
+  opacity: 0.72;
+  margin-bottom: 14px;
+  white-space: nowrap;
 }
 
+.project-title::before,
+.project-title::after {
+  content: '';
+  flex: 0 1 34px;
+  height: 1px;
+  background: linear-gradient(90deg, transparent, rgba(68, 119, 238, 0.55));
+}
+
+.project-title::after {
+  background: linear-gradient(90deg, rgba(68, 119, 238, 0.55), transparent);
+}
+
+/* EXIT TERMINAL — the headline. Inherits the size, weight and the glitch that
+   FUTURE HOOMAN used to carry. */
 .terminal-title {
   font-family: var(--font-mono);
-  font-size: 0.9rem;
-  color: var(--text-secondary);
-  letter-spacing: 0.25em;
+  font-size: clamp(1.9rem, 5.4vw, 3rem);
+  font-weight: 700;
+  letter-spacing: 0.2em;
+  text-indent: 0.2em;
   text-transform: uppercase;
-  font-weight: 400;
-  text-shadow: 0 0 4px rgba(68, 119, 238, 0.2);
+  color: var(--text-primary);
+  text-shadow: 0 0 14px rgba(68, 119, 238, 0.28);
+  animation: terminalGlitch 10s ease-in-out infinite;
 }
 
 /* ── Instructions ── */
@@ -92,8 +123,8 @@
   font-size: 0.95rem;
   font-weight: 600;
   color: var(--text-secondary);
-  margin-bottom: 40px;
-  line-height: 1.9;
+  margin-bottom: clamp(16px, 2.5vh, 28px);
+  line-height: 1.7;
 }
 
 .terminal-name {
@@ -129,13 +160,73 @@
   }
 }
 
+/* ── Create New User ID (primary call to action) ── */
+.new-user-cta {
+  margin-bottom: clamp(14px, 2vh, 22px);
+}
+
+.create-id-button {
+  width: 100%;
+  background: var(--fheels-green);
+  color: #ffffff;
+  font-size: clamp(1.1rem, 2.2vw, 1.5rem);
+  padding: clamp(16px, 2.4vh, 24px) 24px;
+  border-radius: var(--radius-md);
+  letter-spacing: 0.18em;
+  box-shadow: 0 0 16px rgba(74, 158, 92, 0.25);
+  animation: createIdPulse 3s ease-in-out infinite;
+  transition: box-shadow 0.2s;
+}
+
+.create-id-button:hover:not(:disabled) {
+  box-shadow: 0 0 26px rgba(74, 158, 92, 0.5);
+  animation: none;
+}
+
+@keyframes createIdPulse {
+  0%, 100% { box-shadow: 0 0 14px rgba(74, 158, 92, 0.2); }
+  50%      { box-shadow: 0 0 24px rgba(74, 158, 92, 0.42); }
+}
+
+.new-user-hint {
+  margin-top: 8px;
+  font-family: var(--font-sans);
+  font-size: 0.75rem;
+  color: var(--text-dim);
+  letter-spacing: 0.06em;
+}
+
+/* ── "or" divider ── */
+.welcome-divider {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: clamp(14px, 2vh, 22px);
+}
+
+.welcome-divider::before,
+.welcome-divider::after {
+  content: '';
+  flex: 1;
+  height: 1px;
+  background: rgba(68, 119, 238, 0.15);
+}
+
+.welcome-divider span {
+  font-family: var(--font-mono);
+  font-size: 0.62rem;
+  letter-spacing: 0.2em;
+  color: var(--text-dim);
+  white-space: nowrap;
+}
+
 /* ── User ID Form ── */
 .user-id-form {
-  margin-bottom: 40px;
+  margin-bottom: clamp(16px, 2.5vh, 28px);
 }
 
 .input-group {
-  margin-bottom: 20px;
+  margin-bottom: clamp(12px, 1.8vh, 20px);
 }
 
 .input-group label {
@@ -153,11 +244,8 @@
   justify-content: center;
 }
 
-.user-id-chars {
-  display: flex;
-  gap: 8px;
-}
-
+/* The cells are laid out by .segmented-cells now; .user-id-char still styles
+   each individual cell exactly as before. */
 .user-id-char {
   display: inline-block;
   width: 48px;
@@ -183,11 +271,11 @@
 .begin-button {
   background: var(--phax-blue);
   color: #ffffff;
-  font-size: 1.55rem;
-  padding: 22px 80px;
+  font-size: clamp(1.1rem, 2.2vw, 1.55rem);
+  padding: clamp(14px, 2vh, 22px) clamp(48px, 8vw, 80px);
   border-radius: var(--radius-md);
   letter-spacing: 0.22em;
-  margin-top: 20px;
+  margin-top: clamp(12px, 1.8vh, 20px);
   box-shadow: 0 0 16px rgba(68, 119, 238, 0.25);
   transition: box-shadow 0.2s, background 0.2s;
 }
@@ -198,8 +286,8 @@
 
 /* ── Branding footer ── */
 .phax-branding {
-  margin-top: 52px;
-  padding-top: 28px;
+  margin-top: clamp(20px, 3vh, 40px);
+  padding-top: clamp(14px, 2vh, 24px);
   border-top: 1px dashed rgba(68, 119, 238, 0.12);
 }
 
@@ -251,12 +339,176 @@
   animation: none;
 }
 
-/* ── Responsive ── */
-@media (max-width: 1024px) {
-  .project-title {
-    font-size: 2.2rem;
-  }
+/* ── New User ID modal (double confirmation) ── */
+.new-id-overlay,
+.lockout-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.92);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1100;
+  padding: 20px;
+  animation: overlayFadeIn 0.2s ease;
+}
 
+@keyframes overlayFadeIn {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+
+.new-id-dialog {
+  background: var(--bg-surface);
+  border: 1px solid var(--phax-blue);
+  border-radius: var(--radius-lg);
+  padding: clamp(24px, 4vh, 40px) clamp(20px, 4vw, 44px);
+  max-width: 520px;
+  width: 100%;
+  text-align: center;
+  box-shadow: 0 0 40px rgba(68, 119, 238, 0.2);
+}
+
+.new-id-title {
+  font-family: var(--font-mono);
+  font-size: 0.85rem;
+  font-weight: 700;
+  color: var(--phax-light);
+  letter-spacing: 0.2em;
+  margin-bottom: 14px;
+}
+
+.new-id-text {
+  font-family: var(--font-sans);
+  font-size: 0.95rem;
+  color: var(--text-secondary);
+  margin-bottom: 20px;
+  line-height: 1.5;
+}
+
+/* The whole point of the modal — make the ID impossible to misread. */
+.new-id-value {
+  font-family: var(--font-mono);
+  font-size: clamp(2.6rem, 9vw, 4.2rem);
+  font-weight: 700;
+  letter-spacing: 0.2em;
+  /* Trailing letter-spacing would visually off-center the string */
+  text-indent: 0.2em;
+  color: #ffffff;
+  background: var(--bg-base);
+  border: 1px solid var(--phax-blue);
+  border-radius: var(--radius-md);
+  padding: 18px 12px;
+  margin-bottom: 18px;
+  text-shadow: 0 0 16px rgba(68, 119, 238, 0.6);
+  animation: newIdGlow 2.4s ease-in-out infinite;
+  word-break: break-all;
+}
+
+.new-id-value.small {
+  font-size: clamp(1.8rem, 6vw, 2.6rem);
+  padding: 12px;
+}
+
+@keyframes newIdGlow {
+  0%, 100% { box-shadow: 0 0 12px rgba(68, 119, 238, 0.2); }
+  50%      { box-shadow: 0 0 28px rgba(68, 119, 238, 0.5); }
+}
+
+.new-id-warning {
+  font-family: var(--font-mono);
+  font-size: 0.7rem;
+  letter-spacing: 0.12em;
+  color: var(--color-warning);
+  margin-bottom: 22px;
+}
+
+.new-id-actions {
+  display: flex;
+  gap: 12px;
+}
+
+.new-id-actions.two-up > * {
+  flex: 1;
+}
+
+.new-id-confirm {
+  flex: 1;
+  background: var(--fheels-green);
+  color: #ffffff;
+  padding: 16px 20px;
+  border-radius: var(--radius-md);
+  font-size: 0.95rem;
+  letter-spacing: 0.14em;
+  min-height: 44px;
+}
+
+.new-id-back {
+  background: transparent;
+  border: 1px dashed rgba(68, 119, 238, 0.3);
+  color: var(--text-secondary);
+  padding: 16px 20px;
+  border-radius: var(--radius-md);
+  font-size: 0.95rem;
+  letter-spacing: 0.14em;
+  min-height: 44px;
+}
+
+.new-id-back:hover {
+  border-color: var(--phax-light);
+  color: var(--text-primary);
+}
+
+/* ── Terminal lockout ── */
+.lockout-dialog {
+  background: var(--bg-surface);
+  border: 2px solid var(--color-error);
+  border-radius: var(--radius-lg);
+  padding: clamp(28px, 5vh, 44px) clamp(20px, 4vw, 40px);
+  max-width: 620px;
+  width: 100%;
+  text-align: center;
+  box-shadow: 0 0 50px rgba(192, 48, 48, 0.35);
+  animation: lockoutPulse 1.8s ease-in-out infinite;
+}
+
+@keyframes lockoutPulse {
+  0%, 100% { box-shadow: 0 0 30px rgba(192, 48, 48, 0.25); }
+  50%      { box-shadow: 0 0 60px rgba(192, 48, 48, 0.5); }
+}
+
+.lockout-icon {
+  font-size: 2.6rem;
+  color: var(--color-error);
+  margin-bottom: 16px;
+}
+
+.lockout-text {
+  font-family: var(--font-mono);
+  font-size: clamp(1.05rem, 3vw, 1.65rem);
+  font-weight: 700;
+  line-height: 1.45;
+  letter-spacing: 0.08em;
+  color: #e05a5a;
+  text-shadow: 0 0 12px rgba(192, 48, 48, 0.5);
+  margin-bottom: 28px;
+}
+
+.lockout-dismiss {
+  background: var(--color-error);
+  color: #ffffff;
+  padding: 14px 36px;
+  border-radius: var(--radius-md);
+  font-size: 0.95rem;
+  letter-spacing: 0.16em;
+  min-height: 44px;
+}
+
+/* ── Responsive ──
+   .terminal-title sizes itself with clamp(), so it needs no breakpoint of its
+   own. .project-title is a fixed-size kicker; the only thing that has to give
+   on narrow screens is its very wide tracking. */
+@media (max-width: 1024px) {
   .user-id-char {
     width: 42px;
     height: 54px;
@@ -275,8 +527,15 @@
   }
 
   .project-title {
-    font-size: 1.8rem;
-    letter-spacing: 0.18em;
+    font-size: 0.6rem;
+    letter-spacing: 0.28em;
+    text-indent: 0.28em;
+    gap: 8px;
+  }
+
+  .project-title::before,
+  .project-title::after {
+    flex-basis: 20px;
   }
 
   .begin-button {

@@ -6,6 +6,7 @@ import ChoiceScreen from './components/ChoiceScreen';
 import ResultsScreen from './components/ResultsScreen';
 import NetworkScreen from './components/NetworkScreen';
 import TVWallScreen from './components/TVWallScreen';
+import ScrollIndicator from './components/ScrollIndicator';
 
 // The kiosk TV Wall lives on its own route (/tvwall) entirely outside the
 // centered/padded .App shell, with no code entry. There's no router; we read the
@@ -22,6 +23,12 @@ function App() {
   const handleSessionStart = (data) => {
     setSessionData(data);
     setScreen('codeEntry');
+  };
+
+  // The email captured at the "Save Progress?" gate rides along on sessionData
+  // so the impact report can pre-populate its field instead of asking twice.
+  const handleEmailCaptured = (email) => {
+    setSessionData(prev => (prev ? { ...prev, email } : prev));
   };
 
   const handlePreview = (data) => {
@@ -56,6 +63,7 @@ function App() {
           sessionData={sessionData}
           onPreview={handlePreview}
           onLogout={handleReset}
+          onEmailCaptured={handleEmailCaptured}
         />
       )}
       {screen === 'choice' && choiceData && (
@@ -75,6 +83,8 @@ function App() {
       {screen === 'network' && (
         <NetworkScreen onBack={() => setScreen('welcome')} />
       )}
+
+      <ScrollIndicator />
     </div>
   );
 }

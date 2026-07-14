@@ -490,6 +490,7 @@
 }
 
 .email-section-label {
+  display: block;
   font-family: var(--font-mono);
   font-size: 0.85rem;
   color: var(--text-secondary);
@@ -497,44 +498,8 @@
   letter-spacing: 0.04em;
 }
 
-.email-display {
-  display: inline-flex;
-  align-items: center;
-  min-width: 320px;
-  max-width: 100%;
-  min-height: 48px;
-  padding: 10px 16px;
-  background: var(--bg-raised);
-  border: 1px solid var(--border-mid);
-  border-radius: var(--radius-md);
-  margin-bottom: 8px;
-  overflow-x: auto;
-}
-
-.email-display-text {
-  font-family: var(--font-mono);
-  font-size: 1.1rem;
-  color: var(--phax-light);
-  letter-spacing: 0.05em;
-  word-break: break-all;
-}
-
-.email-placeholder {
-  color: var(--text-dim);
-  font-style: italic;
-  letter-spacing: 0.08em;
-}
-
-.email-cursor {
-  color: var(--phax-blue);
-  animation: blink 1s step-end infinite;
-  margin-left: 1px;
-  font-weight: 300;
-}
-
-@keyframes blink {
-  50% { opacity: 0; }
-}
+/* The read-only .email-display box and its fake caret are gone — the field is a
+   real <input> now (see EmailField). */
 
 .email-optin {
   display: flex;

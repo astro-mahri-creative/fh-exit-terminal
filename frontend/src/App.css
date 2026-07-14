@@ -87,15 +87,23 @@ body {
 .App {
   min-height: 100vh;
   display: flex;
-  align-items: center;
-  justify-content: center;
   padding: clamp(16px, 2vw, 28px);
+}
+
+/* Auto margins rather than align/justify-content: center. Both center the
+   screen while it fits the viewport, but auto margins collapse to 0 once the
+   content is taller than the viewport instead of overflowing equally in both
+   directions — which would push the top of the screen above the scroll origin
+   and make it unreachable. Tall screens (admin panel open) now simply grow the
+   page downward and scroll normally. */
+.App > *:not(.scroll-indicator) {
+  margin: auto;
 }
 
 /* On portrait viewports, keep page content from stretching wider than a
    3:4 portrait screen comfortably allows. */
 @media (max-aspect-ratio: 1/1) {
-  .App > * {
+  .App > *:not(.scroll-indicator) {
     max-width: min(100%, 90vh);
   }
 }

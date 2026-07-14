@@ -179,6 +179,10 @@
 .code-input-box {
   display: flex;
   justify-content: center;
+}
+
+/* Code cells sit slightly further apart than the User ID cells do. */
+.code-input-box .segmented-cells {
   gap: 10px;
 }
 
@@ -348,6 +352,150 @@
   background: var(--bg-raised);
   border-radius: var(--radius-md);
   letter-spacing: 0.1em;
+}
+
+/* ── Save Progress gate ──
+   Required question at the foot of the screen. TRANSMIT scrolls to it and
+   flashes it until answered, so its unanswered state is styled to read as
+   outstanding business rather than as an error. */
+.save-progress-section {
+  background: var(--bg-surface);
+  border: 1px dashed rgba(68, 119, 238, 0.15);
+  border-radius: var(--radius-lg);
+  padding: 20px;
+  scroll-margin: 24px;
+  transition: border-color 0.25s ease, box-shadow 0.25s ease;
+}
+
+.save-progress-section.unanswered {
+  border: 1px dashed var(--color-warning);
+}
+
+.save-progress-section.flash {
+  animation: saveGateFlash 0.5s ease-in-out 3;
+}
+
+@keyframes saveGateFlash {
+  0%, 100% {
+    border-color: var(--color-warning);
+    box-shadow: 0 0 0 rgba(212, 137, 10, 0);
+  }
+  50% {
+    border-color: #ffb238;
+    box-shadow: 0 0 24px rgba(212, 137, 10, 0.5);
+  }
+}
+
+.save-progress-question {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  flex-wrap: wrap;
+}
+
+.save-progress-label {
+  font-family: var(--font-mono);
+  font-size: 1rem;
+  font-weight: 700;
+  letter-spacing: 0.18em;
+  color: var(--text-primary);
+}
+
+.save-progress-required {
+  margin-left: 8px;
+  font-size: 0.6rem;
+  letter-spacing: 0.14em;
+  color: var(--color-warning);
+  border: 1px solid var(--color-warning);
+  border-radius: var(--radius-sm);
+  padding: 2px 6px;
+  vertical-align: middle;
+}
+
+.save-progress-options {
+  display: flex;
+  gap: 10px;
+}
+
+.save-progress-btn {
+  min-width: 96px;
+  min-height: 44px;
+  padding: 12px 24px;
+  border-radius: var(--radius-md);
+  font-size: 1rem;
+  letter-spacing: 0.16em;
+  background: var(--bg-raised);
+  border: 1px solid var(--border-mid);
+  color: var(--text-secondary);
+}
+
+.save-progress-btn.yes.selected {
+  background: var(--fheels-green);
+  border-color: var(--fheels-green);
+  color: #ffffff;
+  box-shadow: 0 0 14px rgba(74, 158, 92, 0.35);
+}
+
+.save-progress-btn.no.selected {
+  background: var(--bg-base);
+  border-color: var(--text-secondary);
+  color: var(--text-primary);
+}
+
+.save-progress-email {
+  margin-top: 18px;
+  padding-top: 18px;
+  border-top: 1px dashed rgba(68, 119, 238, 0.12);
+  text-align: center;
+}
+
+.save-progress-email-label {
+  display: block;
+  font-family: var(--font-mono);
+  font-size: 0.85rem;
+  color: var(--text-secondary);
+  margin-bottom: 12px;
+  letter-spacing: 0.04em;
+}
+
+.save-progress-email-label strong {
+  color: var(--phax-light);
+  letter-spacing: 0.12em;
+}
+
+.email-confirm-button {
+  min-height: 48px;
+  padding: 14px 28px;
+  border-radius: var(--radius-md);
+  background: var(--phax-blue);
+  color: #ffffff;
+  font-size: 0.95rem;
+  letter-spacing: 0.16em;
+}
+
+.save-progress-confirmed {
+  margin-top: 14px;
+  padding: 12px;
+  text-align: center;
+  font-family: var(--font-mono);
+  font-size: 0.88rem;
+  color: var(--color-success);
+  background: rgba(58, 143, 84, 0.08);
+  border: 1px dashed var(--color-success);
+  border-radius: var(--radius-md);
+}
+
+.save-progress-declined {
+  margin-top: 14px;
+  padding: 12px;
+  text-align: center;
+  font-family: var(--font-sans);
+  font-size: 0.82rem;
+  color: var(--text-secondary);
+  background: var(--bg-raised);
+  border: 1px solid var(--border-faint);
+  border-radius: var(--radius-md);
 }
 
 /* ── Activation Overlay ── */

@@ -18,6 +18,11 @@ function TerminalKeyboard({
   showNumbers = false,
   extraBottomKeys = null, // { left: '@', right: '.' }
 }) {
+  // Pressing a key must not pull focus out of the field it types into —
+  // otherwise the caret leaves the input on the first tap and the next
+  // keystroke has nowhere to land.
+  const keepFocus = (e) => e.preventDefault();
+
   const rows = [];
   const specialKeys = new Set();
 
@@ -45,6 +50,7 @@ function TerminalKeyboard({
           {row.map(key => (
             <button
               key={key}
+              onMouseDown={keepFocus}
               onClick={() => onKeyPress(key)}
               className={`keyboard-key${specialKeys.has(key) ? ' special-key' : ''}`}
               disabled={keysDisabled}
@@ -55,10 +61,11 @@ function TerminalKeyboard({
         </div>
       ))}
       <div className="keyboard-row">
-        <button onClick={onClear} className="keyboard-key clear-key">
+        <button onMouseDown={keepFocus} onClick={onClear} className="keyboard-key clear-key">
           CLEAR
         </button>
         <button
+          onMouseDown={keepFocus}
           onClick={onBackspace}
           className="keyboard-key backspace-key"
           disabled={backspaceDisabled}

@@ -1,0 +1,69 @@
+/* ── Glowing "more below" affordance — bottom-right of the viewport ──
+   Arrow only: the box is sized to hug the chevrons. */
+.scroll-indicator {
+  position: fixed;
+  right: 20px;
+  bottom: 20px;
+  z-index: 900;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 40px;
+  height: 40px;
+  background: rgba(6, 6, 6, 0.72);
+  border: 1px solid rgba(68, 119, 238, 0.35);
+  border-radius: var(--radius-md);
+  backdrop-filter: blur(2px);
+  pointer-events: none;
+  animation: scrollIndicatorGlow 2.2s ease-in-out infinite;
+}
+
+.scroll-indicator-chevrons {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  /* Chevrons overlap by 5px each (see .scroll-chevron margin-top), so three of
+     them stack into 20px, not 30px. */
+  height: 20px;
+}
+
+.scroll-chevron {
+  width: 10px;
+  height: 10px;
+  margin-top: -5px;
+  border-right: 2px solid var(--phax-light);
+  border-bottom: 2px solid var(--phax-light);
+  transform: rotate(45deg);
+  animation: scrollChevronPulse 1.6s ease-in-out infinite;
+}
+
+/* The overlap margin is what tightens the stack, but on the first chevron it
+   just drags the whole group off-center inside the box. */
+.scroll-chevron:first-child { margin-top: 0; }
+
+.scroll-chevron:nth-child(2) { animation-delay: 0.2s; }
+.scroll-chevron:nth-child(3) { animation-delay: 0.4s; }
+
+@keyframes scrollChevronPulse {
+  0%, 100% { opacity: 0.2; }
+  50%      { opacity: 1; }
+}
+
+@keyframes scrollIndicatorGlow {
+  0%, 100% {
+    box-shadow: 0 0 10px rgba(68, 119, 238, 0.18);
+    border-color: rgba(68, 119, 238, 0.3);
+  }
+  50% {
+    box-shadow: 0 0 22px rgba(68, 119, 238, 0.45);
+    border-color: rgba(68, 119, 238, 0.6);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .scroll-indicator,
+  .scroll-chevron {
+    animation: none;
+  }
+  .scroll-chevron { opacity: 0.85; }
+}

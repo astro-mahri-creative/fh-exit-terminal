@@ -177,6 +177,22 @@ async function applyMetaGameRules(sessionCodes, universes) {
   return { tierMultipliers, bonusEffects, triggerCure };
 }
 
+// Shown verbatim by the frontend lockout popup when terminalLocked is on.
+const TERMINAL_LOCKED_MESSAGE =
+  'YOU MAY NOT ACCESS THE FUTURE HOOMAN EXIT TERMINAL FROM THIS DIMENSION';
+
+// Six lowercase alphanumeric chars, retried until unused. Shared by the admin
+// "Generate User ID" action and the public "Create New User ID" home button.
+async function generateUniqueUserId(maxAttempts = 10) {
+  for (let attempt = 0; attempt < maxAttempts; attempt++) {
+    const candidate = Math.random().toString(36).substring(2, 8).toLowerCase();
+    if (candidate.length !== 6) continue;
+    const exists = await UserId.findOne({ userId: candidate });
+    if (!exists) return candidate;
+  }
+  return null;
+}
+
 // Log analytics event
 async function logEvent(eventType, sessionId = null, userId = null, eventData = null) {
   try {
@@ -425,6 +441,19 @@ app.post('/api/session/start', async (req, res) => {
       });
     }
     
+    // Manual lockout — set from the admin panel. Admins are always exempt so
+    // they can get in and unlock again.
+    if (!userIdRecord.isAdmin) {
+      const settings = await AdminSettings.getSettings();
+      if (settings.terminalLocked) {
+        return res.status(403).json({
+          success: false,
+          error: 'TERMINAL_LOCKED',
+          message: TERMINAL_LOCKED_MESSAGE
+        });
+      }
+    }
+
     // For non-admin users: check for an existing session since today's 4:00am ET
     if (!userIdRecord.isAdmin) {
       const dailyReset = getDailyResetTime();
@@ -452,6 +481,7 @@ app.post('/api/session/start', async (req, res) => {
           session_id: existingSession._id,
           user_id: user_id.toLowerCase(),
           is_admin: userIdRecord.isAdmin,
+          email: userIdRecord.emailAddress || existingSession.emailAddress || null,
           resumed: true,
           message: 'Session resumed'
         });
@@ -478,9 +508,13 @@ app.post('/api/session/start', async (req, res) => {
       session_id: session._id,
       user_id: user_id.toLowerCase(),
       is_admin: userIdRecord.isAdmin,
+      // Null unless this user saved an email on a previous visit. Lets the
+      // code entry screen skip the "Save Progress?" prompt and the impact
+      // report pre-populate its email field.
+      email: userIdRecord.emailAddress || null,
       message: 'Session started'
     });
-    
+
   } catch (error) {
     console.error('Error starting session:', error);
     res.status(500).json({
@@ -491,7 +525,42 @@ app.post('/api/session/start', async (req, res) => {
   }
 });
 
-// POST /api/session/save-email - Save email address to session (no email sent)
+// POST /api/session/new-userid - Mint a user ID for a walk-up visitor (public).
+// Same generator as the admin action, but blocked while the terminal is locked.
+app.post('/api/session/new-userid', async (req, res) => {
+  try {
+    const settings = await AdminSettings.getSettings();
+    if (settings.terminalLocked) {
+      return res.status(403).json({
+        success: false,
+        error: 'TERMINAL_LOCKED',
+        message: TERMINAL_LOCKED_MESSAGE
+      });
+    }
+
+    const newUserId = await generateUniqueUserId();
+    if (!newUserId) {
+      return res.status(500).json({
+        success: false,
+        error: 'GENERATION_FAILED',
+        message: 'Could not generate unique user ID'
+      });
+    }
+
+    await UserId.create({ userId: newUserId, isAdmin: false });
+    await logEvent('user_id_self_created', null, newUserId, { newUserId });
+
+    res.json({ success: true, user_id: newUserId, message: 'User ID created' });
+  } catch (error) {
+    console.error('Error creating user ID:', error);
+    res.status(500).json({ success: false, error: 'SERVER_ERROR', message: 'Error creating user ID' });
+  }
+});
+
+// POST /api/session/save-email - Attach an email to the session AND to the user
+// ID record (no email sent). Persisting it on the UserId is what lets a
+// returning visitor skip the "Save Progress?" prompt and get their email
+// pre-filled on the impact report.
 app.post('/api/session/save-email', async (req, res) => {
   try {
     const { session_token, email } = req.body;
@@ -512,6 +581,11 @@ app.post('/api/session/save-email', async (req, res) => {
 
     session.emailAddress = email.toLowerCase();
     await session.save();
+
+    await UserId.updateOne(
+      { userId: session.userId },
+      { $set: { emailAddress: email.toLowerCase() } }
+    );
 
     await logEvent('email_registered', session._id, session.userId, { email: email.toLowerCase() });
 
@@ -1490,31 +1564,22 @@ app.post('/api/admin/generate-userid', async (req, res) => {
       });
     }
     
-    // Generate unique user ID
-    let newUserId;
-    let attempts = 0;
-    
-    while (attempts < 10) {
-      newUserId = Math.random().toString(36).substring(2, 8).toLowerCase();
-      const exists = await UserId.findOne({ userId: newUserId });
-      if (!exists) break;
-      attempts++;
-    }
-    
-    if (attempts >= 10) {
+    const newUserId = await generateUniqueUserId();
+    if (!newUserId) {
       return res.status(500).json({
         success: false,
         error: 'GENERATION_FAILED',
         message: 'Could not generate unique user ID'
       });
     }
-    
+
     // Create user ID
     await UserId.create({
       userId: newUserId,
       isAdmin: false
     });
-    
+
+
     await logEvent('user_id_generated', session._id, session.userId, { newUserId });
     
     res.json({
@@ -1553,6 +1618,34 @@ app.post('/api/admin/settings/toggle-return-mode', async (req, res) => {
     res.json({ success: true, sameDayReturnMode: settings.sameDayReturnMode });
   } catch (error) {
     console.error('Error toggling return mode:', error);
+    res.status(500).json({ success: false, error: 'SERVER_ERROR', message: 'Error updating settings' });
+  }
+});
+
+// POST /api/admin/settings/toggle-lock - Lock/unlock the terminal for non-admins
+app.post('/api/admin/settings/toggle-lock', async (req, res) => {
+  try {
+    const { session_token } = req.body;
+    const session = await Session.findOne({ sessionToken: session_token });
+    if (!session) {
+      return res.status(401).json({ success: false, error: 'UNAUTHORIZED', message: 'Invalid session' });
+    }
+    const userIdRecord = await UserId.findOne({ userId: session.userId });
+    if (!userIdRecord || !userIdRecord.isAdmin) {
+      return res.status(403).json({ success: false, error: 'FORBIDDEN', message: 'Admin access required' });
+    }
+
+    const settings = await AdminSettings.getSettings();
+    settings.terminalLocked = !settings.terminalLocked;
+    await settings.save();
+
+    await logEvent('terminal_lock_toggled', session._id, session.userId, {
+      terminalLocked: settings.terminalLocked
+    });
+
+    res.json({ success: true, terminalLocked: settings.terminalLocked });
+  } catch (error) {
+    console.error('Error toggling terminal lock:', error);
     res.status(500).json({ success: false, error: 'SERVER_ERROR', message: 'Error updating settings' });
   }
 });
@@ -1696,7 +1789,8 @@ app.get('/api/admin/analytics', async (req, res) => {
         currentPhase: currentPhase?.phaseName || 'No active phase',
         alignmentDistribution,
         sameDayReturnMode: settings.sameDayReturnMode,
-        effectScale: settings.effectScale
+        effectScale: settings.effectScale,
+        terminalLocked: settings.terminalLocked
       }
     });
     
@@ -1750,15 +1844,20 @@ app.get('/api/admin/analytics/detailed', async (req, res) => {
       .select('timestamp');
     const resetCutoff = latestReset ? latestReset.timestamp : null;
 
-    // Optional caller-supplied start date (YYYY-MM-DD, interpreted as UTC
-    // midnight). Falls back to the reset moment when absent or invalid;
-    // also clamped up to the reset moment so users can't go behind it.
-    const requestedStartRaw = req.query.start_date;
-    let requestedStart = null;
-    if (requestedStartRaw && /^\d{4}-\d{2}-\d{2}$/.test(requestedStartRaw)) {
-      const parsed = new Date(requestedStartRaw + 'T00:00:00.000Z');
-      if (!isNaN(parsed.getTime())) requestedStart = parsed;
-    }
+    // Optional caller-supplied window (YYYY-MM-DD, interpreted as UTC). The
+    // start falls back to the reset moment when absent or invalid, and is
+    // clamped up to it so users can't reach behind the reset. The end is
+    // inclusive — it snaps to the last millisecond of the named day, so
+    // picking the same date for both yields exactly that one day.
+    const parseDateParam = (raw, endOfDay = false) => {
+      if (!raw || !/^\d{4}-\d{2}-\d{2}$/.test(raw)) return null;
+      const parsed = new Date(raw + (endOfDay ? 'T23:59:59.999Z' : 'T00:00:00.000Z'));
+      return isNaN(parsed.getTime()) ? null : parsed;
+    };
+
+    const requestedStart = parseDateParam(req.query.start_date);
+    const requestedEnd = parseDateParam(req.query.end_date, true);
+
     let effectiveCutoff = resetCutoff ? new Date(resetCutoff) : null;
     if (requestedStart && (!effectiveCutoff || requestedStart > effectiveCutoff)) {
       effectiveCutoff = requestedStart;
@@ -1767,7 +1866,11 @@ app.get('/api/admin/analytics/detailed', async (req, res) => {
     const eventFilter = {
       eventType: { $in: ['session_start', 'code_entered', 'session_finalized'] }
     };
-    if (effectiveCutoff) eventFilter.timestamp = { $gte: effectiveCutoff };
+    if (effectiveCutoff || requestedEnd) {
+      eventFilter.timestamp = {};
+      if (effectiveCutoff) eventFilter.timestamp.$gte = effectiveCutoff;
+      if (requestedEnd) eventFilter.timestamp.$lte = requestedEnd;
+    }
 
     const events = await AnalyticsLog.find(eventFilter)
       .select('eventType sessionId userId eventData timestamp')
@@ -1800,8 +1903,9 @@ app.get('/api/admin/analytics/detailed', async (req, res) => {
     const ageAnchor = effectiveCutoff
       ? new Date(effectiveCutoff)
       : (startEvents[0] ? new Date(startEvents[0].timestamp) : null);
+    const ageEnd = requestedEnd ? requestedEnd.getTime() : Date.now();
     const datasetAgeDays = ageAnchor
-      ? Math.floor((Date.now() - ageAnchor.getTime()) / 86400000)
+      ? Math.max(0, Math.floor((ageEnd - ageAnchor.getTime()) / 86400000))
       : 0;
 
     // Per-user stats. login_count = number of session_start events. codes_used =
@@ -1912,6 +2016,7 @@ app.get('/api/admin/analytics/detailed', async (req, res) => {
         // Both are ISO strings; null if no reset has happened yet.
         reset_date: resetCutoff ? new Date(resetCutoff).toISOString() : null,
         effective_start_date: effectiveCutoff ? effectiveCutoff.toISOString() : null,
+        effective_end_date: requestedEnd ? requestedEnd.toISOString() : null,
         dataset_age_days: datasetAgeDays,
         total_non_admin_users: totalNonAdminUsers,
         choice_distribution: choiceDistribution,
