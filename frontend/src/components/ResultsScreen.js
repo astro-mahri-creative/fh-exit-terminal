@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { sessionService } from '../services/api';
 import UniverseNetworkVisualization from './UniverseNetworkVisualization';
-import TerminalKeyboard from './TerminalKeyboard';
+import EmailField from './EmailField';
 import useSteppedCountUp from '../hooks/useSteppedCountUp';
 import './ResultsScreen.css';
 
@@ -79,7 +79,10 @@ function UniverseCard({ universe, idx, numbersVisible, isFheels }) {
 }
 
 function ResultsScreen({ resultsData, sessionData, onReset }) {
-  const [email, setEmail] = useState('');
+  // Pre-populated when this user already has an email attached to their User ID
+  // — either captured at the "Save Progress?" gate this session, or saved on a
+  // previous visit. They can still edit it before saving.
+  const [email, setEmail] = useState(sessionData?.email || '');
   const [emailSaved, setEmailSaved] = useState(false);
   const [emailError, setEmailError] = useState('');
   const [multiverseReady, setMultiverseReady] = useState(false);
@@ -190,25 +193,8 @@ function ResultsScreen({ resultsData, sessionData, onReset }) {
   }, [resultsData.universes]);
 
 
-  const handleEmailKeyPress = useCallback((key) => {
-    setEmail(prev => {
-      if (prev.length < 127) {
-        setEmailError('');
-        return prev + key.toLowerCase();
-      }
-      return prev;
-    });
-    recordActivity();
-  }, [recordActivity]);
-
-  const handleEmailBackspace = useCallback(() => {
-    setEmail(prev => prev.slice(0, -1));
-    setEmailError('');
-    recordActivity();
-  }, [recordActivity]);
-
-  const handleEmailClear = useCallback(() => {
-    setEmail('');
+  const handleEmailChange = useCallback((next) => {
+    setEmail(next);
     setEmailError('');
     recordActivity();
   }, [recordActivity]);
@@ -234,24 +220,8 @@ function ResultsScreen({ resultsData, sessionData, onReset }) {
     }
   }, [email, sessionData.session_token]);
 
-  // Physical keyboard support for email input
-  useEffect(() => {
-    const handlePhysicalKey = (e) => {
-      if (emailSaved) return;
-      const key = e.key;
-      if (/^[a-zA-Z0-9@._\-+]$/.test(key)) {
-        handleEmailKeyPress(key.toUpperCase());
-      } else if (key === 'Backspace') {
-        handleEmailBackspace();
-      } else if (key === 'Delete') {
-        handleEmailClear();
-      } else if (key === 'Enter' && email.length > 0) {
-        handleSaveEmail();
-      }
-    };
-    window.addEventListener('keydown', handlePhysicalKey);
-    return () => window.removeEventListener('keydown', handlePhysicalKey);
-  }, [emailSaved, email, handleEmailKeyPress, handleEmailBackspace, handleEmailClear, handleSaveEmail]);
+  // No global keydown listener — the email field is a real input and handles
+  // physical typing and Enter itself.
 
   return (
     <div className="results-screen" onClick={recordActivity} onKeyDown={recordActivity}>
@@ -350,21 +320,16 @@ function ResultsScreen({ resultsData, sessionData, onReset }) {
       <div className="email-section">
         {!emailSaved ? (
           <>
-            <p className="email-section-label">Enter your email to save your progress</p>
-            <div className="email-display">
-              <span className="email-display-text">
-                {email || <span className="email-placeholder">enter email address</span>}
-              </span>
-              <span className="email-cursor">|</span>
-            </div>
-            <TerminalKeyboard
-              onKeyPress={handleEmailKeyPress}
-              onBackspace={handleEmailBackspace}
-              onClear={handleEmailClear}
-              keysDisabled={email.length >= 127}
-              backspaceDisabled={email.length === 0}
-              showNumbers
-              extraBottomKeys={{ left: '@', right: '.' }}
+            <label htmlFor="results-email" className="email-section-label">
+              {sessionData?.email
+                ? 'Confirm the email on file to save your progress'
+                : 'Enter your email to save your progress'}
+            </label>
+            <EmailField
+              id="results-email"
+              value={email}
+              onChange={handleEmailChange}
+              onEnter={handleSaveEmail}
             />
             {emailError && <div className="error-message">{emailError}</div>}
             <div className="action-buttons">

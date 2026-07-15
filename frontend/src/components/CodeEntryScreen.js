@@ -1,8 +1,17 @@
-import React, { useState, useEffect, useCallback } from 'react';
-import { codeService } from '../services/api';
+import React, { useState, useCallback, useRef } from 'react';
+import { codeService, sessionService } from '../services/api';
 import AdminPanel from './AdminPanel';
-import TerminalKeyboard from './TerminalKeyboard';
+import SegmentedInput from './SegmentedInput';
+import OnScreenKeyboard from './OnScreenKeyboard';
+import EmailField from './EmailField';
+import { isKiosk } from '../kiosk';
 import './CodeEntryScreen.css';
+
+const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
+// Codes are four uppercase alphanumerics.
+const normalizeCode = (raw) =>
+  raw.toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 4);
 
 const PHAX_MESSAGES = [
   'Plz don\'t make it weird.',
@@ -17,7 +26,7 @@ const PHAX_MESSAGES = [
   'Caught you 👀',
 ];
 
-function CodeEntryScreen({ sessionData, onPreview, onLogout }) {
+function CodeEntryScreen({ sessionData, onPreview, onLogout, onEmailCaptured }) {
   const [currentCode, setCurrentCode] = useState('');
   const [activatedCodes, setActivatedCodes] = useState([]);
   const [loading, setLoading] = useState(false);
@@ -27,28 +36,75 @@ function CodeEntryScreen({ sessionData, onPreview, onLogout }) {
   const [showTransmitConfirm, setShowTransmitConfirm] = useState(false);
   const [phaxMessage, setPhaxMessage] = useState('');
 
+  // ── Save Progress gate ──
+  // Required for any visitor who has no email on file. They must answer YES or
+  // NO before codes can be transmitted; answering YES additionally requires a
+  // confirmed, valid email. Admins and returning users with a saved email skip
+  // the whole block.
+  //
+  // Frozen at mount on purpose. Confirming an email sets sessionData.email,
+  // which would otherwise flip this to false and unmount the gate mid-flow —
+  // the section would vanish out from under the user instead of showing them
+  // the "progress will be saved" confirmation they just earned.
+  const [needsSaveProgress] = useState(
+    () => !sessionData.is_admin && !sessionData.email
+  );
+  const [saveChoice, setSaveChoice] = useState(null); // null | 'yes' | 'no'
+  const [email, setEmail] = useState('');
+  const [emailSaved, setEmailSaved] = useState(false);
+  const [emailError, setEmailError] = useState('');
+  const [saveGateError, setSaveGateError] = useState('');
+  const [gateFlash, setGateFlash] = useState(false);
+  const saveGateRef = useRef(null);
+  const codeRef = useRef(null);
+
   const isAdmin = sessionData.is_admin;
 
-  const handleKeyPress = useCallback((key) => {
-    if (loading) return;
-    setCurrentCode(prev => {
-      if (prev.length < 4) {
-        setError('');
-        return prev + key;
-      }
-      return prev;
-    });
-  }, [loading]);
-
-  const handleBackspace = useCallback(() => {
-    setCurrentCode(prev => prev.slice(0, -1));
+  const handleCodeChange = useCallback((raw) => {
+    setCurrentCode(normalizeCode(raw));
     setError('');
   }, []);
 
-  const handleClear = () => {
-    setCurrentCode('');
-    setError('');
+  const handleEmailChange = useCallback((next) => {
+    setEmail(next);
+    setEmailError('');
+  }, []);
+
+  const handleConfirmEmail = useCallback(async () => {
+    if (!EMAIL_REGEX.test(email)) {
+      setEmailError('Please enter a valid email address');
+      return;
+    }
+    setEmailError('');
+    try {
+      const response = await sessionService.saveEmail(sessionData.session_token, email);
+      if (response.success) {
+        setEmailSaved(true);
+        setSaveGateError('');
+        // Lift it to App so the impact report can pre-populate its email field.
+        if (onEmailCaptured) onEmailCaptured(email.toLowerCase());
+      } else {
+        setEmailError(response.message || 'Error saving email');
+      }
+    } catch (err) {
+      setEmailError(err.response?.data?.message || 'Error saving email. Please try again.');
+    }
+  }, [email, sessionData.session_token, onEmailCaptured]);
+
+  const handleSaveChoice = (choice) => {
+    setSaveChoice(choice);
+    setSaveGateError('');
+    setGateFlash(false);
   };
+
+  // Pull the gate into view and flash it. Used when the user tries to transmit
+  // without having resolved it — the gate sits below the fold on short screens.
+  const summonSaveGate = useCallback((message) => {
+    setSaveGateError(message);
+    setGateFlash(true);
+    saveGateRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    setTimeout(() => setGateFlash(false), 1600);
+  }, []);
 
   const handleActivateCode = useCallback(async () => {
     if (currentCode.length !== 4) {
@@ -92,24 +148,24 @@ function CodeEntryScreen({ sessionData, onPreview, onLogout }) {
     }
   }, [currentCode, sessionData.session_token]);
 
-  // Physical keyboard support
-  useEffect(() => {
-    const handlePhysicalKey = (e) => {
-      if (loading) return;
-      const key = e.key.toUpperCase();
-      if (/^[A-Z0-9]$/.test(key)) {
-        handleKeyPress(key);
-      } else if (e.key === 'Backspace') {
-        handleBackspace();
-      } else if (e.key === 'Delete') {
-        handleClear();
-      } else if (e.key === 'Enter' && currentCode.length === 4) {
-        handleActivateCode();
+  // No global keydown listener: each field is a real input, so a physical
+  // keystroke lands in whichever one the user focused, and Enter is handled by
+  // that input's own onEnter.
+
+  // Guards the TRANSMIT button: the Save Progress question is not optional.
+  const handleTransmitClick = () => {
+    if (needsSaveProgress) {
+      if (saveChoice === null) {
+        summonSaveGate('Choose YES or NO to save your progress before transmitting.');
+        return;
       }
-    };
-    window.addEventListener('keydown', handlePhysicalKey);
-    return () => window.removeEventListener('keydown', handlePhysicalKey);
-  }, [loading, handleKeyPress, handleBackspace, handleActivateCode, currentCode]);
+      if (saveChoice === 'yes' && !emailSaved) {
+        summonSaveGate('Confirm your email address, or choose NO, before transmitting.');
+        return;
+      }
+    }
+    setShowTransmitConfirm(true);
+  };
 
   const handleFinalize = async () => {
     if (activatedCodes.length === 0) {
@@ -162,11 +218,17 @@ function CodeEntryScreen({ sessionData, onPreview, onLogout }) {
           <div className="code-display">
             <div className="code-display-row">
               <div className="code-input-box">
-                {[0, 1, 2, 3].map(i => (
-                  <span key={i} className="code-char">
-                    {currentCode[i] || '_'}
-                  </span>
-                ))}
+                <SegmentedInput
+                  length={4}
+                  value={currentCode}
+                  onChange={handleCodeChange}
+                  onEnter={handleActivateCode}
+                  inputRef={codeRef}
+                  cellClassName="code-char"
+                  disabled={loading}
+                  autoFocus={isKiosk()}
+                  ariaLabel="Activation code"
+                />
               </div>
               <button
                 onClick={handleActivateCode}
@@ -178,19 +240,18 @@ function CodeEntryScreen({ sessionData, onPreview, onLogout }) {
             </div>
           </div>
 
-          <TerminalKeyboard
-            onKeyPress={handleKeyPress}
-            onBackspace={handleBackspace}
-            onClear={handleClear}
-            keysDisabled={currentCode.length >= 4}
-            backspaceDisabled={currentCode.length === 0}
+          <OnScreenKeyboard
+            inputRef={codeRef}
+            value={currentCode}
+            maxLength={4}
+            disabled={loading}
           />
 
           {error && <div className="error-message">{error}</div>}
         </div>
 
         <button
-          onClick={() => setShowTransmitConfirm(true)}
+          onClick={handleTransmitClick}
           className="proceed-button"
           disabled={loading || activatedCodes.length === 0}
         >
@@ -215,6 +276,72 @@ function CodeEntryScreen({ sessionData, onPreview, onLogout }) {
             Codes activated: {activatedCodes.length}
           </div>
         </div>
+
+        {needsSaveProgress && (
+          <div
+            ref={saveGateRef}
+            className={`save-progress-section${gateFlash ? ' flash' : ''}${saveChoice === null ? ' unanswered' : ''}`}
+          >
+            <div className="save-progress-question">
+              <span className="save-progress-label">
+                SAVE PROGRESS? <span className="save-progress-required">REQUIRED</span>
+              </span>
+              <div className="save-progress-options">
+                <button
+                  className={`save-progress-btn yes${saveChoice === 'yes' ? ' selected' : ''}`}
+                  onClick={() => handleSaveChoice('yes')}
+                >
+                  YES
+                </button>
+                <button
+                  className={`save-progress-btn no${saveChoice === 'no' ? ' selected' : ''}`}
+                  onClick={() => handleSaveChoice('no')}
+                >
+                  NO
+                </button>
+              </div>
+            </div>
+
+            {saveChoice === 'yes' && !emailSaved && (
+              <div className="save-progress-email">
+                <label htmlFor="save-progress-email" className="save-progress-email-label">
+                  Enter your email to attach it to User ID <strong>{sessionData.user_id}</strong>
+                </label>
+                <EmailField
+                  id="save-progress-email"
+                  value={email}
+                  onChange={handleEmailChange}
+                  onEnter={handleConfirmEmail}
+                  autoFocus
+                  trailing={(
+                    <button
+                      className="email-confirm-button"
+                      onClick={handleConfirmEmail}
+                      disabled={email.length === 0}
+                    >
+                      CONFIRM
+                    </button>
+                  )}
+                />
+                {emailError && <div className="error-message">{emailError}</div>}
+              </div>
+            )}
+
+            {saveChoice === 'yes' && emailSaved && (
+              <div className="save-progress-confirmed">
+                ✓ Progress will be saved to {email}
+              </div>
+            )}
+
+            {saveChoice === 'no' && (
+              <div className="save-progress-declined">
+                Progress will not be saved. Your results will be shown once, then discarded.
+              </div>
+            )}
+
+            {saveGateError && <div className="error-message">{saveGateError}</div>}
+          </div>
+        )}
       </div>
 
       {showActivation && (

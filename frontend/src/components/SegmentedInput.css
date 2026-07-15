@@ -1,0 +1,60 @@
+/* Character-cell field: visible cells underneath, real input on top.
+   The input is invisible but fully interactive — it must stay in the layout
+   (not display:none / visibility:hidden) or it could not take focus. */
+.segmented-input {
+  position: relative;
+  display: inline-block;
+}
+
+.segmented-cells {
+  display: flex;
+  justify-content: center;
+  gap: 8px;
+  pointer-events: none;
+}
+
+.segmented-native {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  padding: 0;
+  margin: 0;
+  border: none;
+  background: transparent;
+  color: transparent;
+  /* The cells draw the value and the active-cell highlight stands in for the
+     caret, so the real one would just be a stray sliver on top. */
+  caret-color: transparent;
+  text-shadow: none;
+  outline: none;
+  cursor: pointer;
+  /* Below 16px, mobile Safari zooms the page on focus. */
+  font-size: 16px;
+  /* Hide the value without hiding the element from the a11y tree or focus. */
+  opacity: 0;
+  -webkit-text-fill-color: transparent;
+}
+
+.segmented-native:focus {
+  border: none;
+  outline: none;
+}
+
+.segmented-native::selection {
+  background: transparent;
+}
+
+/* Cell the next character will land in — the caret, effectively. */
+.segmented-cell-active {
+  border-color: var(--phax-blue) !important;
+  box-shadow: 0 0 10px rgba(68, 119, 238, 0.25);
+}
+
+.segmented-input:focus-within .segmented-cell-active {
+  animation: segmentedCaret 1.1s step-end infinite;
+}
+
+@keyframes segmentedCaret {
+  50% { border-color: var(--border-mid) !important; }
+}

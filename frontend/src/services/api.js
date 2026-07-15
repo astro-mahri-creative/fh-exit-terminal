@@ -15,6 +15,11 @@ export const sessionService = {
     return response.data;
   },
 
+  createUserId: async () => {
+    const response = await api.post('/session/new-userid');
+    return response.data;
+  },
+
   saveEmail: async (sessionToken, email) => {
     const response = await api.post('/session/save-email', {
       session_token: sessionToken,
@@ -96,11 +101,13 @@ export const adminService = {
     return response.data;
   },
 
-  getDetailedAnalytics: async (sessionToken, startDate) => {
-    // startDate is an optional YYYY-MM-DD string. When provided, the
-    // backend filters events to >= that date (clamped to the reset moment).
+  getDetailedAnalytics: async (sessionToken, startDate, endDate) => {
+    // Both are optional YYYY-MM-DD strings. The backend clamps start to the
+    // reset moment and treats end as inclusive through the end of that day,
+    // so passing the same value for both selects a single day.
     const params = { session_token: sessionToken };
     if (startDate) params.start_date = startDate;
+    if (endDate) params.end_date = endDate;
     const response = await api.get('/admin/analytics/detailed', { params });
     return response.data;
   },
@@ -121,6 +128,13 @@ export const adminService = {
 
   toggleReturnMode: async (sessionToken) => {
     const response = await api.post('/admin/settings/toggle-return-mode', {
+      session_token: sessionToken
+    });
+    return response.data;
+  },
+
+  toggleTerminalLock: async (sessionToken) => {
+    const response = await api.post('/admin/settings/toggle-lock', {
       session_token: sessionToken
     });
     return response.data;

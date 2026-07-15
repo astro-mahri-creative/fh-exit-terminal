@@ -2,6 +2,8 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { adminService, universeService } from '../services/api';
 import './AdminPanel.css';
 
+const TODAY = new Date().toISOString().slice(0, 10);
+
 function AdminPanel({ sessionData }) {
   const [activeTab, setActiveTab] = useState('actions');
   const [users, setUsers] = useState([]);
@@ -15,10 +17,13 @@ function AdminPanel({ sessionData }) {
   const [effectScale, setEffectScale] = useState(1);
   const [analytics, setAnalytics] = useState(null);
   const [userSort, setUserSort] = useState('logins'); // 'logins' | 'codes'
-  // YYYY-MM-DD string the admin picked for the analytics start date.
-  // Empty until the first response comes back; we then default it to the
-  // reset date so the picker shows the full post-reset period.
+  const [terminalLocked, setTerminalLocked] = useState(false);
+  // YYYY-MM-DD strings bounding the analytics window. Start is empty until the
+  // first response comes back, at which point we default it to the reset date
+  // so the picker shows the full post-reset period. End defaults to today.
+  // Setting both to the same date selects exactly that one day.
   const [analyticsStartDate, setAnalyticsStartDate] = useState('');
+  const [analyticsEndDate, setAnalyticsEndDate] = useState(TODAY);
 
   const loadUsers = useCallback(async () => {
     setLoading(true);
@@ -56,10 +61,12 @@ function AdminPanel({ sessionData }) {
     }
   }, []);
 
-  const loadAnalytics = useCallback(async (startDate) => {
+  const loadAnalytics = useCallback(async (startDate, endDate) => {
     setLoading(true);
     try {
-      const response = await adminService.getDetailedAnalytics(sessionData.session_token, startDate);
+      const response = await adminService.getDetailedAnalytics(
+        sessionData.session_token, startDate, endDate
+      );
       if (response.success) setAnalytics(response.analytics);
     } catch (err) {
       console.error('Error loading analytics:', err);
@@ -68,7 +75,7 @@ function AdminPanel({ sessionData }) {
     }
   }, [sessionData.session_token]);
 
-  // After the first analytics response arrives, default the date picker
+  // After the first analytics response arrives, default the FROM picker
   // to the reset date so the admin sees the full post-reset window.
   useEffect(() => {
     if (analytics && analytics.reset_date && !analyticsStartDate) {
@@ -76,9 +83,33 @@ function AdminPanel({ sessionData }) {
     }
   }, [analytics, analyticsStartDate]);
 
-  const handleAnalyticsStartDateChange = (newDate) => {
-    setAnalyticsStartDate(newDate);
-    loadAnalytics(newDate);
+  // Keep the range coherent: dragging one end past the other pulls the other
+  // along, so FROM is never after TO.
+  const handleAnalyticsRangeChange = (which, newDate) => {
+    if (!newDate) return;
+    let from = which === 'from' ? newDate : analyticsStartDate;
+    let to = which === 'to' ? newDate : analyticsEndDate;
+    if (from && to && from > to) {
+      if (which === 'from') to = from;
+      else from = to;
+    }
+    setAnalyticsStartDate(from);
+    setAnalyticsEndDate(to);
+    loadAnalytics(from, to);
+  };
+
+  const handleToggleTerminalLock = async () => {
+    const locking = !terminalLocked;
+    const warning = locking
+      ? 'LOCK the terminal? Non-admin users will be blocked from logging in or creating a new User ID.'
+      : 'UNLOCK the terminal? Visitors will be able to log in again.';
+    if (!window.confirm(warning)) return;
+    try {
+      const response = await adminService.toggleTerminalLock(sessionData.session_token);
+      if (response.success) setTerminalLocked(response.terminalLocked);
+    } catch (err) {
+      alert('Error updating terminal lock');
+    }
   };
 
   useEffect(() => {
@@ -86,6 +117,7 @@ function AdminPanel({ sessionData }) {
       if (res.success) {
         setReturnMode(res.analytics.sameDayReturnMode || 'resume');
         if (res.analytics.effectScale !== undefined) setEffectScale(res.analytics.effectScale);
+        setTerminalLocked(!!res.analytics.terminalLocked);
       }
     }).catch(() => {});
   }, [sessionData.session_token]);
@@ -155,6 +187,15 @@ function AdminPanel({ sessionData }) {
     return true;
   });
 
+  // Denominators for the "(out of XXX)" subtext on the Top 10 tables — the
+  // size of the dataset actually behind each ranking, within the selected date
+  // window. Codes with zero activations in the window aren't part of the
+  // ranking pool, and `analytics.users` only contains users who logged in.
+  const activeCodeCount = analytics
+    ? analytics.codes.filter(c => c.activations > 0).length
+    : 0;
+  const activeUserCount = analytics ? analytics.users.length : 0;
+
   const formatDate = (dateStr) => {
     if (!dateStr) return 'Never';
     return new Date(dateStr).toLocaleDateString('en-US', {
@@ -209,6 +250,12 @@ function AdminPanel({ sessionData }) {
             >
               SESSION RETURN: {returnMode === 'resume' ? '[ RESUME ]' : '[ BLOCK ]'}
             </button>
+            <button
+              onClick={handleToggleTerminalLock}
+              className={`admin-action-button${terminalLocked ? ' danger' : ''}`}
+            >
+              TERMINAL: {terminalLocked ? '[ LOCKED ]' : '[ UNLOCKED ]'}
+            </button>
             <button onClick={handleResetUniverses} className="admin-action-button danger">
               Reset Dimension Statistics
             </button>
@@ -240,6 +287,11 @@ function AdminPanel({ sessionData }) {
               <div className="new-user-id-display">
                 <span className="new-id-label">NEW USER ID:</span>
                 <span className="new-id-value">{newUserId}</span>
+              </div>
+            )}
+            {terminalLocked && (
+              <div className="terminal-locked-banner">
+                ⚠ TERMINAL LOCKED — visitors are being turned away. Admin IDs still have access.
               </div>
             )}
           </div>
@@ -451,19 +503,29 @@ function AdminPanel({ sessionData }) {
               <>
                 <div className="admin-list-header">
                   <div className="dataset-since">
-                    <label htmlFor="analytics-start-date" className="dataset-since-label">DATA SINCE</label>
+                    <label htmlFor="analytics-start-date" className="dataset-since-label">FROM</label>
                     <input
                       id="analytics-start-date"
                       type="date"
                       className="dataset-since-input"
                       min={analytics.reset_date ? analytics.reset_date.slice(0, 10) : undefined}
-                      max={new Date().toISOString().slice(0, 10)}
+                      max={analyticsEndDate || TODAY}
                       value={analyticsStartDate}
-                      onChange={(e) => handleAnalyticsStartDateChange(e.target.value)}
+                      onChange={(e) => handleAnalyticsRangeChange('from', e.target.value)}
+                    />
+                    <label htmlFor="analytics-end-date" className="dataset-since-label">TO</label>
+                    <input
+                      id="analytics-end-date"
+                      type="date"
+                      className="dataset-since-input"
+                      min={analyticsStartDate || (analytics.reset_date ? analytics.reset_date.slice(0, 10) : undefined)}
+                      max={TODAY}
+                      value={analyticsEndDate}
+                      onChange={(e) => handleAnalyticsRangeChange('to', e.target.value)}
                     />
                   </div>
                   <button
-                    onClick={() => loadAnalytics(analyticsStartDate)}
+                    onClick={() => loadAnalytics(analyticsStartDate, analyticsEndDate)}
                     className="admin-refresh"
                   >REFRESH</button>
                 </div>
@@ -511,7 +573,12 @@ function AdminPanel({ sessionData }) {
 
                 <div className="analytics-section">
                   <div className="analytics-section-header">
-                    <h4 className="analytics-section-title">TOP 10 CODES</h4>
+                    <h4 className="analytics-section-title">
+                      TOP 10 CODES
+                      <span className="analytics-denominator">
+                        (out of {activeCodeCount} activated)
+                      </span>
+                    </h4>
                   </div>
                   <div className="admin-table-wrap">
                     <table className="admin-table">
@@ -545,7 +612,12 @@ function AdminPanel({ sessionData }) {
 
                 <div className="analytics-section">
                   <div className="analytics-section-header">
-                    <h4 className="analytics-section-title">TOP 10 USERS</h4>
+                    <h4 className="analytics-section-title">
+                      TOP 10 USERS
+                      <span className="analytics-denominator">
+                        (out of {activeUserCount} active)
+                      </span>
+                    </h4>
                     <div className="user-filter-buttons">
                       <button
                         className={`filter-btn ${userSort === 'logins' ? 'active' : ''}`}

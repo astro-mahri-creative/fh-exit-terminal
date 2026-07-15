@@ -81,6 +81,10 @@ const sessionCodeSchema = new mongoose.Schema({
 const userIdSchema = new mongoose.Schema({
   userId: { type: String, required: true, unique: true },
   isAdmin: { type: Boolean, default: false },
+  // Email captured during the "Save Progress?" step on the code entry screen.
+  // Lives here (rather than only on Session) so it survives across sessions and
+  // can pre-populate the impact report on the user's next visit.
+  emailAddress: { type: String },
   lastUsedDate: { type: Date },
   usageCount: { type: Number, default: 0 }
 }, { timestamps: true });
@@ -135,7 +139,10 @@ const analyticsLogSchema = new mongoose.Schema({
 // Admin Settings Schema (singleton document)
 const adminSettingsSchema = new mongoose.Schema({
   sameDayReturnMode: { type: String, enum: ['resume', 'block'], default: 'resume' },
-  effectScale: { type: Number, default: 1, min: 1, max: 99 }
+  effectScale: { type: Number, default: 1, min: 1, max: 99 },
+  // When true, non-admin users can neither log in nor mint a new user ID.
+  // Toggled by hand from the admin panel; admins are always exempt.
+  terminalLocked: { type: Boolean, default: false }
 });
 adminSettingsSchema.statics.getSettings = async function () {
   let doc = await this.findOne();
