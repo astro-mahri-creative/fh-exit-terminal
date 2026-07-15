@@ -28,7 +28,12 @@ const PHAX_MESSAGES = [
 
 function CodeEntryScreen({ sessionData, onPreview, onLogout, onEmailCaptured }) {
   const [currentCode, setCurrentCode] = useState('');
-  const [activatedCodes, setActivatedCodes] = useState([]);
+  // Seed from the resumed session so a refresh or back-button restores the
+  // list of codes already activated this round. Empty on a fresh (non-resumed)
+  // login, since the backend only returns active_codes when resuming.
+  const [activatedCodes, setActivatedCodes] = useState(
+    () => (sessionData.active_codes || []).map(c => ({ code: c.code, tier: c.tier }))
+  );
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [showActivation, setShowActivation] = useState(false);

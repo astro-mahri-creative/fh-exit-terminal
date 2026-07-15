@@ -474,6 +474,22 @@ app.post('/api/session/start', async (req, res) => {
           });
         }
 
+        // Rehydrate the current transmission round so the code entry screen can
+        // restore its ACTIVATED CODES list after a refresh or back-button. The
+        // round is the set of codes entered but not yet transmitted — the same
+        // watermark preview/finalize use (enteredAt > finalizedAt; everything
+        // when never finalized). Without this the list comes back empty and
+        // re-typing a code trips the duplicate guard. Admins never reach this
+        // branch (they don't resume), so they can keep re-entering codes freely.
+        const roundQuery = { sessionId: existingSession._id };
+        if (existingSession.finalizedAt) roundQuery.enteredAt = { $gt: existingSession.finalizedAt };
+        const roundCodes = await SessionCode.find(roundQuery)
+          .populate('codeId')
+          .sort({ sequenceOrder: 1 });
+        const activeCodes = roundCodes
+          .filter(sc => sc.codeId) // skip any orphaned refs to deleted codes
+          .map(sc => ({ code: sc.codeId.code, tier: sc.codeId.tier }));
+
         // Resume existing session (complete or not)
         return res.json({
           success: true,
@@ -482,6 +498,7 @@ app.post('/api/session/start', async (req, res) => {
           user_id: user_id.toLowerCase(),
           is_admin: userIdRecord.isAdmin,
           email: userIdRecord.emailAddress || existingSession.emailAddress || null,
+          active_codes: activeCodes,
           resumed: true,
           message: 'Session resumed'
         });
