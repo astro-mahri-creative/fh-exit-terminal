@@ -428,21 +428,18 @@ async function initDatabase() {
       });
     }
 
-    // Initialize User IDs (5 admin + 20 visitor + 1 kiosk)
+    // Initialize User IDs (13 admin + 20 visitor)
     console.log('Creating user IDs...');
-    const adminIds = ['admin1', 'admin2', 'admin3', 'fhadmn', 'phaxad'];
+    const adminIds = [
+      'fhadmn',
+      'werdna', 'moguli', 'lexkan', 'flux42', 'aarona', 'pharma',
+      'frothy', 'radish', 'toofio', 'dragan', 'xangib', 'omahri'
+    ];
     for (const adminId of adminIds) {
       await UserId.create({
         userId: adminId,
         isAdmin: true
       });
-    }
-
-    // TV Wall kiosk login — admin so it bypasses the daily-session block
-    // and can recover from a power blip without waiting for the 4am reset.
-    const tvwallExists = await UserId.findOne({ userId: 'tvwall' });
-    if (!tvwallExists) {
-      await UserId.create({ userId: 'tvwall', isAdmin: true });
     }
 
     // Generate 20 random visitor IDs
