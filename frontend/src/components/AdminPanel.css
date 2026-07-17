@@ -81,11 +81,12 @@
 }
 
 /* ── Actions Tab ── */
+/* Buttons stack vertically as a list of actions rather than a row of tabs. */
 .admin-actions {
   display: flex;
+  flex-direction: column;
   gap: 10px;
-  flex-wrap: wrap;
-  align-items: flex-start;
+  align-items: stretch;
 }
 
 .admin-action-button {
@@ -94,6 +95,7 @@
   padding: 8px 16px;
   border-radius: var(--radius-md);
   font-size: 0.78rem;
+  text-align: center;
 }
 
 .admin-action-button.danger {
@@ -819,17 +821,13 @@
     display: none;
   }
 
-  /* Full-width action buttons: a wrapped row of half-width buttons reads as
-     accidental, and these are all destructive-ish toggles worth hitting
-     deliberately. */
+  /* Larger touch targets on phones; buttons already stack full-width. */
   .admin-actions {
     gap: 8px;
   }
 
   .admin-action-button {
-    width: 100%;
     min-height: 44px;
-    text-align: center;
   }
 
   .admin-code-header {

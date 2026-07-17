@@ -23,7 +23,6 @@ function AdminPanel({ sessionData }) {
   const [newUserId, setNewUserId] = useState('');
   const [expandedCode, setExpandedCode] = useState(null);
   const [userFilter, setUserFilter] = useState('all'); // 'all', 'used', 'unused'
-  const [returnMode, setReturnMode] = useState('resume');
   const [effectScale, setEffectScale] = useState(1);
   const [analytics, setAnalytics] = useState(null);
   const [userSort, setUserSort] = useState('logins'); // 'logins' | 'codes'
@@ -125,7 +124,6 @@ function AdminPanel({ sessionData }) {
   useEffect(() => {
     adminService.getAnalytics(sessionData.session_token).then(res => {
       if (res.success) {
-        setReturnMode(res.analytics.sameDayReturnMode || 'resume');
         if (res.analytics.effectScale !== undefined) setEffectScale(res.analytics.effectScale);
         setTerminalLocked(!!res.analytics.terminalLocked);
       }
@@ -145,15 +143,6 @@ function AdminPanel({ sessionData }) {
       loadAnalytics();
     }
   }, [activeTab, users.length, codes.length, analytics, loadUsers, loadCodes, loadUniverses, loadAnalytics]);
-
-  const handleToggleReturnMode = async () => {
-    try {
-      const response = await adminService.toggleReturnMode(sessionData.session_token);
-      if (response.success) setReturnMode(response.sameDayReturnMode);
-    } catch (err) {
-      console.error('Error toggling return mode:', err);
-    }
-  };
 
   const handleGenerateUserId = async () => {
     try {
@@ -257,12 +246,6 @@ function AdminPanel({ sessionData }) {
           <div className="admin-actions">
             <button onClick={handleGenerateUserId} className="admin-action-button">
               Generate User ID
-            </button>
-            <button
-              onClick={handleToggleReturnMode}
-              className={`admin-action-button${returnMode === 'block' ? ' danger' : ''}`}
-            >
-              SESSION RETURN: {returnMode === 'resume' ? '[ RESUME ]' : '[ BLOCK ]'}
             </button>
             <button
               onClick={handleToggleTerminalLock}
