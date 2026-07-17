@@ -1,4 +1,5 @@
 import React from 'react';
+import useScrollIntoViewOnFocus from '../hooks/useScrollIntoViewOnFocus';
 import { isKiosk } from '../kiosk';
 import './SegmentedInput.css';
 
@@ -26,6 +27,7 @@ function SegmentedInput({
   placeholderChar = '_',
 }) {
   const cells = Array.from({ length }, (_, i) => value[i] || placeholderChar);
+  const handleFocus = useScrollIntoViewOnFocus();
 
   return (
     <div className="segmented-input">
@@ -50,6 +52,7 @@ function SegmentedInput({
         autoFocus={autoFocus}
         aria-label={ariaLabel}
         onChange={(e) => onChange(e.target.value)}
+        onFocus={handleFocus}
         onKeyDown={(e) => {
           if (e.key === 'Enter' && onEnter) onEnter();
         }}

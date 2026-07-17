@@ -2,7 +2,11 @@
 <html lang="en">
   <head>
     <meta charset="utf-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no" />
+    <!-- Zoom stays enabled: phones are the common case now, and locking scale
+         is an accessibility failure for them. The exhibit kiosk needs the
+         opposite (a stuck zoom there strands the installation), so it opts back
+         out at runtime via applyKioskViewport() in src/kiosk.js. -->
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
     <meta name="theme-color" content="#1a1a2e" />
     <meta name="description" content="Future Hooman Exit Terminal - Interactive Art Exhibit" />
     <title>Future Hooman - Exit Terminal</title>

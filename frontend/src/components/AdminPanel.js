@@ -4,6 +4,16 @@ import './AdminPanel.css';
 
 const TODAY = new Date().toISOString().slice(0, 10);
 
+// Drives both the desktop tab strip and the mobile <select> — one list so the
+// two renderings can never drift apart.
+const TABS = [
+  { id: 'actions',   label: 'ACTIONS' },
+  { id: 'users',     label: 'USERS' },
+  { id: 'universes', label: 'UNIVERSES' },
+  { id: 'codes',     label: 'CODES & EFFECTS' },
+  { id: 'analytics', label: 'ANALYTICS' },
+];
+
 function AdminPanel({ sessionData }) {
   const [activeTab, setActiveTab] = useState('actions');
   const [users, setUsers] = useState([]);
@@ -211,37 +221,35 @@ function AdminPanel({ sessionData }) {
 
   return (
     <div className="admin-panel-container">
-      <div className="admin-tabs">
-        <button
-          className={`admin-tab ${activeTab === 'actions' ? 'active' : ''}`}
-          onClick={() => setActiveTab('actions')}
+      {/* Two renderings of the same control, swapped by breakpoint in CSS: the
+          tab strip on desktop, a native picker on phones where five tabs would
+          otherwise wrap to three rows. */}
+      <div className="admin-tabs" role="tablist">
+        {TABS.map(tab => (
+          <button
+            key={tab.id}
+            role="tab"
+            aria-selected={activeTab === tab.id}
+            className={`admin-tab ${activeTab === tab.id ? 'active' : ''}`}
+            onClick={() => setActiveTab(tab.id)}
+          >
+            {tab.label}
+          </button>
+        ))}
+      </div>
+
+      <div className="admin-tab-picker">
+        <label htmlFor="admin-tab-select" className="sr-only">Admin section</label>
+        <select
+          id="admin-tab-select"
+          className="admin-tab-select"
+          value={activeTab}
+          onChange={(e) => setActiveTab(e.target.value)}
         >
-          ACTIONS
-        </button>
-        <button
-          className={`admin-tab ${activeTab === 'users' ? 'active' : ''}`}
-          onClick={() => setActiveTab('users')}
-        >
-          USERS
-        </button>
-        <button
-          className={`admin-tab ${activeTab === 'universes' ? 'active' : ''}`}
-          onClick={() => setActiveTab('universes')}
-        >
-          UNIVERSES
-        </button>
-        <button
-          className={`admin-tab ${activeTab === 'codes' ? 'active' : ''}`}
-          onClick={() => setActiveTab('codes')}
-        >
-          CODES & EFFECTS
-        </button>
-        <button
-          className={`admin-tab ${activeTab === 'analytics' ? 'active' : ''}`}
-          onClick={() => setActiveTab('analytics')}
-        >
-          ANALYTICS
-        </button>
+          {TABS.map(tab => (
+            <option key={tab.id} value={tab.id}>{tab.label}</option>
+          ))}
+        </select>
       </div>
 
       <div className="admin-tab-content">

@@ -108,6 +108,28 @@ body {
   }
 }
 
+/* Phones: the shell's padding stacks on top of each screen's own padding, so
+   every nested panel pays for it twice. Give the pixels back to the content. */
+@media (max-width: 768px) {
+  .App {
+    padding: 8px;
+  }
+}
+
+/* Visible to screen readers only — for labels whose meaning the visual design
+   already carries. */
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
 /* ===================== BUTTONS ===================== */
 button {
   font-family: var(--font-mono);
