@@ -197,6 +197,11 @@ function AdminPanel({ sessionData }) {
   const activeCodeCount = rankedCodes.length;
   const activeUserCount = analytics ? analytics.users.length : 0;
 
+  // Invalid-code attempts, already ranked by the backend. total_invalid_attempts
+  // is the sum across all attempted strings (not just the visible top 10).
+  const invalidCodes = analytics ? (analytics.invalid_codes || []) : [];
+  const totalInvalidAttempts = analytics ? (analytics.total_invalid_attempts || 0) : 0;
+
   const formatDate = (dateStr) => {
     if (!dateStr) return 'Never';
     return new Date(dateStr).toLocaleDateString('en-US', {
@@ -613,6 +618,42 @@ function AdminPanel({ sessionData }) {
                 <div className="analytics-section">
                   <div className="analytics-section-header">
                     <h4 className="analytics-section-title">
+                      TOP 10 INVALID CODES
+                      <span className="analytics-denominator">
+                        ({totalInvalidAttempts} total attempt{totalInvalidAttempts === 1 ? '' : 's'})
+                      </span>
+                    </h4>
+                  </div>
+                  <div className="admin-table-wrap">
+                    <table className="admin-table">
+                      <thead>
+                        <tr>
+                          <th>CODE</th>
+                          <th>ATTEMPTS</th>
+                          <th>USERS</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {invalidCodes
+                          .slice(0, 10)
+                          .map(c => (
+                            <tr key={c.code}>
+                              <td className="user-id-cell">{c.code}</td>
+                              <td className="count-cell">{c.attempts}</td>
+                              <td className="count-cell">{c.user_count}</td>
+                            </tr>
+                          ))}
+                        {invalidCodes.length === 0 && (
+                          <tr><td colSpan="3" className="no-effects-msg">No invalid codes recorded</td></tr>
+                        )}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+
+                <div className="analytics-section">
+                  <div className="analytics-section-header">
+                    <h4 className="analytics-section-title">
                       TOP 10 USERS
                       <span className="analytics-denominator">
                         (out of {activeUserCount} active)
@@ -636,6 +677,7 @@ function AdminPanel({ sessionData }) {
                           <th>USER ID</th>
                           <th>LOGINS</th>
                           <th>CODES USED</th>
+                          <th>INVALID</th>
                         </tr>
                       </thead>
                       <tbody>
@@ -649,10 +691,11 @@ function AdminPanel({ sessionData }) {
                               <td className="user-id-cell">{u.user_id}</td>
                               <td className="count-cell">{u.login_count}</td>
                               <td className="count-cell">{u.codes_used_count}</td>
+                              <td className="count-cell">{u.invalid_codes_count ?? 0}</td>
                             </tr>
                           ))}
                         {analytics.users.length === 0 && (
-                          <tr><td colSpan="3" className="no-effects-msg">No users with logins yet</td></tr>
+                          <tr><td colSpan="4" className="no-effects-msg">No users with logins yet</td></tr>
                         )}
                       </tbody>
                     </table>
