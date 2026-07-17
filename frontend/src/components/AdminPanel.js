@@ -197,10 +197,10 @@ function AdminPanel({ sessionData }) {
   const activeCodeCount = rankedCodes.length;
   const activeUserCount = analytics ? analytics.users.length : 0;
 
-  // Invalid-code attempts, already ranked by the backend. total_invalid_attempts
-  // is the sum across all attempted strings (not just the visible top 10).
+  // Invalid-code attempts, already ranked by the backend. Each entry is a
+  // distinct attempted string, so the array length is the count of unique
+  // invalid codes across the selected window.
   const invalidCodes = analytics ? (analytics.invalid_codes || []) : [];
-  const totalInvalidAttempts = analytics ? (analytics.total_invalid_attempts || 0) : 0;
 
   const formatDate = (dateStr) => {
     if (!dateStr) return 'Never';
@@ -620,7 +620,7 @@ function AdminPanel({ sessionData }) {
                     <h4 className="analytics-section-title">
                       TOP 10 INVALID CODES
                       <span className="analytics-denominator">
-                        ({totalInvalidAttempts} total attempt{totalInvalidAttempts === 1 ? '' : 's'})
+                        (out of {invalidCodes.length} unique)
                       </span>
                     </h4>
                   </div>

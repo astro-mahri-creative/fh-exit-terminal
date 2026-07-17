@@ -1944,7 +1944,7 @@ app.get('/api/admin/analytics/detailed', async (req, res) => {
     // unique code texts from the user's code_entered events.
     const userStats = {};
     const ensureUser = (uid) => {
-      if (!userStats[uid]) userStats[uid] = { user_id: uid, login_count: 0, codes: new Set(), invalid_attempts: 0 };
+      if (!userStats[uid]) userStats[uid] = { user_id: uid, login_count: 0, codes: new Set(), invalidCodes: new Set() };
       return userStats[uid];
     };
     for (const e of startEvents) ensureUser(e.userId).login_count += 1;
@@ -1952,16 +1952,21 @@ app.get('/api/admin/analytics/detailed', async (req, res) => {
       const data = parseEventData(e);
       if (data.code) ensureUser(e.userId).codes.add(data.code);
     }
-    // invalid_attempts is a raw count of failed tries (not unique), so it reads
-    // as the friction each user hit rather than how many distinct typos.
-    for (const e of invalidEvents) ensureUser(e.userId).invalid_attempts += 1;
+    // Count DISTINCT invalid code strings per user, mirroring codes_used_count
+    // for valid codes — how many different unrecognized codes they tried, not
+    // how many times they fumbled. Uppercased to match the write-path
+    // normalization and to fold any legacy mixed-case rows together.
+    for (const e of invalidEvents) {
+      const codeText = (parseEventData(e).code || '').toUpperCase().trim();
+      if (codeText) ensureUser(e.userId).invalidCodes.add(codeText);
+    }
     const users = Object.values(userStats)
       .filter(u => u.login_count > 0)
       .map(u => ({
         user_id: u.user_id,
         login_count: u.login_count,
         codes_used_count: u.codes.size,
-        invalid_codes_count: u.invalid_attempts
+        invalid_codes_count: u.invalidCodes.size
       }));
     const totalNonAdminUsers = users.length;
 
