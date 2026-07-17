@@ -1836,8 +1836,17 @@ app.get('/api/admin/analytics/detailed', async (req, res) => {
       return res.status(403).json({ success: false, error: 'UNAUTHORIZED', message: 'Admin access required' });
     }
 
-    // Resolve admin user ids so we can exclude them from user/code stats
-    const adminIds = (await UserId.find({ isAdmin: true }).select('userId')).map(u => u.userId);
+    // Resolve the current visitor roster so we can limit user/code stats to it.
+    //
+    // This tests membership of the live roster rather than subtracting a list of
+    // admin ids, because AnalyticsLog is append-only and outlives UserId records
+    // (see below). An id that was staff when its events were logged but has since
+    // been deleted — admin1/2/3, phaxad and the tvwall kiosk all went in a one-off
+    // prod update — matches no admin list, so subtracting one would quietly
+    // promote its history to a player's and rank it on the leaderboard.
+    const visitorIds = new Set(
+      (await UserId.find({ isAdmin: false }).select('userId')).map(u => u.userId)
+    );
 
     // ──────────────────────────────────────────────────────────────────────
     // Source of truth: AnalyticsLog. Earlier versions of this endpoint
@@ -1905,12 +1914,12 @@ app.get('/api/admin/analytics/detailed', async (req, res) => {
       return null;
     };
 
-    // Split + filter out admins. userId can be null on some legacy event rows;
-    // those get dropped since we can't attribute them.
-    const nonAdminEvents = events.filter(e => e.userId && !adminIds.includes(e.userId));
-    const startEvents = nonAdminEvents.filter(e => e.eventType === 'session_start');
-    const codeEvents = nonAdminEvents.filter(e => e.eventType === 'code_entered');
-    const finalizeEvents = nonAdminEvents.filter(e => e.eventType === 'session_finalized');
+    // Split + keep only what we can attribute to a current visitor. This drops
+    // admins, retired staff ids, and legacy rows where userId is null.
+    const playerEvents = events.filter(e => e.userId && visitorIds.has(e.userId));
+    const startEvents = playerEvents.filter(e => e.eventType === 'session_start');
+    const codeEvents = playerEvents.filter(e => e.eventType === 'code_entered');
+    const finalizeEvents = playerEvents.filter(e => e.eventType === 'session_finalized');
 
     // Dataset age — days since the effective cutoff (which is the reset
     // moment by default, or the caller-supplied start_date when narrower).

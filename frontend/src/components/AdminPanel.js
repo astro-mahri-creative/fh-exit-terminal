@@ -191,9 +191,10 @@ function AdminPanel({ sessionData }) {
   // size of the dataset actually behind each ranking, within the selected date
   // window. Codes with zero activations in the window aren't part of the
   // ranking pool, and `analytics.users` only contains users who logged in.
-  const activeCodeCount = analytics
-    ? analytics.codes.filter(c => c.activations > 0).length
-    : 0;
+  const rankedCodes = analytics
+    ? analytics.codes.filter(c => c.activations > 0).sort((a, b) => b.activations - a.activations)
+    : [];
+  const activeCodeCount = rankedCodes.length;
   const activeUserCount = analytics ? analytics.users.length : 0;
 
   const formatDate = (dateStr) => {
@@ -591,8 +592,7 @@ function AdminPanel({ sessionData }) {
                         </tr>
                       </thead>
                       <tbody>
-                        {[...analytics.codes]
-                          .sort((a, b) => b.activations - a.activations)
+                        {rankedCodes
                           .slice(0, 10)
                           .map(c => (
                             <tr key={c.code}>
@@ -602,7 +602,7 @@ function AdminPanel({ sessionData }) {
                               <td className="count-cell">{c.user_percentage.toFixed(1)}%</td>
                             </tr>
                           ))}
-                        {analytics.codes.length === 0 && (
+                        {rankedCodes.length === 0 && (
                           <tr><td colSpan="4" className="no-effects-msg">No codes recorded</td></tr>
                         )}
                       </tbody>
