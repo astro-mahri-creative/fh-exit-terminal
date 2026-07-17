@@ -696,7 +696,9 @@ app.post('/api/codes/validate', async (req, res) => {
     });
     
     if (!codeRecord) {
-      await logEvent('code_error_invalid', session._id, session.userId, { code });
+      // Normalize to uppercase so the analytics aggregation buckets typos
+      // case-insensitively and matches how valid codes are stored.
+      await logEvent('code_error_invalid', session._id, session.userId, { code: code.toUpperCase() });
       return res.status(400).json({
         success: false,
         valid: false,
@@ -1890,7 +1892,7 @@ app.get('/api/admin/analytics/detailed', async (req, res) => {
     }
 
     const eventFilter = {
-      eventType: { $in: ['session_start', 'code_entered', 'session_finalized'] }
+      eventType: { $in: ['session_start', 'code_entered', 'session_finalized', 'code_error_invalid'] }
     };
     if (effectiveCutoff || requestedEnd) {
       eventFilter.timestamp = {};
@@ -1920,6 +1922,10 @@ app.get('/api/admin/analytics/detailed', async (req, res) => {
     const startEvents = playerEvents.filter(e => e.eventType === 'session_start');
     const codeEvents = playerEvents.filter(e => e.eventType === 'code_entered');
     const finalizeEvents = playerEvents.filter(e => e.eventType === 'session_finalized');
+    // Unrecognized-code attempts (typos, guessed codes, un-seeded codes).
+    // Duplicate re-entries of valid codes are logged under different event
+    // types and deliberately excluded — a duplicate is a correct code.
+    const invalidEvents = playerEvents.filter(e => e.eventType === 'code_error_invalid');
 
     // Dataset age — days since the effective cutoff (which is the reset
     // moment by default, or the caller-supplied start_date when narrower).
@@ -1938,7 +1944,7 @@ app.get('/api/admin/analytics/detailed', async (req, res) => {
     // unique code texts from the user's code_entered events.
     const userStats = {};
     const ensureUser = (uid) => {
-      if (!userStats[uid]) userStats[uid] = { user_id: uid, login_count: 0, codes: new Set() };
+      if (!userStats[uid]) userStats[uid] = { user_id: uid, login_count: 0, codes: new Set(), invalidCodes: new Set() };
       return userStats[uid];
     };
     for (const e of startEvents) ensureUser(e.userId).login_count += 1;
@@ -1946,12 +1952,21 @@ app.get('/api/admin/analytics/detailed', async (req, res) => {
       const data = parseEventData(e);
       if (data.code) ensureUser(e.userId).codes.add(data.code);
     }
+    // Count DISTINCT invalid code strings per user, mirroring codes_used_count
+    // for valid codes — how many different unrecognized codes they tried, not
+    // how many times they fumbled. Uppercased to match the write-path
+    // normalization and to fold any legacy mixed-case rows together.
+    for (const e of invalidEvents) {
+      const codeText = (parseEventData(e).code || '').toUpperCase().trim();
+      if (codeText) ensureUser(e.userId).invalidCodes.add(codeText);
+    }
     const users = Object.values(userStats)
       .filter(u => u.login_count > 0)
       .map(u => ({
         user_id: u.user_id,
         login_count: u.login_count,
-        codes_used_count: u.codes.size
+        codes_used_count: u.codes.size,
+        invalid_codes_count: u.invalidCodes.size
       }));
     const totalNonAdminUsers = users.length;
 
@@ -2032,6 +2047,24 @@ app.get('/api/admin/analytics/detailed', async (req, res) => {
       proliferation_pct: choiceUserTotal > 0 ? (proliferationUsers / choiceUserTotal) * 100 : 0
     };
 
+    // Invalid-code frequency — aggregated by the attempted string. Uppercased
+    // defensively so legacy rows written before the write-path normalization
+    // still bucket alongside newer ones. Returned fully ranked; the client
+    // slices to a top 10.
+    const invalidBucket = {};
+    let totalInvalidAttempts = 0;
+    for (const e of invalidEvents) {
+      const codeText = (parseEventData(e).code || '').toUpperCase().trim();
+      if (!codeText) continue;
+      totalInvalidAttempts += 1;
+      if (!invalidBucket[codeText]) invalidBucket[codeText] = { attempts: 0, users: new Set() };
+      invalidBucket[codeText].attempts += 1;
+      invalidBucket[codeText].users.add(e.userId);
+    }
+    const invalidCodes = Object.entries(invalidBucket)
+      .map(([code, b]) => ({ code, attempts: b.attempts, user_count: b.users.size }))
+      .sort((a, b) => b.attempts - a.attempts);
+
     res.json({
       success: true,
       analytics: {
@@ -2046,8 +2079,10 @@ app.get('/api/admin/analytics/detailed', async (req, res) => {
         dataset_age_days: datasetAgeDays,
         total_non_admin_users: totalNonAdminUsers,
         choice_distribution: choiceDistribution,
+        total_invalid_attempts: totalInvalidAttempts,
         users,
-        codes
+        codes,
+        invalid_codes: invalidCodes
       }
     });
 
