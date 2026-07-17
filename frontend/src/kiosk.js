@@ -43,4 +43,24 @@ const KIOSK = resolveKioskMode();
 
 export const isKiosk = () => KIOSK;
 
+// index.html ships the phone-friendly viewport — zoom allowed — because that is
+// what the overwhelming majority of visitors need, and pinning the scale for
+// them is an accessibility failure. The kiosk wants the reverse: it is a fixed
+// touchscreen with no way to recover from a visitor pinch-zooming and wandering
+// off, so it locks the scale back down here.
+//
+// Rewriting the tag after load rather than shipping two HTML files keeps the
+// kiosk decision in one place — this module — and CRA only builds one
+// index.html anyway. The kiosk spends its first moments un-pinned, which costs
+// nothing on a machine nobody is touching yet.
+export function applyKioskViewport() {
+  if (!KIOSK) return;
+  const meta = document.querySelector('meta[name="viewport"]');
+  if (!meta) return;
+  meta.setAttribute(
+    'content',
+    'width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no'
+  );
+}
+
 export default isKiosk;

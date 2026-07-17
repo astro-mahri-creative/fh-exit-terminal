@@ -1,5 +1,6 @@
 import React, { useRef } from 'react';
 import OnScreenKeyboard from './OnScreenKeyboard';
+import useScrollIntoViewOnFocus from '../hooks/useScrollIntoViewOnFocus';
 import { isKiosk } from '../kiosk';
 import './EmailField.css';
 
@@ -27,6 +28,7 @@ function EmailField({
   trailing = null,
 }) {
   const inputRef = useRef(null);
+  const handleFocus = useScrollIntoViewOnFocus();
 
   return (
     <div className="email-field">
@@ -43,6 +45,7 @@ function EmailField({
           placeholder={placeholder}
           aria-label={ariaLabel}
           onChange={(e) => onChange(e.target.value.toLowerCase().trim())}
+          onFocus={handleFocus}
           onKeyDown={(e) => {
             if (e.key === 'Enter' && onEnter) onEnter();
           }}

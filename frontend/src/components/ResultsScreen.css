@@ -392,27 +392,31 @@
   border-radius: var(--radius-md);
 }
 
+/* "12 of 40" is the headline of the report and has to stay on one line at any
+   width — so the three parts scale with the viewport together rather than
+   being allowed to wrap. */
 .codes-count-display {
   font-family: var(--font-mono);
   line-height: 1;
+  white-space: nowrap;
 }
 
 .codes-entered-num {
-  font-size: 4.4rem;
+  font-size: clamp(2.6rem, 12vw, 4.4rem);
   font-weight: 700;
   color: var(--text-primary);
   text-shadow: 0 0 8px rgba(68, 119, 238, 0.15);
 }
 
 .codes-count-sep {
-  font-size: 2.0rem;
+  font-size: clamp(1.2rem, 5.5vw, 2.0rem);
   font-weight: 400;
   color: var(--text-dim);
   padding: 0 4px;
 }
 
 .codes-total-num {
-  font-size: 3.0rem;
+  font-size: clamp(1.8rem, 8vw, 3.0rem);
   font-weight: 700;
   color: var(--text-secondary);
 }
@@ -612,20 +616,100 @@
 
 @media (max-width: 768px) {
   .results-screen {
-    padding: 12px;
+    padding: 8px;
   }
 
   .phax-alert {
     flex-direction: column;
     text-align: center;
+    gap: 8px;
+    padding: 12px 14px;
+    margin-bottom: 14px;
   }
 
+  .alert-text {
+    font-size: 0.88rem;
+    line-height: 1.5;
+  }
+
+  /* The 460px floor was most of a phone screen before a single number showed.
+     40vh still reads as the hero and lets the cards start above the fold. */
+  .results-overview-viz {
+    height: 40vh;
+    min-height: 240px;
+    margin-bottom: 14px;
+  }
+
+  /* Two columns, not one: the names are fixed-width 7-char codes, so a single
+     column just left half the screen empty and doubled the scrolling. */
   .universes-grid {
-    grid-template-columns: 1fr;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 8px;
+    margin-bottom: 12px;
+  }
+
+  .universe-map,
+  .impact-summary,
+  .email-section {
+    padding: 14px 12px;
+    margin-bottom: 14px;
+  }
+
+  .universe-card {
+    padding: 10px 8px;
+  }
+
+  .universe-name {
+    font-size: 0.8rem;
+    margin-bottom: 6px;
+    letter-spacing: 0.06em;
+  }
+
+  .universe-cases {
+    margin-bottom: 8px;
+  }
+
+  .cases-label {
+    font-size: 0.62rem;
+    margin-bottom: 2px;
+  }
+
+  /* Case counts run to seven figures ("2,544,763") — keep them on one line and
+     let the type scale rather than wrap. */
+  .cases-value {
+    font-size: clamp(1.05rem, 5.2vw, 1.5rem);
+    white-space: nowrap;
+  }
+
+  .cases-change {
+    font-size: 0.8rem;
+  }
+
+  .universe-status {
+    padding: 5px 4px;
+    font-size: 0.6rem;
+    letter-spacing: 0.1em;
+  }
+
+  .codes-activated-banner {
+    padding: 12px 14px 14px;
+    margin-bottom: 14px;
+  }
+
+  .impact-summary h3 {
+    margin-bottom: 12px;
+  }
+
+  .alignment-narrative {
+    font-size: 0.9rem;
+    line-height: 1.6;
+    padding: 12px 14px;
+    margin-bottom: 16px;
   }
 
   .action-buttons {
     flex-direction: column;
+    gap: 10px;
   }
 
   .action-buttons button {
@@ -634,5 +718,16 @@
 
   .stats {
     gap: 28px;
+  }
+
+  .status-message {
+    font-size: 0.7rem;
+    padding: 6px 8px;
+  }
+
+  .cure-indicator {
+    font-size: 0.78rem;
+    padding: 10px;
+    letter-spacing: 0.12em;
   }
 }

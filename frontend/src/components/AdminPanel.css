@@ -32,6 +32,44 @@
   filter: none;
 }
 
+/* ── Tab picker (mobile) ── */
+/* Hidden until the tab strip stops fitting; see the responsive block below. */
+.admin-tab-picker {
+  display: none;
+  margin-bottom: 10px;
+}
+
+.admin-tab-select {
+  width: 100%;
+  /* 44px is the minimum comfortable touch target. */
+  min-height: 44px;
+  padding: 10px 36px 10px 14px;
+  background: var(--bg-surface);
+  border: 1px solid var(--color-warning);
+  border-radius: var(--radius-md);
+  font-family: var(--font-mono);
+  font-size: 0.85rem;
+  font-weight: 700;
+  letter-spacing: 0.15em;
+  color: var(--color-warning);
+  /* Drop the platform chrome so the control reads as part of the terminal,
+     then draw our own chevron in its place. */
+  appearance: none;
+  -webkit-appearance: none;
+  background-image: linear-gradient(45deg, transparent 50%, var(--color-warning) 50%),
+                    linear-gradient(135deg, var(--color-warning) 50%, transparent 50%);
+  background-position: calc(100% - 18px) 50%, calc(100% - 13px) 50%;
+  background-size: 5px 5px, 5px 5px;
+  background-repeat: no-repeat;
+  /* Surfaces the native picker in the project's color scheme. */
+  color-scheme: dark;
+}
+
+.admin-tab-select:focus {
+  outline: none;
+  box-shadow: 0 0 10px rgba(212, 137, 10, 0.3);
+}
+
 /* ── Tab Content ── */
 /* Deliberately unbounded in height: the panel grows the page instead of
    trapping the tables in a nested scroll region. */
@@ -719,17 +757,127 @@
 
 /* ── Responsive ── */
 @media (max-width: 768px) {
+  /* The five-tab strip becomes the native picker: one 44px row instead of the
+     three rows the buttons wrapped into. */
   .admin-tabs {
+    display: none;
+  }
+
+  .admin-tab-picker {
+    display: block;
+  }
+
+  /* No tab strip above it, so the panel is a plain box rather than a folder. */
+  .admin-tab-content {
+    border-radius: var(--radius-md);
+    padding: 10px;
+  }
+
+  /* Header wraps to its own row rather than squeezing the count and the
+     REFRESH button onto one line. */
+  .admin-list-header {
     flex-wrap: wrap;
+    gap: 8px;
+    margin-bottom: 8px;
+  }
+
+  .admin-list-left {
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+
+  /* Tables are the whole point of this panel on a phone — give the data every
+     pixel the padding was taking, and keep the type readable rather than
+     shrinking it to fit. */
+  .admin-table th,
+  .admin-table td {
+    padding: 7px 6px;
+  }
+
+  .admin-table {
+    font-size: 0.78rem;
+  }
+
+  .admin-table th {
+    font-size: 0.58rem;
+    letter-spacing: 0.08em;
+  }
+
+  .date-cell {
+    font-size: 0.7rem;
+  }
+
+  /* The UNIVERSES table wants 448px for its six columns and a phone gives it
+     320, so two have to go. CAPACITY is only a bar drawing the number the %
+     column already states, and MAX is recoverable from CASES and %. The
+     remaining four fit without a sideways scroll — which would otherwise hide
+     the same data, just less visibly. Desktop keeps all six. */
+  .admin-universes .admin-table th:nth-child(4),
+  .admin-universes .admin-table td:nth-child(4),
+  .admin-universes .admin-table th:nth-child(6),
+  .admin-universes .admin-table td:nth-child(6) {
+    display: none;
+  }
+
+  /* Full-width action buttons: a wrapped row of half-width buttons reads as
+     accidental, and these are all destructive-ish toggles worth hitting
+     deliberately. */
+  .admin-actions {
+    gap: 8px;
+  }
+
+  .admin-action-button {
+    width: 100%;
+    min-height: 44px;
+    text-align: center;
   }
 
   .admin-code-header {
     flex-direction: column;
     align-items: flex-start;
     gap: 8px;
+    padding: 10px;
   }
 
   .admin-code-meta {
     flex-wrap: wrap;
+  }
+
+  .admin-code-effects {
+    padding: 10px;
+  }
+
+  /* FROM/TO pickers stack; side by side they overflow the row. */
+  .dataset-since {
+    flex: 1 1 100%;
+    display: grid;
+    grid-template-columns: auto 1fr;
+    gap: 6px 10px;
+    padding: 8px 10px;
+  }
+
+  .dataset-since-input {
+    width: 100%;
+    min-height: 40px;
+  }
+
+  .analytics-section-header {
+    flex-wrap: wrap;
+    gap: 6px;
+  }
+
+  /* The denominator is a parenthetical — let it drop below the title instead
+     of forcing the title to wrap mid-phrase. */
+  .analytics-denominator {
+    margin-left: 0;
+    display: block;
+  }
+
+  .admin-analytics {
+    gap: 14px;
+  }
+
+  .choice-stat {
+    padding: 8px 10px;
   }
 }
