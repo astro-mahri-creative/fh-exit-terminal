@@ -1,9 +1,17 @@
 import React, { useState, useCallback, useRef } from 'react';
+import { QRCodeSVG } from 'qrcode.react';
 import { sessionService } from '../services/api';
 import SegmentedInput from './SegmentedInput';
 import OnScreenKeyboard from './OnScreenKeyboard';
 import { isKiosk } from '../kiosk';
 import './WelcomeScreen.css';
+
+// The mobile terminal is this same app on the visitor's own phone. Built from
+// the live origin rather than hardcoded so the code cannot go stale if the
+// domain moves, and pinned to `?kiosk=0` because the kiosk flag is persisted
+// per-device: without it a phone that ever loaded a kiosk URL would come back
+// in kiosk mode and get the on-screen keyboard it cannot use.
+const mobileLoginUrl = () => `${window.location.origin}/?kiosk=0`;
 
 // Six lowercase alphanumerics. Applied on every change so it holds no matter
 // how the characters arrive — on-screen keys, a physical keyboard, or a paste.
@@ -23,6 +31,9 @@ function WelcomeScreen({ onSessionStart, onViewNetwork }) {
   const [newId, setNewId] = useState('');
   const [newIdStep, setNewIdStep] = useState(0);
   const [creatingId, setCreatingId] = useState(false);
+  // Kiosk-only: hands the visitor the mobile terminal via QR so they can carry
+  // the session out of the exhibit on their own phone.
+  const [showMobileQr, setShowMobileQr] = useState(false);
 
   // A locked terminal and a bad ID are different failures: the lockout is a
   // full-screen popup, everything else is the inline error line.
@@ -94,6 +105,16 @@ function WelcomeScreen({ onSessionStart, onViewNetwork }) {
   return (
     <div className="welcome-screen">
       <div className="welcome-container">
+        {isKiosk() && (
+          <button
+            className="mobile-login-btn"
+            onClick={() => setShowMobileQr(true)}
+            aria-haspopup="dialog"
+          >
+            MOBILE<br/>LOGIN
+          </button>
+        )}
+
         <div className="logo-container">
           {/* FUTURE HOOMAN is the parent brand — a kicker above the terminal's
               own name, which is what this screen is actually announcing. */}
@@ -215,6 +236,44 @@ function WelcomeScreen({ onSessionStart, onViewNetwork }) {
                 </div>
               </>
             )}
+          </div>
+        </div>
+      )}
+
+      {showMobileQr && (
+        <div
+          className="mobile-qr-overlay"
+          onClick={() => setShowMobileQr(false)}
+        >
+          {/* The dialog swallows the click so only the backdrop dismisses. */}
+          <div
+            className="mobile-qr-dialog"
+            role="dialog"
+            aria-modal="true"
+            aria-label="Mobile login"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="mobile-qr-title">CONTINUE ON YOUR PHONE</div>
+            <p className="mobile-qr-text">
+              Scan to open the EXIT TERMINAL on your own device.
+            </p>
+            {/* White quiet zone is not decoration — scanners need the contrast
+                and the margin, and this screen is otherwise near-black. */}
+            <div className="mobile-qr-code">
+              <QRCodeSVG
+                value={mobileLoginUrl()}
+                size={420}
+                level="M"
+                marginSize={2}
+                style={{ width: '100%', height: 'auto' }}
+              />
+            </div>
+            <button
+              className="mobile-qr-dismiss"
+              onClick={() => setShowMobileQr(false)}
+            >
+              CLOSE
+            </button>
           </div>
         </div>
       )}
