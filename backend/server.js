@@ -1729,9 +1729,11 @@ app.post('/api/admin/reset-universes', async (req, res) => {
       isActive: true
     });
     
-    // Reset user ID usage
-    await UserId.updateMany({}, { lastUsedDate: null });
-    
+    // UserId.lastUsedDate is deliberately NOT cleared here. It is a permanent
+    // record of when each visitor last logged in, kept across resets so we can
+    // find lapsed users for re-engagement. It has no gameplay function — the
+    // once-per-day gate reads Sessions (see /api/session/start), not this field.
+
     await logEvent('system_reset', session._id, session.userId);
     
     res.json({
