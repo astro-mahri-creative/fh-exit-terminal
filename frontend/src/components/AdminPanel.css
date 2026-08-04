@@ -654,6 +654,30 @@
   border-color: var(--phax-light);
 }
 
+/* Phase options carry their date range, so the select is much wider than the
+   date inputs beside it. Cap it and ellipsize rather than let it push the
+   REFRESH button off the row. */
+.dataset-phase-select {
+  max-width: 260px;
+  cursor: pointer;
+  text-overflow: ellipsis;
+}
+
+/* ALL PHASES spans windows with different code catalogs and effect scales —
+   say so where the numbers are, not just in the docs. */
+.phase-mix-warning {
+  font-family: var(--font-mono);
+  font-size: 0.7rem;
+  line-height: 1.5;
+  letter-spacing: 0.04em;
+  color: var(--text-secondary);
+  background: var(--bg-raised);
+  border-left: 2px solid var(--phax-light);
+  border-radius: var(--radius-sm);
+  padding: 8px 12px;
+  margin-bottom: 4px;
+}
+
 .analytics-section {
   display: flex;
   flex-direction: column;
@@ -845,7 +869,7 @@
     padding: 10px;
   }
 
-  /* FROM/TO pickers stack; side by side they overflow the row. */
+  /* PHASE and FROM/TO pickers stack; side by side they overflow the row. */
   .dataset-since {
     flex: 1 1 100%;
     display: grid;
@@ -857,6 +881,11 @@
   .dataset-since-input {
     width: 100%;
     min-height: 40px;
+  }
+
+  /* The desktop cap would leave it narrower than the date inputs it sits above. */
+  .dataset-phase-select {
+    max-width: none;
   }
 
   .analytics-section-header {

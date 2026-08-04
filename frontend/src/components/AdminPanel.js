@@ -27,10 +27,14 @@ function AdminPanel({ sessionData }) {
   const [analytics, setAnalytics] = useState(null);
   const [userSort, setUserSort] = useState('logins'); // 'logins' | 'codes'
   const [terminalLocked, setTerminalLocked] = useState(false);
-  // YYYY-MM-DD strings bounding the analytics window. Start is empty until the
-  // first response comes back, at which point we default it to the reset date
-  // so the picker shows the full post-reset period. End defaults to today.
-  // Setting both to the same date selects exactly that one day.
+  // Which reset-to-reset window the analytics tab is reporting on: a phase
+  // number as a string, or 'all'. Empty until the first response tells us
+  // which phase is current.
+  const [selectedPhase, setSelectedPhase] = useState('');
+  // YYYY-MM-DD strings bounding the analytics window WITHIN the selected phase.
+  // Start is empty until the first response comes back, at which point we
+  // default it to the phase's start so the picker shows the whole phase. End
+  // defaults to today. Setting both to the same date selects exactly that day.
   const [analyticsStartDate, setAnalyticsStartDate] = useState('');
   const [analyticsEndDate, setAnalyticsEndDate] = useState(TODAY);
 
@@ -70,11 +74,11 @@ function AdminPanel({ sessionData }) {
     }
   }, []);
 
-  const loadAnalytics = useCallback(async (startDate, endDate) => {
+  const loadAnalytics = useCallback(async (startDate, endDate, phase) => {
     setLoading(true);
     try {
       const response = await adminService.getDetailedAnalytics(
-        sessionData.session_token, startDate, endDate
+        sessionData.session_token, startDate, endDate, phase
       );
       if (response.success) setAnalytics(response.analytics);
     } catch (err) {
@@ -84,13 +88,21 @@ function AdminPanel({ sessionData }) {
     }
   }, [sessionData.session_token]);
 
-  // After the first analytics response arrives, default the FROM picker
-  // to the reset date so the admin sees the full post-reset window.
+  // After the first analytics response arrives, adopt the phase the backend
+  // picked (the current one) and default the FROM picker to that phase's
+  // start, so the admin sees the whole phase without touching anything.
   useEffect(() => {
-    if (analytics && analytics.reset_date && !analyticsStartDate) {
-      setAnalyticsStartDate(analytics.reset_date.slice(0, 10));
+    if (!analytics) return;
+    if (!selectedPhase) {
+      // A deployment with no reset ever recorded has no phases to select and
+      // the backend queried the whole log — which is exactly ALL PHASES.
+      const current = analytics.selected_phase;
+      setSelectedPhase(current === null || current === undefined ? 'all' : String(current));
     }
-  }, [analytics, analyticsStartDate]);
+    if (analytics.phase_start_date && !analyticsStartDate) {
+      setAnalyticsStartDate(analytics.phase_start_date.slice(0, 10));
+    }
+  }, [analytics, analyticsStartDate, selectedPhase]);
 
   // Keep the range coherent: dragging one end past the other pulls the other
   // along, so FROM is never after TO.
@@ -104,7 +116,28 @@ function AdminPanel({ sessionData }) {
     }
     setAnalyticsStartDate(from);
     setAnalyticsEndDate(to);
-    loadAnalytics(from, to);
+    loadAnalytics(from, to, selectedPhase);
+  };
+
+  // Switching phase snaps the date range to that phase's own bounds, so the
+  // pickers never carry a window from the previous selection. Day-granular
+  // bounds are deliberately loose at both ends — the backend clamps them to
+  // the exact reset moments, so the phase can't bleed into its neighbours.
+  const handlePhaseChange = (value) => {
+    const phase = (analytics?.phases || []).find(p => String(p.phase_number) === value);
+    const from = value === 'all' || !phase?.started_at ? '' : phase.started_at.slice(0, 10);
+    const to = value === 'all' || !phase?.ended_at ? TODAY : phase.ended_at.slice(0, 10);
+    setSelectedPhase(value);
+    setAnalyticsStartDate(from);
+    setAnalyticsEndDate(to);
+    loadAnalytics(from, to, value);
+  };
+
+  // "PHASE 2 · 2026-07-12 → 2026-08-01", newest first.
+  const phaseOptionLabel = (p) => {
+    const start = p.started_at ? p.started_at.slice(0, 10) : 'START';
+    const end = p.is_current ? 'NOW' : (p.ended_at ? p.ended_at.slice(0, 10) : 'NOW');
+    return `${p.label}${p.is_current ? ' (CURRENT)' : ''} · ${start} → ${end}`;
   };
 
   const handleToggleTerminalLock = async () => {
@@ -500,12 +533,26 @@ function AdminPanel({ sessionData }) {
               <>
                 <div className="admin-list-header">
                   <div className="dataset-since">
+                    <label htmlFor="analytics-phase" className="dataset-since-label">PHASE</label>
+                    <select
+                      id="analytics-phase"
+                      className="dataset-since-input dataset-phase-select"
+                      value={selectedPhase}
+                      onChange={(e) => handlePhaseChange(e.target.value)}
+                    >
+                      {(analytics.phases || []).slice().reverse().map(p => (
+                        <option key={p.phase_number} value={String(p.phase_number)}>
+                          {phaseOptionLabel(p)}
+                        </option>
+                      ))}
+                      <option value="all">ALL PHASES</option>
+                    </select>
                     <label htmlFor="analytics-start-date" className="dataset-since-label">FROM</label>
                     <input
                       id="analytics-start-date"
                       type="date"
                       className="dataset-since-input"
-                      min={analytics.reset_date ? analytics.reset_date.slice(0, 10) : undefined}
+                      min={analytics.phase_start_date ? analytics.phase_start_date.slice(0, 10) : undefined}
                       max={analyticsEndDate || TODAY}
                       value={analyticsStartDate}
                       onChange={(e) => handleAnalyticsRangeChange('from', e.target.value)}
@@ -515,17 +562,26 @@ function AdminPanel({ sessionData }) {
                       id="analytics-end-date"
                       type="date"
                       className="dataset-since-input"
-                      min={analyticsStartDate || (analytics.reset_date ? analytics.reset_date.slice(0, 10) : undefined)}
-                      max={TODAY}
+                      min={analyticsStartDate || (analytics.phase_start_date ? analytics.phase_start_date.slice(0, 10) : undefined)}
+                      max={analytics.phase_end_date ? analytics.phase_end_date.slice(0, 10) : TODAY}
                       value={analyticsEndDate}
                       onChange={(e) => handleAnalyticsRangeChange('to', e.target.value)}
                     />
                   </div>
                   <button
-                    onClick={() => loadAnalytics(analyticsStartDate, analyticsEndDate)}
+                    onClick={() => loadAnalytics(analyticsStartDate, analyticsEndDate, selectedPhase)}
                     className="admin-refresh"
                   >REFRESH</button>
                 </div>
+
+                {selectedPhase === 'all' && (
+                  <div className="phase-mix-warning">
+                    ALL PHASES aggregates windows that ran with different code
+                    catalogs and effect scales. Code activation counts and
+                    per-user rates are sums across those configurations, not a
+                    like-for-like comparison.
+                  </div>
+                )}
 
                 {analytics.choice_distribution && (
                   <div className="analytics-section">
