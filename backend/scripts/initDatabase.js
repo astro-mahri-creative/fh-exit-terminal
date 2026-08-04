@@ -466,11 +466,16 @@ async function initDatabase() {
       isDiscovered: false
     });
 
-    // Mark the seed completion as a system_reset in AnalyticsLog. The
-    // analytics endpoint uses the latest system_reset event as the cutoff
-    // for the active analytics period, so logging one here ensures the
-    // admin tab reflects "this incarnation of the dataset" only, instead
-    // of carrying over stats from before the reseed.
+    // Mark the seed completion as a system_reset in AnalyticsLog. Each
+    // system_reset event opens a new analytics phase, and the admin tab
+    // defaults to the newest one — so logging here makes the tab reflect
+    // "this incarnation of the dataset" instead of carrying over stats from
+    // before the reseed. Earlier phases stay reachable from the phase
+    // selector; AnalyticsLog is deliberately not wiped above.
+    //
+    // No phaseNumber is stamped: the Phase doc created above always restarts
+    // at 1 on a reseed, whereas the analytics phase numbering counts reset
+    // events across the whole log. Writing 1 here would contradict it.
     console.log('Recording analytics reset point...');
     await AnalyticsLog.create({
       eventType: 'system_reset',

@@ -1734,7 +1734,14 @@ app.post('/api/admin/reset-universes', async (req, res) => {
     // find lapsed users for re-engagement. It has no gameplay function — the
     // once-per-day gate reads Sessions (see /api/session/start), not this field.
 
-    await logEvent('system_reset', session._id, session.userId);
+    // The analytics phase selector derives its numbering from the ORDER of
+    // system_reset events, not from this field — Phase docs get wiped by
+    // initDatabase.js while AnalyticsLog survives, so stored phaseNumbers
+    // restart while resets keep accruing. Stamped anyway so the event stream
+    // is self-describing when read directly.
+    await logEvent('system_reset', session._id, session.userId, {
+      phaseNumber: newPhaseNumber
+    });
     
     res.json({
       success: true,
@@ -1861,24 +1868,88 @@ app.get('/api/admin/analytics/detailed', async (req, res) => {
     // Code collection is still used to look up alignment for transmissions
     // and to enumerate the code catalog in the response.
     //
-    // Cutoff: anchored to the most recent `system_reset` event (logged by
-    // the in-app "Reset Dimension Statistics" admin action and by the
-    // initDatabase.js seed script). Anything before that moment is dev
-    // noise from a prior incarnation of the dataset and is hidden from
-    // the analytics tab. The admin can narrow the view further by passing
-    // ?start_date=YYYY-MM-DD — clamped to the reset moment, so they can
-    // never accidentally include pre-reset events.
+    // Phases: every `system_reset` event (logged by the in-app "Reset
+    // Dimension Statistics" admin action and by the initDatabase.js seed
+    // script) opens a new phase. Phase N spans [resets[N-1], resets[N]) —
+    // end-EXCLUSIVE, so the reset event belongs to the phase it opens and
+    // no event is counted in two phases. The newest phase has an open end.
+    //
+    // Numbering is derived from event ORDER, not from the Phase collection:
+    // initDatabase.js wipes Phase docs but preserves AnalyticsLog, so the
+    // stored phaseNumber restarts at 1 while resets keep accumulating. The
+    // event stream is the only monotonic record of how many phases have run.
+    //
+    // ?phase= picks the window: a phase number, `current` (the default —
+    // this is the pre-phase-selector behaviour), `pre` for anything logged
+    // before the very first reset, or `all` for the entire history.
+    // ?start_date / ?end_date narrow further and are clamped INTO the
+    // selected phase, so narrowing can never reach into a neighbouring one.
     // ──────────────────────────────────────────────────────────────────────
-    const latestReset = await AnalyticsLog.findOne({ eventType: 'system_reset' })
-      .sort({ timestamp: -1 })
-      .select('timestamp');
-    const resetCutoff = latestReset ? latestReset.timestamp : null;
+    const TRACKED_EVENT_TYPES = ['session_start', 'code_entered', 'session_finalized', 'code_error_invalid'];
 
-    // Optional caller-supplied window (YYYY-MM-DD, interpreted as UTC). The
-    // start falls back to the reset moment when absent or invalid, and is
-    // clamped up to it so users can't reach behind the reset. The end is
-    // inclusive — it snaps to the last millisecond of the named day, so
-    // picking the same date for both yields exactly that one day.
+    const resetEvents = await AnalyticsLog.find({ eventType: 'system_reset' })
+      .sort({ timestamp: 1 })
+      .select('timestamp');
+
+    const phaseWindows = resetEvents.map((reset, i) => ({
+      phase_number: i + 1,
+      label: `PHASE ${i + 1}`,
+      started_at: reset.timestamp,
+      ended_at: resetEvents[i + 1] ? resetEvents[i + 1].timestamp : null,
+      is_current: i === resetEvents.length - 1
+    }));
+
+    // Phase 0 ("PRE-PHASE 1") covers anything logged before the first reset.
+    // Gated on events attributable to a CURRENT visitor, not on raw event
+    // count: prod's pre-history is 242 events that all belong to retired staff
+    // ids or carry a null userId, so every stat below would filter them out
+    // and the option would render as an all-zeros phase.
+    const firstResetAt = resetEvents.length ? resetEvents[0].timestamp : null;
+    const hasPreHistory = firstResetAt
+      ? (await AnalyticsLog.countDocuments({
+          eventType: { $in: TRACKED_EVENT_TYPES },
+          timestamp: { $lt: firstResetAt },
+          userId: { $in: Array.from(visitorIds) }
+        })) > 0
+      : false;
+
+    const selectablePhases = [
+      ...(hasPreHistory
+        ? [{ phase_number: 0, label: 'PRE-PHASE 1', started_at: null, ended_at: firstResetAt, is_current: false }]
+        : []),
+      ...phaseWindows
+    ];
+
+    // Resolve ?phase=. Unrecognised values fall back to the current phase
+    // rather than erroring, so a stale bookmark still renders something.
+    const rawPhase = (req.query.phase || '').toString().trim().toLowerCase();
+    const currentPhase = phaseWindows.length ? phaseWindows[phaseWindows.length - 1] : null;
+
+    let selectedPhase = null;   // 'all' | 0 | 1..N | null when no reset exists yet
+    let phaseStart = null;
+    let phaseEnd = null;        // exclusive: it is the NEXT phase's opening reset
+
+    if (rawPhase === 'all') {
+      selectedPhase = 'all';
+    } else {
+      const requestedNumber = rawPhase === 'pre'
+        ? 0
+        : (/^\d+$/.test(rawPhase) ? Number(rawPhase) : null);
+      const chosen =
+        (requestedNumber !== null && selectablePhases.find(p => p.phase_number === requestedNumber)) ||
+        currentPhase;
+      if (chosen) {
+        selectedPhase = chosen.phase_number;
+        phaseStart = chosen.started_at ? new Date(chosen.started_at) : null;
+        phaseEnd = chosen.ended_at ? new Date(chosen.ended_at) : null;
+      }
+    }
+
+    // Optional caller-supplied narrowing (YYYY-MM-DD, interpreted as UTC),
+    // clamped into the selected phase: the start can never reach behind the
+    // phase's opening reset, the end never past its closing one. A supplied
+    // end is inclusive — it snaps to the last millisecond of the named day,
+    // so picking the same date for both yields exactly that one day.
     const parseDateParam = (raw, endOfDay = false) => {
       if (!raw || !/^\d{4}-\d{2}-\d{2}$/.test(raw)) return null;
       const parsed = new Date(raw + (endOfDay ? 'T23:59:59.999Z' : 'T00:00:00.000Z'));
@@ -1888,18 +1959,25 @@ app.get('/api/admin/analytics/detailed', async (req, res) => {
     const requestedStart = parseDateParam(req.query.start_date);
     const requestedEnd = parseDateParam(req.query.end_date, true);
 
-    let effectiveCutoff = resetCutoff ? new Date(resetCutoff) : null;
-    if (requestedStart && (!effectiveCutoff || requestedStart > effectiveCutoff)) {
-      effectiveCutoff = requestedStart;
+    let windowStart = phaseStart;
+    if (requestedStart && (!windowStart || requestedStart > windowStart)) {
+      windowStart = requestedStart;
     }
 
-    const eventFilter = {
-      eventType: { $in: ['session_start', 'code_entered', 'session_finalized', 'code_error_invalid'] }
-    };
-    if (effectiveCutoff || requestedEnd) {
+    // The phase boundary is exclusive, a caller-supplied end-of-day is not —
+    // track which comparison to emit so neither semantic leaks into the other.
+    let windowEnd = phaseEnd;
+    let windowEndExclusive = phaseEnd !== null;
+    if (requestedEnd && (!windowEnd || requestedEnd < windowEnd)) {
+      windowEnd = requestedEnd;
+      windowEndExclusive = false;
+    }
+
+    const eventFilter = { eventType: { $in: TRACKED_EVENT_TYPES } };
+    if (windowStart || windowEnd) {
       eventFilter.timestamp = {};
-      if (effectiveCutoff) eventFilter.timestamp.$gte = effectiveCutoff;
-      if (requestedEnd) eventFilter.timestamp.$lte = requestedEnd;
+      if (windowStart) eventFilter.timestamp.$gte = windowStart;
+      if (windowEnd) eventFilter.timestamp[windowEndExclusive ? '$lt' : '$lte'] = windowEnd;
     }
 
     const events = await AnalyticsLog.find(eventFilter)
@@ -1929,15 +2007,15 @@ app.get('/api/admin/analytics/detailed', async (req, res) => {
     // types and deliberately excluded — a duplicate is a correct code.
     const invalidEvents = playerEvents.filter(e => e.eventType === 'code_error_invalid');
 
-    // Dataset age — days since the effective cutoff (which is the reset
-    // moment by default, or the caller-supplied start_date when narrower).
-    // If no reset has been recorded yet, fall back to the oldest non-admin
-    // session_start event so the field still shows something meaningful on
-    // a fresh deployment.
-    const ageAnchor = effectiveCutoff
-      ? new Date(effectiveCutoff)
+    // Dataset age — days spanned by the window actually queried (the selected
+    // phase, narrowed by any caller-supplied dates). If the window has no
+    // start — ALL PHASES, PRE-PHASE 1, or a deployment with no reset recorded
+    // yet — fall back to the oldest non-admin session_start event so the field
+    // still shows something meaningful.
+    const ageAnchor = windowStart
+      ? new Date(windowStart)
       : (startEvents[0] ? new Date(startEvents[0].timestamp) : null);
-    const ageEnd = requestedEnd ? requestedEnd.getTime() : Date.now();
+    const ageEnd = windowEnd ? windowEnd.getTime() : Date.now();
     const datasetAgeDays = ageAnchor
       ? Math.max(0, Math.floor((ageEnd - ageAnchor.getTime()) / 86400000))
       : 0;
@@ -2070,14 +2148,28 @@ app.get('/api/admin/analytics/detailed', async (req, res) => {
     res.json({
       success: true,
       analytics: {
-        // `reset_date` is the lower bound for the date picker — the admin
-        // can never go earlier than the most recent reset.
-        // `effective_start_date` is what we actually filtered on for this
-        // response (either the requested start_date or the reset moment).
-        // Both are ISO strings; null if no reset has happened yet.
-        reset_date: resetCutoff ? new Date(resetCutoff).toISOString() : null,
-        effective_start_date: effectiveCutoff ? effectiveCutoff.toISOString() : null,
-        effective_end_date: requestedEnd ? requestedEnd.toISOString() : null,
+        // `phases` drives the phase selector, oldest first. `selected_phase`
+        // echoes what this response was actually built from ('all', 0 for
+        // PRE-PHASE 1, or a phase number; null on a deployment with no reset
+        // recorded yet). `phase_start_date` / `phase_end_date` are the bounds
+        // of that phase and become the date picker's min/max — null means
+        // open-ended (the current phase has no end; ALL PHASES has neither).
+        // `effective_*` is the window actually queried after the date pickers
+        // narrowed it. `reset_date` is retained for older clients and is the
+        // most recent reset, i.e. the current phase's start. All ISO strings.
+        phases: selectablePhases.map(p => ({
+          phase_number: p.phase_number,
+          label: p.label,
+          started_at: p.started_at ? new Date(p.started_at).toISOString() : null,
+          ended_at: p.ended_at ? new Date(p.ended_at).toISOString() : null,
+          is_current: p.is_current
+        })),
+        selected_phase: selectedPhase,
+        phase_start_date: phaseStart ? phaseStart.toISOString() : null,
+        phase_end_date: phaseEnd ? phaseEnd.toISOString() : null,
+        reset_date: currentPhase ? new Date(currentPhase.started_at).toISOString() : null,
+        effective_start_date: windowStart ? new Date(windowStart).toISOString() : null,
+        effective_end_date: windowEnd ? new Date(windowEnd).toISOString() : null,
         dataset_age_days: datasetAgeDays,
         total_non_admin_users: totalNonAdminUsers,
         choice_distribution: choiceDistribution,

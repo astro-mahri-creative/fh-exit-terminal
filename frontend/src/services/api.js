@@ -101,13 +101,16 @@ export const adminService = {
     return response.data;
   },
 
-  getDetailedAnalytics: async (sessionToken, startDate, endDate) => {
-    // Both are optional YYYY-MM-DD strings. The backend clamps start to the
-    // reset moment and treats end as inclusive through the end of that day,
-    // so passing the same value for both selects a single day.
+  getDetailedAnalytics: async (sessionToken, startDate, endDate, phase) => {
+    // `phase` selects which reset-to-reset window to report on: a phase
+    // number, 'all', 'pre', or omitted for the current phase. startDate and
+    // endDate are optional YYYY-MM-DD strings that narrow within it — the
+    // backend clamps them into the selected phase and treats end as inclusive
+    // through the end of that day, so the same value for both selects one day.
     const params = { session_token: sessionToken };
     if (startDate) params.start_date = startDate;
     if (endDate) params.end_date = endDate;
+    if (phase !== undefined && phase !== null && phase !== '') params.phase = phase;
     const response = await api.get('/admin/analytics/detailed', { params });
     return response.data;
   },
