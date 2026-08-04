@@ -428,12 +428,13 @@ async function initDatabase() {
       });
     }
 
-    // Initialize User IDs (13 admin + 20 visitor)
+    // Initialize User IDs (14 admin + 20 visitor)
     console.log('Creating user IDs...');
     const adminIds = [
       'fhadmn',
       'werdna', 'moguli', 'lexkan', 'flux42', 'aarona', 'pharma',
-      'frothy', 'radish', 'toofio', 'dragan', 'xangib', 'omahri'
+      'frothy', 'radish', 'toofio', 'dragan', 'xangib', 'omahri',
+      'jws416'
     ];
     for (const adminId of adminIds) {
       await UserId.create({
