@@ -206,13 +206,18 @@ const adminSettingsSchema = new mongoose.Schema({
   // When true, non-admin users can neither log in nor mint a new user ID.
   // Toggled by hand from the admin panel; admins are always exempt.
   terminalLocked: { type: Boolean, default: false },
-  // Whether finalize automatically emails the impact report to visitors who
-  // already have an address on file. Off is a real operating mode, not just a
-  // kill switch: during a busy exhibit day it keeps the results screen from
-  // waiting on a mail provider, and it protects a limited daily send quota.
-  // Turning it off does NOT disable the button on the results screen — a
-  // visitor who explicitly asks for their report still gets it.
-  autoSendImpactReport: { type: Boolean, default: true }
+  // Master switch for visitor-facing impact report email. Off stops every
+  // outbound report — the automatic send at finalize AND the results screen's
+  // own send button, which the UI hides entirely rather than offering
+  // something that will be refused.
+  //
+  // Deliberately does not gate operator alerts (final-state notifications):
+  // silencing your own paging from a visitor-experience toggle would be a
+  // surprise at exactly the wrong moment.
+  //
+  // Addresses are still collected and progress is still saved while off — the
+  // stop is on sending, not on capture.
+  impactReportEmailEnabled: { type: Boolean, default: true }
 });
 adminSettingsSchema.statics.getSettings = async function () {
   let doc = await this.findOne();

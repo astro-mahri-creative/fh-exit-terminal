@@ -629,18 +629,21 @@ app.post('/api/session/start', async (req, res) => {
       });
     }
     
+    const adminSettings = await AdminSettings.getSettings();
+
     // Manual lockout — set from the admin panel. Admins are always exempt so
     // they can get in and unlock again.
-    if (!userIdRecord.isAdmin) {
-      const settings = await AdminSettings.getSettings();
-      if (settings.terminalLocked) {
-        return res.status(403).json({
-          success: false,
-          error: 'TERMINAL_LOCKED',
-          message: TERMINAL_LOCKED_MESSAGE
-        });
-      }
+    if (!userIdRecord.isAdmin && adminSettings.terminalLocked) {
+      return res.status(403).json({
+        success: false,
+        error: 'TERMINAL_LOCKED',
+        message: TERMINAL_LOCKED_MESSAGE
+      });
     }
+
+    // Told to the client up front so the Save Progress gate doesn't promise an
+    // impact report by email when nothing is going to send one.
+    const reportEmailEnabled = adminSettings.impactReportEmailEnabled !== false && !!transporter;
 
     // For non-admin users: check for an existing session since today's 4:00am ET
     if (!userIdRecord.isAdmin) {
@@ -652,9 +655,7 @@ app.post('/api/session/start', async (req, res) => {
       });
 
       if (existingSession) {
-        const settings = await AdminSettings.getSettings();
-
-        if (settings.sameDayReturnMode === 'block' && existingSession.isComplete) {
+        if (adminSettings.sameDayReturnMode === 'block' && existingSession.isComplete) {
           return res.status(403).json({
             success: false,
             error: 'SESSION_COMPLETE_TODAY',
@@ -687,6 +688,7 @@ app.post('/api/session/start', async (req, res) => {
           is_admin: userIdRecord.isAdmin,
           email: userIdRecord.emailAddress || existingSession.emailAddress || null,
           active_codes: activeCodes,
+          report_email_enabled: reportEmailEnabled,
           resumed: true,
           message: 'Session resumed'
         });
@@ -722,6 +724,7 @@ app.post('/api/session/start', async (req, res) => {
       // code entry screen skip the "Save Progress?" prompt and the impact
       // report pre-populate its email field.
       email: userIdRecord.emailAddress || null,
+      report_email_enabled: reportEmailEnabled,
       message: 'Session started'
     });
 
@@ -1673,11 +1676,12 @@ app.post('/api/codes/finalize', async (req, res) => {
     // socket timeouts (see its construction above) to bound how long a sulking
     // mail provider can hold this response open; a failure here is logged and
     // reported as "not sent", never as a failed transmission.
-    // Skipped entirely when an admin has switched auto-send off — the results
-    // screen then falls back to asking, and the visitor can still request the
-    // report by hand.
+    // Skipped entirely when an admin has stopped report email — the results
+    // screen then drops its send button too, so nothing offers a delivery the
+    // server would refuse.
+    const reportEmailEnabled = settings.impactReportEmailEnabled !== false;
     let reportEmailSentTo = null;
-    if (session.emailAddress && transporter && settings.autoSendImpactReport !== false) {
+    if (session.emailAddress && transporter && reportEmailEnabled) {
       try {
         await sendImpactReport(session, session.emailAddress, session.optInMessaging);
         reportEmailSentTo = session.emailAddress;
@@ -1708,7 +1712,11 @@ app.post('/api/codes/finalize', async (req, res) => {
       cure_active: isCureActive,
       status_messages: statusMessages,
       final_state: !!finalState.isFinal,
-      report_email_sent_to: reportEmailSentTo
+      report_email_sent_to: reportEmailSentTo,
+      // Lets the results screen hide its send button rather than offer a
+      // delivery this server will refuse. Also false when no mail transport is
+      // configured at all — from the visitor's side those are the same thing.
+      report_email_enabled: reportEmailEnabled && !!transporter
     });
 
   } catch (error) {
@@ -1748,6 +1756,20 @@ app.post('/api/email/send', async (req, res) => {
     
     const optIn = !!opt_in;
     const normalizedEmail = email.toLowerCase().trim();
+
+    // Admin master switch. The UI hides the button that reaches here while
+    // this is off, so anything that still arrives is a stale client or a
+    // direct call — refuse it rather than let one path leak past the stop.
+    // The address itself is still worth keeping.
+    const emailSettings = await AdminSettings.getSettings();
+    if (emailSettings.impactReportEmailEnabled === false) {
+      await persistUserEmailPreference(session.userId, normalizedEmail, optIn);
+      return res.status(403).json({
+        success: false,
+        error: 'REPORT_EMAIL_DISABLED',
+        message: 'Impact report email is currently turned off'
+      });
+    }
 
     // Don't report success if no transporter is configured — that path
     // was silently dropping outbound mail while the client got a "sent"
@@ -1932,28 +1954,28 @@ app.post('/api/admin/settings/toggle-lock', async (req, res) => {
   }
 });
 
-// POST /api/admin/settings/toggle-auto-email - Turn the automatic impact
-// report send at finalize on or off. Never affects the explicit "send me my
-// report" button on the results screen.
-app.post('/api/admin/settings/toggle-auto-email', async (req, res) => {
+// POST /api/admin/settings/toggle-report-email - Master switch for visitor
+// impact report email: the automatic send at finalize and the on-demand send
+// alike. Operator alerts are unaffected.
+app.post('/api/admin/settings/toggle-report-email', async (req, res) => {
   try {
     const session = await requireAdmin(req, res);
     if (!session) return;
 
     const settings = await AdminSettings.getSettings();
-    settings.autoSendImpactReport = !settings.autoSendImpactReport;
+    settings.impactReportEmailEnabled = !settings.impactReportEmailEnabled;
     await settings.save();
 
     // Worth a record: this is the difference between a day where everyone who
     // left an address got a report and a day where nobody did, which is not
     // otherwise recoverable from the session rows.
-    await logEvent('auto_email_toggled', session._id, session.userId, {
-      autoSendImpactReport: settings.autoSendImpactReport
+    await logEvent('report_email_toggled', session._id, session.userId, {
+      impactReportEmailEnabled: settings.impactReportEmailEnabled
     });
 
-    res.json({ success: true, autoSendImpactReport: settings.autoSendImpactReport });
+    res.json({ success: true, impactReportEmailEnabled: settings.impactReportEmailEnabled });
   } catch (error) {
-    console.error('Error toggling auto email:', error);
+    console.error('Error toggling impact report email:', error);
     res.status(500).json({ success: false, error: 'SERVER_ERROR', message: 'Error updating settings' });
   }
 });
@@ -2164,10 +2186,10 @@ app.get('/api/admin/analytics', async (req, res) => {
         sameDayReturnMode: settings.sameDayReturnMode,
         effectScale: settings.effectScale,
         terminalLocked: settings.terminalLocked,
-        autoSendImpactReport: settings.autoSendImpactReport !== false,
+        impactReportEmailEnabled: settings.impactReportEmailEnabled !== false,
         // Whether a mail transport exists at all. Lets the admin panel
-        // distinguish "auto-send is off" from "auto-send is on but this server
-        // cannot send mail", which otherwise look identical from the outside.
+        // distinguish "reports are switched off" from "reports are on but this
+        // server cannot send mail", which otherwise look identical.
         emailConfigured: !!transporter
       }
     });

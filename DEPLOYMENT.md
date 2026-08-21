@@ -209,6 +209,12 @@ these sets of Render environment variables:
 With none of them set, the server logs a warning at boot and every send path
 returns a 503 instead of silently dropping mail.
 
+**IMPACT REPORT EMAIL** in the admin ACTIONS tab is a master switch over both
+sends. Stopped, no report goes out by any route — the results screen hides its
+send button and the Save Progress gate stops promising a report. Addresses are
+still collected and progress is still saved either way. Operator alerts
+(below) are deliberately unaffected.
+
 To check a key without sending anything:
 
 ```bash

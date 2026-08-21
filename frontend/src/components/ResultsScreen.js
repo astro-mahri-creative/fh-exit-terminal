@@ -209,6 +209,11 @@ function ResultsScreen({ resultsData, sessionData, onReset }) {
   const autoSentTo = resultsData.report_email_sent_to || null;
   const [editingEmail, setEditingEmail] = useState(!autoSentTo);
 
+  // Admin master switch (or a server with no mail transport at all). While
+  // this is off the screen never mentions, offers, or attempts a send — the
+  // panel goes back to being purely about saving progress.
+  const reportEmailEnabled = resultsData.report_email_enabled !== false;
+
   const handleSaveEmail = useCallback(async () => {
     setEmailError('');
 
@@ -225,6 +230,10 @@ function ResultsScreen({ resultsData, sessionData, onReset }) {
         return;
       }
       setEmailSaved(true);
+
+      // Nothing to send, and nothing to promise — the address is stored and
+      // that's the whole transaction.
+      if (!reportEmailEnabled) return;
 
       // Progress is safe at this point regardless of what the mail server
       // does next, so a delivery failure downgrades the message rather than
@@ -245,7 +254,7 @@ function ResultsScreen({ resultsData, sessionData, onReset }) {
     } finally {
       setSending(false);
     }
-  }, [email, newsOptIn, autoSentTo, sessionData.session_token]);
+  }, [email, newsOptIn, autoSentTo, reportEmailEnabled, sessionData.session_token]);
 
   // Consent can be given (or withdrawn) after the address is already stored —
   // re-save so a late click isn't dropped.
@@ -426,12 +435,16 @@ function ResultsScreen({ resultsData, sessionData, onReset }) {
         ) : (
           <>
             <label htmlFor="results-email" className="email-section-label">
-              {sessionData?.email
-                ? 'Confirm the email on file to get your impact report'
-                : 'Enter your email to get your impact report'}
+              {reportEmailEnabled
+                ? (sessionData?.email
+                    ? 'Confirm the email on file to get your impact report'
+                    : 'Enter your email to get your impact report')
+                : (sessionData?.email
+                    ? 'Confirm the email on file to save your progress'
+                    : 'Enter your email to save your progress')}
             </label>
             <ul className="email-section-benefits">
-              <li>Your full impact report, emailed to you</li>
+              {reportEmailEnabled && <li>Your full impact report, emailed to you</li>}
               <li>Your progress restored the next time you log in</li>
             </ul>
             <EmailField
@@ -450,12 +463,16 @@ function ResultsScreen({ resultsData, sessionData, onReset }) {
             </label>
             {emailError && <div className="error-message">{emailError}</div>}
             <div className="action-buttons">
+              {/* Same action either way — the address is stored — but with
+                  report email stopped it stops advertising a delivery. */}
               <button
                 onClick={handleSaveEmail}
                 className="send-button"
                 disabled={email.length === 0 || sending}
               >
-                {sending ? 'SENDING...' : 'SEND MY IMPACT REPORT'}
+                {sending
+                  ? (reportEmailEnabled ? 'SENDING...' : 'SAVING...')
+                  : (reportEmailEnabled ? 'SEND MY IMPACT REPORT' : 'SAVE MY PROGRESS')}
               </button>
               <button onClick={onReset} className="reset-button">
                 RETURN TO HOME

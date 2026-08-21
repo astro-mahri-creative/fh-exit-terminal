@@ -86,6 +86,10 @@ function CodeEntryScreen({ sessionData, onPreview, onLogout, onEmailCaptured }) 
 
   const isAdmin = sessionData.is_admin;
   const hasCodes = activatedCodes.length > 0;
+  // False when an admin has stopped report email, or the server has no mail
+  // transport. The gate then sells saved progress and nothing else, rather
+  // than promising a report that isn't coming.
+  const reportEmailEnabled = sessionData.report_email_enabled !== false;
 
   const handleCodeChange = useCallback((raw) => {
     setCurrentCode(normalizeCode(raw));
@@ -430,7 +434,9 @@ function CodeEntryScreen({ sessionData, onPreview, onLogout, onEmailCaptured }) 
                   Enter your email to attach it to User ID <strong>{sessionData.user_id}</strong>
                 </label>
                 <ul className="save-progress-benefits">
-                  <li>Your impact report, emailed to you after you transmit</li>
+                  {reportEmailEnabled && (
+                    <li>Your impact report, emailed to you after you transmit</li>
+                  )}
                   <li>Your progress restored the next time you log in</li>
                 </ul>
                 <EmailField
@@ -468,9 +474,11 @@ function CodeEntryScreen({ sessionData, onPreview, onLogout, onEmailCaptured }) 
               <>
                 <div className="save-progress-confirmed">
                   ✓ Progress will be saved to {email}
-                  <span className="save-progress-confirmed-sub">
-                    Your impact report will be sent here after you transmit.
-                  </span>
+                  {reportEmailEnabled && (
+                    <span className="save-progress-confirmed-sub">
+                      Your impact report will be sent here after you transmit.
+                    </span>
+                  )}
                 </div>
                 <label className="news-optin">
                   <input
