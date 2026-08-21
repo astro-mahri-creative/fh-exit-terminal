@@ -146,6 +146,15 @@ export const adminService = {
     return response.data;
   },
 
+  // Controls only the automatic send at finalize; the results screen's own
+  // "send my impact report" button is unaffected.
+  toggleAutoEmail: async (sessionToken) => {
+    const response = await api.post('/admin/settings/toggle-auto-email', {
+      session_token: sessionToken
+    });
+    return response.data;
+  },
+
   getFinalState: async (sessionToken) => {
     const response = await api.get('/admin/final-state', {
       params: { session_token: sessionToken }

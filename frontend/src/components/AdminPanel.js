@@ -27,6 +27,11 @@ function AdminPanel({ sessionData }) {
   const [analytics, setAnalytics] = useState(null);
   const [userSort, setUserSort] = useState('logins'); // 'logins' | 'codes'
   const [terminalLocked, setTerminalLocked] = useState(false);
+  // Automatic impact-report send at the end of a transmission, and whether the
+  // server has any mail transport at all — an "ON" toggle means nothing if the
+  // provider credentials are missing or dead.
+  const [autoSendEmail, setAutoSendEmail] = useState(true);
+  const [emailConfigured, setEmailConfigured] = useState(true);
   // Final-state watch: how many universes are locked, which alert channels are
   // configured, and what happened the last time the network ended.
   const [finalState, setFinalState] = useState(null);
@@ -144,6 +149,17 @@ function AdminPanel({ sessionData }) {
     return `${p.label}${p.is_current ? ' (CURRENT)' : ''} · ${start} → ${end}`;
   };
 
+  // No confirm dialog on this one: unlike the terminal lock it affects nobody
+  // already mid-session, and it's cheap to flip back.
+  const handleToggleAutoEmail = async () => {
+    try {
+      const response = await adminService.toggleAutoEmail(sessionData.session_token);
+      if (response.success) setAutoSendEmail(response.autoSendImpactReport);
+    } catch (err) {
+      alert('Error updating auto-send setting');
+    }
+  };
+
   const handleToggleTerminalLock = async () => {
     const locking = !terminalLocked;
     const warning = locking
@@ -163,6 +179,12 @@ function AdminPanel({ sessionData }) {
       if (res.success) {
         if (res.analytics.effectScale !== undefined) setEffectScale(res.analytics.effectScale);
         setTerminalLocked(!!res.analytics.terminalLocked);
+        if (res.analytics.autoSendImpactReport !== undefined) {
+          setAutoSendEmail(!!res.analytics.autoSendImpactReport);
+        }
+        if (res.analytics.emailConfigured !== undefined) {
+          setEmailConfigured(!!res.analytics.emailConfigured);
+        }
       }
     }).catch(() => {});
   }, [sessionData.session_token]);
@@ -313,6 +335,19 @@ function AdminPanel({ sessionData }) {
             >
               TERMINAL: {terminalLocked ? '[ LOCKED ]' : '[ UNLOCKED ]'}
             </button>
+            <button
+              onClick={handleToggleAutoEmail}
+              className={`admin-action-button${autoSendEmail ? '' : ' muted'}`}
+            >
+              AUTO-EMAIL REPORT: {autoSendEmail ? '[ ON ]' : '[ OFF ]'}
+            </button>
+            <div className="admin-action-note">
+              {!emailConfigured
+                ? '⚠ No mail transport configured on the server — nothing will send either way.'
+                : autoSendEmail
+                  ? 'Impact reports send automatically to visitors with an email on file.'
+                  : 'Automatic sends are paused. Visitors can still request their report from the results screen.'}
+            </div>
             <button onClick={handleResetUniverses} className="admin-action-button danger">
               Reset Dimension Statistics
             </button>

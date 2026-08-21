@@ -1673,8 +1673,11 @@ app.post('/api/codes/finalize', async (req, res) => {
     // socket timeouts (see its construction above) to bound how long a sulking
     // mail provider can hold this response open; a failure here is logged and
     // reported as "not sent", never as a failed transmission.
+    // Skipped entirely when an admin has switched auto-send off — the results
+    // screen then falls back to asking, and the visitor can still request the
+    // report by hand.
     let reportEmailSentTo = null;
-    if (session.emailAddress && transporter) {
+    if (session.emailAddress && transporter && settings.autoSendImpactReport !== false) {
       try {
         await sendImpactReport(session, session.emailAddress, session.optInMessaging);
         reportEmailSentTo = session.emailAddress;
@@ -1929,6 +1932,32 @@ app.post('/api/admin/settings/toggle-lock', async (req, res) => {
   }
 });
 
+// POST /api/admin/settings/toggle-auto-email - Turn the automatic impact
+// report send at finalize on or off. Never affects the explicit "send me my
+// report" button on the results screen.
+app.post('/api/admin/settings/toggle-auto-email', async (req, res) => {
+  try {
+    const session = await requireAdmin(req, res);
+    if (!session) return;
+
+    const settings = await AdminSettings.getSettings();
+    settings.autoSendImpactReport = !settings.autoSendImpactReport;
+    await settings.save();
+
+    // Worth a record: this is the difference between a day where everyone who
+    // left an address got a report and a day where nobody did, which is not
+    // otherwise recoverable from the session rows.
+    await logEvent('auto_email_toggled', session._id, session.userId, {
+      autoSendImpactReport: settings.autoSendImpactReport
+    });
+
+    res.json({ success: true, autoSendImpactReport: settings.autoSendImpactReport });
+  } catch (error) {
+    console.error('Error toggling auto email:', error);
+    res.status(500).json({ success: false, error: 'SERVER_ERROR', message: 'Error updating settings' });
+  }
+});
+
 // POST /api/admin/reset-universes - Reset universe statistics (admin only)
 app.post('/api/admin/reset-universes', async (req, res) => {
   try {
@@ -2134,7 +2163,12 @@ app.get('/api/admin/analytics', async (req, res) => {
         alignmentDistribution,
         sameDayReturnMode: settings.sameDayReturnMode,
         effectScale: settings.effectScale,
-        terminalLocked: settings.terminalLocked
+        terminalLocked: settings.terminalLocked,
+        autoSendImpactReport: settings.autoSendImpactReport !== false,
+        // Whether a mail transport exists at all. Lets the admin panel
+        // distinguish "auto-send is off" from "auto-send is on but this server
+        // cannot send mail", which otherwise look identical from the outside.
+        emailConfigured: !!transporter
       }
     });
     

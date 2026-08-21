@@ -127,6 +127,26 @@
   color: #e07070;
 }
 
+/* A toggle whose "off" state is a legitimate operating mode, not a fault —
+   dimmed rather than coloured like the destructive actions. */
+.admin-action-button.muted {
+  background: var(--bg-raised);
+  border: 1px solid var(--border-mid);
+  color: var(--text-secondary);
+}
+
+/* One line of consequence under a toggle, so the operator doesn't have to
+   remember what "off" does. */
+.admin-action-note {
+  margin-top: -4px;
+  padding: 0 2px;
+  font-family: var(--font-mono);
+  font-size: 0.64rem;
+  line-height: 1.6;
+  letter-spacing: 0.04em;
+  color: var(--text-secondary);
+}
+
 /* ── Final State Watch ──
    Standing readout of how close the network is to ending, which alert
    channels are live, and what happened last time — plus a dry run, because
