@@ -184,101 +184,6 @@
   box-shadow: 0 0 16px rgba(68, 119, 238, 0.25);
 }
 
-.universes-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
-  gap: 16px;
-  margin-bottom: 20px;
-}
-
-.universe-card {
-  background: var(--bg-raised);
-  border: 1px solid;
-  border-radius: var(--radius-md);
-  padding: 18px;
-  transition: transform 0.2s ease, box-shadow 0.2s;
-  border-left: 2px solid rgba(68, 119, 238, 0.2);
-}
-
-.universe-card:hover {
-  transform: translateY(-2px);
-  box-shadow: 0 0 12px rgba(68, 119, 238, 0.08);
-  border-left-color: rgba(68, 119, 238, 0.5);
-}
-
-.universe-name {
-  font-family: var(--font-mono);
-  font-size: 0.9rem;
-  font-weight: 700;
-  color: var(--text-primary);
-  margin-bottom: 14px;
-  text-align: center;
-  letter-spacing: 0.1em;
-  text-transform: uppercase;
-}
-
-.universe-cases {
-  margin-bottom: 14px;
-  text-align: center;
-}
-
-.cases-label {
-  font-family: var(--font-sans);
-  font-size: 0.72rem;
-  color: var(--text-secondary);
-  margin-bottom: 4px;
-  text-transform: uppercase;
-  letter-spacing: 0.1em;
-}
-
-.cases-value {
-  font-family: var(--font-mono);
-  font-size: 1.8rem;
-  font-weight: 700;
-  color: var(--text-primary);
-  /* Smoothly fade from white to the directional color when the cases-up /
-     cases-down class is added at animation start. */
-  transition: color 0.6s ease, text-shadow 0.6s ease;
-}
-
-.cases-value.cases-up {
-  color: var(--status-quarantined);
-  text-shadow: 0 0 6px rgba(201, 64, 64, 0.25);
-}
-
-.cases-value.cases-down {
-  color: #4a90d9;
-  text-shadow: 0 0 6px rgba(74, 144, 217, 0.25);
-}
-
-.cases-change {
-  font-family: var(--font-mono);
-  font-size: 0.95rem;
-  margin-top: 4px;
-  font-weight: 700;
-}
-
-.cases-change.increase {
-  color: var(--status-quarantined);
-  text-shadow: 0 0 4px rgba(201, 64, 64, 0.2);
-}
-
-.cases-change.decrease {
-  color: #4a90d9;
-  text-shadow: 0 0 4px rgba(74, 144, 217, 0.2);
-}
-
-.universe-status {
-  text-align: center;
-  padding: 7px 10px;
-  border-radius: var(--radius-sm);
-  font-family: var(--font-mono);
-  font-weight: 700;
-  font-size: 0.72rem;
-  letter-spacing: 0.18em;
-  text-transform: uppercase;
-}
-
 .cure-indicator {
   text-align: center;
   font-family: var(--font-mono);
@@ -688,17 +593,6 @@
 }
 
 /* ── Responsive ── */
-@media (max-width: 1024px) {
-  .universes-grid {
-    grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
-    gap: 12px;
-  }
-
-  .cases-value {
-    font-size: 1.5rem;
-  }
-}
-
 @media (max-width: 768px) {
   .results-screen {
     padding: 8px;
@@ -718,19 +612,12 @@
   }
 
   /* The 460px floor was most of a phone screen before a single number showed.
-     40vh still reads as the hero and lets the cards start above the fold. */
+     40vh keeps the topology readable without pushing the panels below it off
+     the bottom of the phone. */
   .results-overview-viz {
     height: 40vh;
     min-height: 240px;
     margin-bottom: 14px;
-  }
-
-  /* Two columns, not one: the names are fixed-width 7-char codes, so a single
-     column just left half the screen empty and doubled the scrolling. */
-  .universes-grid {
-    grid-template-columns: repeat(2, 1fr);
-    gap: 8px;
-    margin-bottom: 12px;
   }
 
   .universe-map,
@@ -740,41 +627,12 @@
     margin-bottom: 14px;
   }
 
-  .universe-card {
-    padding: 10px 8px;
-  }
 
-  .universe-name {
-    font-size: 0.8rem;
-    margin-bottom: 6px;
-    letter-spacing: 0.06em;
-  }
 
-  .universe-cases {
-    margin-bottom: 8px;
-  }
 
-  .cases-label {
-    font-size: 0.62rem;
-    margin-bottom: 2px;
-  }
 
-  /* Case counts run to seven figures ("2,544,763") — keep them on one line and
-     let the type scale rather than wrap. */
-  .cases-value {
-    font-size: clamp(1.05rem, 5.2vw, 1.5rem);
-    white-space: nowrap;
-  }
 
-  .cases-change {
-    font-size: 0.8rem;
-  }
 
-  .universe-status {
-    padding: 5px 4px;
-    font-size: 0.6rem;
-    letter-spacing: 0.1em;
-  }
 
   .codes-activated-banner {
     padding: 12px 14px 14px;

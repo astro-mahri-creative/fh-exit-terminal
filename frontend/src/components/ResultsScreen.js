@@ -3,79 +3,23 @@ import { sessionService, emailService } from '../services/api';
 import UniverseNetworkVisualization from './UniverseNetworkVisualization';
 import UniverseImpactChart from './UniverseImpactChart';
 import EmailField from './EmailField';
-import useSteppedCountUp from '../hooks/useSteppedCountUp';
-import { colorsFor } from './universeStatusColors';
+import TerminalNotice from './TerminalNotice';
 import './ResultsScreen.css';
 
 const FIRST_IDLE_TIMEOUT = 30;
 const SECOND_IDLE_TIMEOUT = 60;
 
-const STEPPED_COUNT_STEPS = 5;       // 5 intermediate ticks between from and to
-const STEPPED_COUNT_DURATION_MS = 670; // (steps + 1) * duration ≈ 4s total
+// How long the impact report gets to itself before a visitor with no address
+// on file is asked to save. Fires once per visit; answering either way retires
+// it. Note this lands while the count-up reveal is still running (numbers
+// appear ~4s in and settle ~4s later) — raise it if the prompt should wait for
+// the numbers to finish.
+const SAVE_PROMPT_DELAY_MS = 5000;
 
 const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
 const NEWS_OPTIN_COPY =
   'Yes, send me Future Hooman news and events — new releases, shows, and dimensional broadcasts. Unsubscribe any time.';
-
-function UniverseCard({ universe, idx, numbersVisible, isFheels }) {
-  const colors = colorsFor(universe.status);
-  const startVal = universe.current_cases - universe.change;
-  const animatedCases = useSteppedCountUp(
-    startVal,
-    universe.current_cases,
-    STEPPED_COUNT_STEPS,
-    STEPPED_COUNT_DURATION_MS,
-    numbersVisible,
-    idx * 40,
-  );
-  const numClass = numbersVisible
-    ? (isFheels ? 'numbers-fheels-reveal' : 'numbers-animate')
-    : 'numbers-hidden';
-  const cardDelay = `${idx * 40}ms`;
-
-  return (
-    <div
-      className="universe-card"
-      style={{
-        borderColor: colors.primary + '66',
-        background: `linear-gradient(160deg, ${colors.primary}12, ${colors.secondary}08)`
-      }}
-    >
-      <div className="universe-name">{universe.name}</div>
-      <div className="universe-cases">
-        <div className="cases-label">iFLU Cases:</div>
-        {/* Always visible: shows the original (pre-event) value in white before
-            the count-up triggers. When numbersVisible flips, the directional
-            class is added — CSS transition smoothly fades white → green/red,
-            and that color is what persists once the count-up settles. */}
-        <div
-          className={`cases-value ${
-            numbersVisible
-              ? (universe.change > 0 ? 'cases-up' : universe.change < 0 ? 'cases-down' : '')
-              : ''
-          }`}
-        >
-          {animatedCases.toLocaleString()}
-        </div>
-        {universe.change !== 0 && (
-          <div
-            className={`cases-change ${universe.change > 0 ? 'increase' : 'decrease'} ${numClass}`}
-            style={{ animationDelay: cardDelay }}
-          >
-            {universe.change > 0 ? '+' : ''}{universe.change.toLocaleString()}
-          </div>
-        )}
-      </div>
-      <div
-        className="universe-status"
-        style={{ backgroundColor: colors.primary, color: colors.textColor }}
-      >
-        {universe.status}
-      </div>
-    </div>
-  );
-}
 
 function ResultsScreen({ resultsData, sessionData, onReset }) {
   // Pre-populated when this user already has an email attached to their User ID
@@ -273,13 +217,45 @@ function ResultsScreen({ resultsData, sessionData, onReset }) {
   // No global keydown listener — the email field is a real input and handles
   // physical typing and Enter itself.
 
+  const hasStatusMessages =
+    Array.isArray(resultsData.status_messages) && resultsData.status_messages.length > 0;
+
+  // ── Delayed save-progress prompt ──
+  // A visitor reaches this screen without an address only by having declined
+  // the gate on the way in. Now that they can see what they did, ask once more
+  // — the email panel is at the bottom of a long screen and is easy to miss.
+  const emailPanelRef = useRef(null);
+  const [savePrompt, setSavePrompt] = useState(false);
+  const savePromptShown = useRef(false);
+  const needsSavePrompt = !sessionData?.email && !autoSentTo && !emailSaved;
+
+  useEffect(() => {
+    if (!needsSavePrompt || savePromptShown.current) return undefined;
+    const timer = setTimeout(() => {
+      savePromptShown.current = true;
+      setSavePrompt(true);
+    }, SAVE_PROMPT_DELAY_MS);
+    return () => clearTimeout(timer);
+  }, [needsSavePrompt]);
+
+  // YES hands them straight to the field: scroll the panel into view, then
+  // focus once the smooth scroll has had time to land. Focusing first would
+  // make the browser jump there instantly and undo the animation.
+  const handleSavePromptYes = useCallback(() => {
+    setSavePrompt(false);
+    recordActivity();
+    setEditingEmail(true);
+    emailPanelRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    setTimeout(() => document.getElementById('results-email')?.focus(), 600);
+  }, [recordActivity]);
+
+  const handleSavePromptNo = useCallback(() => {
+    setSavePrompt(false);
+    recordActivity();
+  }, [recordActivity]);
+
   return (
     <div className="results-screen" onClick={recordActivity} onKeyDown={recordActivity}>
-      <div className="phax-alert">
-        <div className="alert-icon">⚠️</div>
-        <div className="alert-text">{resultsData.phax_alert}</div>
-      </div>
-
       {resultsData.final_state && (
         <div className="final-state-banner">
           <div className="final-state-title">◆ NETWORK FINAL STATE REACHED ◆</div>
@@ -289,6 +265,15 @@ function ResultsScreen({ resultsData, sessionData, onReset }) {
           </div>
         </div>
       )}
+
+      {/* The change, stated plainly, and the first thing on the screen: nine
+          bars on one 0–100% scale, moving from where each universe was to
+          where this transmission left it. It carries the per-universe numbers
+          outright, which is why the old card grid is gone. */}
+      <UniverseImpactChart
+        universes={resultsData.universes}
+        animate={numbersVisible}
+      />
 
       <div className="results-overview-viz">
         {/* Mirrors the original/primary topology view (interactive mode,
@@ -306,44 +291,33 @@ function ResultsScreen({ resultsData, sessionData, onReset }) {
         />
       </div>
 
-      <div className="universe-map">
-        {/* The change, stated plainly: nine bars on one 0–100% scale, moving
-            from where each universe was to where this transmission left it.
-            The cards below still carry the exact per-universe detail. */}
-        <UniverseImpactChart
-          universes={resultsData.universes}
-          animate={numbersVisible}
-        />
-
-        <div className="universes-grid">
-          {[...resultsData.universes].sort((a, b) => Math.abs(b.change) - Math.abs(a.change)).map((universe, idx) => (
-            <UniverseCard
-              key={universe.id}
-              universe={universe}
-              idx={idx}
-              numbersVisible={numbersVisible}
-              isFheels={resultsData.alignment_score > 0}
-            />
-          ))}
-        </div>
-
-        {resultsData.cure_active && (
-          <div className="cure-indicator">
-            🧬 CURE PROTOCOL ACTIVE — iFLU cure discovered
-          </div>
-        )}
-
-        {resultsData.status_messages && resultsData.status_messages.length > 0 && (
-          <div className="status-messages">
-            {resultsData.status_messages.map((msg, i) => (
-              <div key={i} className={`status-message ${msg.message === 'NO IMPACT' ? 'no-impact' : 'status-change'}`}>
-                <span className="status-msg-code">[{msg.code}]</span>
-                <span className="status-msg-text">{msg.message}</span>
-              </div>
-            ))}
-          </div>
-        )}
+      {/* The PHAX advisory reads as commentary on what just happened, so it
+          sits under the picture of what just happened rather than above it. */}
+      <div className="phax-alert">
+        <div className="alert-icon">⚠️</div>
+        <div className="alert-text">{resultsData.phax_alert}</div>
       </div>
+
+      {(resultsData.cure_active || hasStatusMessages) && (
+        <div className="universe-map">
+          {resultsData.cure_active && (
+            <div className="cure-indicator">
+              🧬 CURE PROTOCOL ACTIVE — iFLU cure discovered
+            </div>
+          )}
+
+          {hasStatusMessages && (
+            <div className="status-messages">
+              {resultsData.status_messages.map((msg, i) => (
+                <div key={i} className={`status-message ${msg.message === 'NO IMPACT' ? 'no-impact' : 'status-change'}`}>
+                  <span className="status-msg-code">[{msg.code}]</span>
+                  <span className="status-msg-text">{msg.message}</span>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
 
       <div className="impact-summary">
         <h3>YOUR IMPACT</h3>
@@ -385,7 +359,7 @@ function ResultsScreen({ resultsData, sessionData, onReset }) {
         })()}
       </div>
 
-      <div className="email-section">
+      <div className="email-section" ref={emailPanelRef}>
         {emailSaved || (autoSentTo && !editingEmail) ? (
           <div className="email-success">
             {emailSaved ? (
@@ -488,6 +462,23 @@ function ResultsScreen({ resultsData, sessionData, onReset }) {
             ? `Idle Time is: ${FIRST_IDLE_TIMEOUT - countdown}s`
             : `Screen Resets in: ${countdown}s`}
         </div>
+      )}
+
+      {savePrompt && (
+        <TerminalNotice
+          tone="prompt"
+          headline="SAVE YOUR PROGRESS?"
+          message={
+            reportEmailEnabled
+              ? 'Want your impact report emailed to you, and your progress waiting the next time you log in?'
+              : 'Want your progress waiting for you the next time you log in?'
+          }
+          actions={[
+            { label: 'YES', onClick: handleSavePromptYes },
+            { label: 'NO THANKS', onClick: handleSavePromptNo },
+          ]}
+          onDismiss={handleSavePromptNo}
+        />
       )}
     </div>
   );

@@ -3,11 +3,13 @@
    0–100% against its own universe's capacity, animating from the level before
    the transmission to the level after it. */
 
+/* Lead element of the impact report — it carries the per-universe case counts
+   outright, which is why the old card grid underneath it is gone. */
 .universe-impact-chart {
-  background: var(--bg-raised);
-  border: 1px solid var(--border-faint);
-  border-radius: var(--radius-md);
-  padding: 22px 20px 18px;
+  background: var(--bg-surface);
+  border: 1px dashed rgba(68, 119, 238, 0.15);
+  border-radius: var(--radius-lg);
+  padding: 24px 22px 20px;
   margin-bottom: 24px;
 }
 
@@ -50,7 +52,7 @@
 .impact-chart-axis {
   position: relative;
   width: 30px;
-  height: 300px;
+  height: 340px;
   flex-shrink: 0;
 }
 
@@ -72,7 +74,7 @@
 .impact-chart-plot {
   position: relative;
   flex: 1;
-  height: 300px;
+  height: 340px;
   /* Room for the name/status stack, which hangs below the axis. */
   margin-bottom: 40px;
   border-left: 1px solid var(--border-dim);
@@ -181,7 +183,10 @@
   opacity: 0;
   transition: opacity 0.5s ease, bottom 3.8s cubic-bezier(0.22, 0.61, 0.36, 1);
   font-family: var(--font-mono);
-  font-size: 0.72rem;
+  /* These ARE the case counts now — the report has no other place showing a
+     universe's number, so they carry headline weight. Clamped against the
+     column width so nine of them still fit on one row. */
+  font-size: clamp(0.78rem, 1.35vw, 1.15rem);
   font-weight: 700;
   color: var(--text-primary);
   text-shadow: 0 0 6px rgba(0, 0, 0, 0.9), 0 0 3px rgba(0, 0, 0, 0.9);
@@ -195,7 +200,7 @@
 .impact-value-compact { display: none; }
 
 .impact-bar-delta {
-  font-size: 0.62rem;
+  font-size: clamp(0.6rem, 0.95vw, 0.8rem);
   font-weight: 700;
   letter-spacing: 0.04em;
 }
@@ -217,7 +222,7 @@
 
 .impact-bar-name {
   font-family: var(--font-mono);
-  font-size: clamp(0.5rem, 1vw, 0.68rem);
+  font-size: clamp(0.55rem, 1.05vw, 0.78rem);
   color: var(--text-primary);
   letter-spacing: 0.02em;
   white-space: nowrap;
@@ -225,7 +230,7 @@
 
 .impact-bar-status {
   font-family: var(--font-mono);
-  font-size: 0.46rem;
+  font-size: clamp(0.46rem, 0.72vw, 0.58rem);
   font-weight: 700;
   letter-spacing: 0.1em;
   padding: 2px 4px;
@@ -249,8 +254,8 @@
   .impact-value-full    { display: none; }
   .impact-value-compact { display: inline; }
 
-  .impact-bar-value { font-size: 0.62rem; }
-  .impact-bar-delta { font-size: 0.55rem; }
+  .impact-bar-value { font-size: 0.8rem; }
+  .impact-bar-delta { font-size: 0.62rem; }
 }
 
 @media (max-width: 768px) {
@@ -261,7 +266,7 @@
 
   .impact-chart-axis,
   .impact-chart-plot {
-    height: 220px;
+    height: 260px;
   }
 
   .impact-chart-axis {
@@ -306,7 +311,7 @@
   .impact-bar-value {
     writing-mode: vertical-rl;
     transform: translateX(-50%) rotate(180deg);
-    font-size: 0.55rem;
+    font-size: 0.68rem;
     letter-spacing: 0.02em;
   }
 
