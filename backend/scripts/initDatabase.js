@@ -201,7 +201,7 @@ async function initDatabase() {
 
       // Tier 2: FHEELS — Phase 1 FABRICATION
       {
-        code: 'MGBC',
+        code: 'MGCB',
         tier: 2,
         name: 'Margin Book Cipher',
         alignment: 'FHEELS',
@@ -290,6 +290,43 @@ async function initDatabase() {
         status: 'Phase 1',
         discoveryMethod: 'Physical',
         effectType: 'Break Liberated'
+      },
+
+      // ─── Added post-launch (not part of the original catalog import) ───
+      // Tier 1: SIGSEV — Amplify
+      {
+        code: 'WVFM',
+        tier: 1,
+        name: 'Wavefront Modulation',
+        alignment: 'SIGSEV',
+        effectType: 'Amplify'
+      },
+
+      // Tier 2: SIGSEV — Amplify
+      {
+        code: 'DSGF',
+        tier: 2,
+        name: 'Dead Signal Feedback',
+        alignment: 'SIGSEV',
+        effectType: 'Amplify'
+      },
+
+      // Tier 2: FHEELS — Spread
+      {
+        code: 'BXRJ',
+        tier: 2,
+        name: 'Bypass Rejection Protocol',
+        alignment: 'FHEELS',
+        effectType: 'Spread'
+      },
+
+      // Tier 2: PHAX — Eradicate
+      {
+        code: 'NTMU',
+        tier: 2,
+        name: 'Nominal Threshold Mandate',
+        alignment: 'PHAX',
+        effectType: 'Eradicate'
       }
     ];
 
@@ -312,8 +349,8 @@ async function initDatabase() {
       { code: 'TPGM', effect: -900, effectType: 'standard' },
       { code: 'TPGM', effect: -700, effectType: 'standard' },
 
-      // MGBC effects (Tier 2 — Spread)
-      { code: 'MGBC', effect: 600, effectType: 'standard' },
+      // MGCB effects (Tier 2 — Spread)
+      { code: 'MGCB', effect: 600, effectType: 'standard' },
 
       // CMPR effects (Tier 3 — Spread)
       { code: 'CMPR', effect: 1400, effectType: 'standard' },
@@ -334,7 +371,19 @@ async function initDatabase() {
       { code: 'RVLT', effect: 0, effectType: 'break_preserved' },
 
       // CURE effects (Tier 5 — Break Liberated)
-      { code: 'CURE', effect: 0, effectType: 'break_liberated' }
+      { code: 'CURE', effect: 0, effectType: 'break_liberated' },
+
+      // WVFM effects (Tier 1 — Amplify 1.15x, applies to all universes)
+      { code: 'WVFM', effect: 1.15, effectType: 'amplify', targetMode: 'all' },
+
+      // DSGF effects (Tier 2 — Amplify 1.4x, applies to all universes)
+      { code: 'DSGF', effect: 1.4, effectType: 'amplify', targetMode: 'all' },
+
+      // BXRJ effects (Tier 2 — Spread)
+      { code: 'BXRJ', effect: 700, effectType: 'standard' },
+
+      // NTMU effects (Tier 2 — Eradicate)
+      { code: 'NTMU', effect: -900, effectType: 'standard' }
     ];
 
     for (const effectData of codeEffectsData) {
@@ -364,7 +413,7 @@ async function initDatabase() {
       {
         ruleName: 'Synergy Protocol',
         conditionType: 'code_combination',
-        conditionDefinition: JSON.stringify({ required_codes: ['CERT', 'TPGM', 'MGBC'] }),
+        conditionDefinition: JSON.stringify({ required_codes: ['CERT', 'TPGM', 'MGCB'] }),
         effectDefinition: JSON.stringify({ bonus_effect: { universe: 'all', value: -500 } }),
         isActive: true,
         priority: 5
