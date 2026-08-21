@@ -43,7 +43,15 @@ const codeSchema = new mongoose.Schema({
 const codeEffectSchema = new mongoose.Schema({
   codeId: { type: mongoose.Schema.Types.ObjectId, ref: 'Code', required: true },
   universeId: { type: mongoose.Schema.Types.ObjectId, ref: 'Universe', default: null },
-  targetMode: { type: String, enum: ['specific', 'random', 'all'], default: 'specific' },
+  // 'nearest_goal' / 'furthest_goal' resolve their target deterministically
+  // from the eligible pool by relative case count, sign-driven (see
+  // selectByGoalProximity in server.js). Meaningful only on 'standard'
+  // effects — 'amplify' rows never reach target resolution.
+  targetMode: {
+    type: String,
+    enum: ['specific', 'random', 'all', 'nearest_goal', 'furthest_goal'],
+    default: 'specific'
+  },
   effectValue: { type: Number, required: true },
   effectType: { type: String, default: 'standard' },
   conditionRule: { type: String },
@@ -74,7 +82,18 @@ const sessionCodeSchema = new mongoose.Schema({
   sessionId: { type: mongoose.Schema.Types.ObjectId, ref: 'Session', required: true },
   codeId: { type: mongoose.Schema.Types.ObjectId, ref: 'Code', required: true },
   enteredAt: { type: Date, default: Date.now },
-  sequenceOrder: { type: Number, required: true }
+  sequenceOrder: { type: Number, required: true },
+  // Which universe each randomly-targeted effect of this activation landed
+  // on. Written once, by whichever path resolves the effect first (normally
+  // preview); every later read — repeat previews, then finalize — reuses it.
+  // Without this the preview and finalize paths each rolled Math.random()
+  // independently and disagreed about the target. One entry per CodeEffect,
+  // since a single code can carry several (TPGM and FAES both do).
+  resolvedTargets: [{
+    _id: false,
+    effectId: { type: mongoose.Schema.Types.ObjectId, ref: 'CodeEffect', required: true },
+    universeId: { type: mongoose.Schema.Types.ObjectId, ref: 'Universe', required: true }
+  }]
 });
 
 // User ID Schema

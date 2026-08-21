@@ -308,6 +308,84 @@ function selectRandomCompromised(universes) {
   return eligible[Math.floor(Math.random() * eligible.length)];
 }
 
+// Round-scoped target resolution for effects whose target is picked at
+// random (standard 'random' effects, and the CURE/RVLT break codes, which
+// choose among the eligible LIBERATED/PRESERVED universes).
+//
+// SessionCode used to store no resolved target, so the preview path and the
+// finalize path each called Math.random() independently: the choice screen
+// would show an effect landing on one universe while finalize applied it to
+// another, for every standard code in the game. The first path to resolve an
+// effect now writes its pick onto the SessionCode row, and every later read
+// reuses it — repeat previews included, so a second look at the choice
+// screen can't move a target the user has already been shown.
+//
+// Deterministic modes ('specific', 'nearest_goal', 'furthest_goal') don't go
+// through here; they resolve to the same universe in both paths by
+// construction.
+function loadResolvedTargets(sessionCodes) {
+  const map = new Map();
+  for (const sc of sessionCodes) {
+    for (const r of sc.resolvedTargets || []) {
+      map.set(`${sc._id}:${r.effectId}`, r.universeId);
+    }
+  }
+  return map;
+}
+
+// Returns the universe id this effect is pinned to, resolving to `pick` and
+// persisting it if this is the first time. Returns null when there was
+// nothing eligible to pick. The update is conditional on no resolution
+// existing yet, so a concurrent request can't overwrite one; the re-read
+// afterwards adopts whichever write won.
+async function resolveOnce(resolved, sessionCode, effectId, pick) {
+  const key = `${sessionCode._id}:${effectId}`;
+  if (resolved.has(key)) return resolved.get(key);
+  if (!pick) return null;
+
+  await SessionCode.updateOne(
+    { _id: sessionCode._id, 'resolvedTargets.effectId': { $ne: effectId } },
+    { $push: { resolvedTargets: { effectId, universeId: pick._id } } }
+  );
+  const fresh = await SessionCode.findById(sessionCode._id).select('resolvedTargets').lean();
+  const hit = (fresh?.resolvedTargets || []).find(r => String(r.effectId) === String(effectId));
+  const winner = hit ? hit.universeId : pick._id;
+  resolved.set(key, winner);
+  return winner;
+}
+
+// Select a universe deterministically by how close it is to the goal the
+// effect's sign pushes toward. Sign-driven, so one targetMode value serves
+// both factions:
+//
+//   mode             negative effect (containment)   positive effect (proliferation)
+//   furthest_goal    most infected  (highest %)      least infected (lowest %)
+//   nearest_goal     least infected (lowest %)       most infected (highest %)
+//
+// furthest_goal is equalizing (compresses the board toward the middle);
+// nearest_goal is polarizing (drives status flips). Pairing codes across
+// both modes keeps either force from dictating the long-run attractor.
+//
+// The eligible pool is the same one selectRandomCompromised uses — only
+// COMPROMISED universes with cases remaining, i.e. strictly 30-70%. The
+// true extremes have already left the pool, so "highest %" really means
+// "closest to the 70% LIBERATED line" and "lowest %" means "closest to
+// the 30% PRESERVED line".
+//
+// Sorting by displayOrder before the reduce makes ties resolve identically
+// in the preview and finalize paths, which is the point of the whole mode:
+// unlike 'random', preview and finalize agree on the target.
+function selectByGoalProximity(universes, effectValue, mode) {
+  const eligible = universes
+    .filter(u => u.currentCases > 0 && u.status === 'COMPROMISED')
+    .sort((a, b) => a.displayOrder - b.displayOrder);
+  if (eligible.length === 0) return null;
+  const ratio = u => u.currentCases / u.initializationCases;
+  const wantsHighest = mode === 'nearest_goal' ? effectValue > 0 : effectValue < 0;
+  return eligible.reduce((best, u) =>
+    (wantsHighest ? ratio(u) > ratio(best) : ratio(u) < ratio(best)) ? u : best);
+}
+
 // Select PHAX alert message
 async function selectPhaxAlertMessage() {
   const universes = await Universe.find();
@@ -843,6 +921,7 @@ app.post('/api/codes/preview', async (req, res) => {
     const simUniverses = universes.map(u => ({
       _id: u._id,
       name: u.name,
+      displayOrder: u.displayOrder,
       currentCases: u.currentCases,
       initializationCases: u.initializationCases,
       status: u.status
@@ -858,6 +937,9 @@ app.post('/api/codes/preview', async (req, res) => {
     });
 
     const previewStatusMessages = [];
+    // Targets already pinned for this round (see resolveOnce). Built after
+    // ensureActionableCodes so an auto-added CERT is included.
+    const resolvedTargets = loadResolvedTargets(sessionCodes);
     // Independent sim copies for option A vs option B so RVLT/CURE only
     // affect the bucket they belong to (CURE -> A only, RVLT -> B only).
     const simUniversesA = simUniverses.map(u => ({ ...u }));
@@ -887,7 +969,13 @@ app.post('/api/codes/preview', async (req, res) => {
           // Proliferation: only affects option B's sim
           const preserved = simUniversesB.filter(u => u.status === 'PRESERVED');
           if (preserved.length === 0) continue;
-          const target = preserved[Math.floor(Math.random() * preserved.length)];
+          const pinnedId = await resolveOnce(resolvedTargets, sessionCode, effect._id,
+            preserved[Math.floor(Math.random() * preserved.length)]);
+          // A pin from an earlier preview can point at a universe that has
+          // since left PRESERVED (another player finalized). Skipping keeps
+          // preview and finalize agreeing, which is the point of pinning.
+          const target = preserved.find(u => u._id.equals(pinnedId));
+          if (!target) continue;
           // 35% — past the PRESERVED upper bound (30%) so the status
           // actually changes to COMPROMISED. Always an increase from
           // any PRESERVED universe (which is at ≤30%).
@@ -911,7 +999,10 @@ app.post('/api/codes/preview', async (req, res) => {
           // Containment: only affects option A's sim
           const liberated = simUniversesA.filter(u => u.status === 'LIBERATED');
           if (liberated.length === 0) continue;
-          const target = liberated[Math.floor(Math.random() * liberated.length)];
+          const pinnedId = await resolveOnce(resolvedTargets, sessionCode, effect._id,
+            liberated[Math.floor(Math.random() * liberated.length)]);
+          const target = liberated.find(u => u._id.equals(pinnedId));
+          if (!target) continue;
           // 65% — past the LIBERATED lower bound (70%) so the status
           // actually changes to COMPROMISED. Always a decrease from
           // any LIBERATED universe (which is at ≥70%).
@@ -961,10 +1052,22 @@ app.post('/api/codes/preview', async (req, res) => {
         const excluded = isNegative ? excludedA : excludedB;
         const bucket = isNegative ? negativeChanges : positiveChanges;
 
-        // Resolve random target (excluding RVLT/CURE universes)
+        // Resolve target (excluding RVLT/CURE universes).
+        // NOTE: this block is mirrored in the finalize path — keep the two
+        // in sync or the choice screen will misreport what finalize does.
         let targetUniverse;
         if (effect.targetMode === 'random') {
-          targetUniverse = selectRandomCompromised(sim.filter(u => !excluded.has(u._id.toString())));
+          const pool = sim.filter(u => !excluded.has(u._id.toString()));
+          const pinnedId = await resolveOnce(resolvedTargets, sessionCode, effect._id,
+            selectRandomCompromised(pool));
+          targetUniverse = pinnedId ? pool.find(u => u._id.equals(pinnedId)) : null;
+          if (!targetUniverse) continue;
+        } else if (effect.targetMode === 'nearest_goal' || effect.targetMode === 'furthest_goal') {
+          targetUniverse = selectByGoalProximity(
+            sim.filter(u => !excluded.has(u._id.toString())),
+            effectValue,
+            effect.targetMode
+          );
           if (!targetUniverse) continue;
         } else {
           targetUniverse = sim.find(u => u._id.equals(effect.universeId));
@@ -1191,6 +1294,7 @@ app.post('/api/codes/finalize', async (req, res) => {
     const liveUniverses = universes.map(u => ({
       _id: u._id,
       name: u.name,
+      displayOrder: u.displayOrder,
       currentCases: u.currentCases,
       initializationCases: u.initializationCases,
       status: u.status
@@ -1198,6 +1302,10 @@ app.post('/api/codes/finalize', async (req, res) => {
 
     const statusMessages = [];
     const excludedUniverseIds = new Set();
+    // Targets pinned during preview (see resolveOnce). Finalize reuses them
+    // so the board moves exactly where the choice screen said it would. A
+    // session finalized without ever previewing resolves and pins here.
+    const resolvedTargets = loadResolvedTargets(sessionCodes);
 
     // --- Pass 1: process status-breaking codes (RVLT/CURE) first ---
     // Status-breaking codes are tied to a specific choice direction:
@@ -1220,7 +1328,13 @@ app.post('/api/codes/finalize', async (req, res) => {
             statusMessages.push({ code: code.code, message: 'NO IMPACT' });
             continue;
           }
-          const target = preserved[Math.floor(Math.random() * preserved.length)];
+          const pinnedId = await resolveOnce(resolvedTargets, sessionCode, effect._id,
+            preserved[Math.floor(Math.random() * preserved.length)]);
+          const target = preserved.find(u => u._id.equals(pinnedId));
+          if (!target) {
+            statusMessages.push({ code: code.code, message: 'NO IMPACT' });
+            continue;
+          }
           // 35% — past the PRESERVED upper bound (30%) so the status
           // actually changes to COMPROMISED. Always an increase from
           // any PRESERVED universe (≤30%).
@@ -1241,7 +1355,13 @@ app.post('/api/codes/finalize', async (req, res) => {
             statusMessages.push({ code: code.code, message: 'NO IMPACT' });
             continue;
           }
-          const target = liberated[Math.floor(Math.random() * liberated.length)];
+          const pinnedId = await resolveOnce(resolvedTargets, sessionCode, effect._id,
+            liberated[Math.floor(Math.random() * liberated.length)]);
+          const target = liberated.find(u => u._id.equals(pinnedId));
+          if (!target) {
+            statusMessages.push({ code: code.code, message: 'NO IMPACT' });
+            continue;
+          }
           // 65% — past the LIBERATED lower bound (70%) so the status
           // actually changes to COMPROMISED. Always a decrease from
           // any LIBERATED universe (≥70%).
@@ -1280,10 +1400,22 @@ app.post('/api/codes/finalize', async (req, res) => {
         if (choice === 'a' && effectValue >= 0) continue;
         if (choice === 'b' && effectValue <= 0) continue;
 
-        // Resolve target universe (excluding RVLT/CURE universes)
+        // Resolve target universe (excluding RVLT/CURE universes).
+        // NOTE: this block is mirrored in the preview path — keep the two
+        // in sync or the choice screen will misreport what finalize does.
         let targetUniverse;
         if (effect.targetMode === 'random') {
-          targetUniverse = selectRandomCompromised(liveUniverses.filter(u => !excludedUniverseIds.has(u._id.toString())));
+          const pool = liveUniverses.filter(u => !excludedUniverseIds.has(u._id.toString()));
+          const pinnedId = await resolveOnce(resolvedTargets, sessionCode, effect._id,
+            selectRandomCompromised(pool));
+          targetUniverse = pinnedId ? pool.find(u => u._id.equals(pinnedId)) : null;
+          if (!targetUniverse) continue;
+        } else if (effect.targetMode === 'nearest_goal' || effect.targetMode === 'furthest_goal') {
+          targetUniverse = selectByGoalProximity(
+            liveUniverses.filter(u => !excludedUniverseIds.has(u._id.toString())),
+            effectValue,
+            effect.targetMode
+          );
           if (!targetUniverse) continue;
         } else {
           targetUniverse = liveUniverses.find(u => u._id.equals(effect.universeId));
@@ -1631,8 +1763,18 @@ app.post('/api/admin/settings/toggle-return-mode', async (req, res) => {
     }
 
     const settings = await AdminSettings.getSettings();
+    const previousReturnMode = settings.sameDayReturnMode;
     settings.sameDayReturnMode = settings.sameDayReturnMode === 'resume' ? 'block' : 'resume';
     await settings.save();
+
+    // Same silent-mutation problem as effectScale, lower analytical stakes:
+    // this one changes whether a same-day return resumes or starts fresh,
+    // which shows up in the record as extra codes on one session vs a new
+    // session. Logged so that shape is explainable after the fact.
+    await logEvent('return_mode_changed', session._id, session.userId, {
+      from: previousReturnMode,
+      to: settings.sameDayReturnMode
+    });
 
     res.json({ success: true, sameDayReturnMode: settings.sameDayReturnMode });
   } catch (error) {
@@ -2321,8 +2463,22 @@ app.post('/api/admin/settings/effect-scale', async (req, res) => {
     }
 
     const settings = await AdminSettings.getSettings();
+    const previousScale = settings.effectScale;
     settings.effectScale = value;
     await settings.save();
+
+    // effectScale multiplies every standard effect at runtime, so it is the
+    // single largest determinant of how far a session moved the board. Without
+    // this event no historical alignmentScore can be interpreted after the
+    // fact. AnalyticsLog is never wiped by initDatabase.js or by the universe
+    // reset, so these rows are permanent history. The admin UI is a stepper
+    // and fires no-op writes, so only log an actual change.
+    if (previousScale !== value) {
+      await logEvent('effect_scale_changed', session._id, session.userId, {
+        from: previousScale,
+        to: value
+      });
+    }
 
     res.json({ success: true, effectScale: settings.effectScale });
   } catch (error) {
