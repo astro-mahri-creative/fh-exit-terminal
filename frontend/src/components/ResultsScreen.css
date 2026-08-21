@@ -505,37 +505,75 @@
 /* The read-only .email-display box and its fake caret are gone — the field is a
    real <input> now (see EmailField). */
 
-.email-optin {
+/* What the address buys them, stated before the field rather than after. */
+.email-section-benefits {
+  list-style: none;
+  margin: 0 0 16px;
+  padding: 0;
+  display: inline-flex;
+  flex-direction: column;
+  gap: 6px;
+  text-align: left;
+}
+
+.email-section-benefits li {
+  font-family: var(--font-sans);
+  font-size: 0.85rem;
+  color: var(--text-primary);
+  line-height: 1.5;
+  padding-left: 20px;
+  position: relative;
+}
+
+.email-section-benefits li::before {
+  content: '›';
+  position: absolute;
+  left: 4px;
+  color: var(--phax-light);
+  font-family: var(--font-mono);
+  font-weight: 700;
+}
+
+/* ── News & events opt-in ──
+   Same control and wording as the Save Progress gate on the code entry
+   screen, so consent looks identical wherever it's asked for. */
+.news-optin {
   display: flex;
   align-items: flex-start;
   gap: 10px;
   max-width: 560px;
-  margin: 18px auto 4px;
-  padding: 10px 14px;
+  margin: 16px auto 4px;
+  padding: 12px 14px;
   background: var(--bg-raised);
   border: 1px dashed rgba(68, 119, 238, 0.18);
   border-radius: var(--radius-md);
-  font-family: var(--font-mono);
-  font-size: 0.78rem;
+  font-family: var(--font-sans);
+  font-size: 0.82rem;
   line-height: 1.5;
   color: var(--text-secondary);
   text-align: left;
-  letter-spacing: 0.02em;
   cursor: pointer;
-  transition: border-color 0.2s;
+  transition: border-color 0.2s, color 0.2s;
 }
 
-.email-optin:hover {
-  border-color: rgba(68, 119, 238, 0.35);
+.news-optin:hover {
+  border-color: rgba(68, 119, 238, 0.4);
+  color: var(--text-primary);
 }
 
-.email-optin input[type="checkbox"] {
+.news-optin input[type="checkbox"] {
   flex-shrink: 0;
-  margin-top: 2px;
-  width: 16px;
-  height: 16px;
-  accent-color: var(--phax-light);
+  margin-top: 1px;
+  width: 20px;
+  height: 20px;
+  accent-color: var(--phax-blue);
   cursor: pointer;
+}
+
+.news-optin:has(input:checked) {
+  border-style: solid;
+  border-color: var(--phax-blue);
+  color: var(--text-primary);
 }
 
 .action-buttons {
@@ -590,6 +628,53 @@
   align-items: center;
   gap: 14px;
   text-shadow: 0 0 4px rgba(58, 143, 84, 0.15);
+}
+
+.email-success-sub {
+  font-family: var(--font-sans);
+  font-size: 0.82rem;
+  color: var(--text-secondary);
+}
+
+.email-success-warn {
+  font-family: var(--font-sans);
+  font-size: 0.82rem;
+  color: var(--color-warning);
+}
+
+/* ── Final State banner ──
+   Shown when this transmission was the one that locked every universe. */
+.final-state-banner {
+  border: 1px solid var(--status-transcendent);
+  border-radius: var(--radius-md);
+  background: linear-gradient(160deg, rgba(149, 117, 205, 0.16), rgba(94, 53, 177, 0.06));
+  padding: 18px 20px;
+  margin-bottom: 20px;
+  text-align: center;
+  box-shadow: 0 0 26px rgba(149, 117, 205, 0.22);
+  animation: finalStatePulse 2.6s ease-in-out infinite;
+}
+
+@keyframes finalStatePulse {
+  0%, 100% { box-shadow: 0 0 20px rgba(149, 117, 205, 0.18); }
+  50%      { box-shadow: 0 0 40px rgba(149, 117, 205, 0.42); }
+}
+
+.final-state-title {
+  font-family: var(--font-mono);
+  font-size: 0.95rem;
+  font-weight: 700;
+  letter-spacing: 0.22em;
+  color: #c3aeef;
+  margin-bottom: 8px;
+  text-shadow: 0 0 10px rgba(149, 117, 205, 0.5);
+}
+
+.final-state-text {
+  font-family: var(--font-sans);
+  font-size: 0.9rem;
+  line-height: 1.6;
+  color: var(--text-primary);
 }
 
 /* ── Countdown ── */

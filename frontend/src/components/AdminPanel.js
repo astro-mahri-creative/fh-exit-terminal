@@ -27,6 +27,10 @@ function AdminPanel({ sessionData }) {
   const [analytics, setAnalytics] = useState(null);
   const [userSort, setUserSort] = useState('logins'); // 'logins' | 'codes'
   const [terminalLocked, setTerminalLocked] = useState(false);
+  // Final-state watch: how many universes are locked, which alert channels are
+  // configured, and what happened the last time the network ended.
+  const [finalState, setFinalState] = useState(null);
+  const [alertTestResult, setAlertTestResult] = useState('');
   // Which reset-to-reset window the analytics tab is reporting on: a phase
   // number as a string, or 'all'. Empty until the first response tells us
   // which phase is current.
@@ -163,6 +167,14 @@ function AdminPanel({ sessionData }) {
     }).catch(() => {});
   }, [sessionData.session_token]);
 
+  const loadFinalState = useCallback(() => {
+    adminService.getFinalState(sessionData.session_token)
+      .then(res => { if (res.success) setFinalState(res); })
+      .catch(() => {});
+  }, [sessionData.session_token]);
+
+  useEffect(() => { loadFinalState(); }, [loadFinalState]);
+
   useEffect(() => {
     if (activeTab === 'users' && users.length === 0) {
       loadUsers();
@@ -206,10 +218,25 @@ function AdminPanel({ sessionData }) {
         const response = await adminService.resetUniverses(sessionData.session_token);
         if (response.success) {
           alert('Dimension statistics reset complete');
+          // The reset opens a new phase, which re-arms final-state detection.
+          loadFinalState();
         }
       } catch (err) {
         alert('Error resetting dimensions');
       }
+    }
+  };
+
+  const handleTestAlert = async () => {
+    setAlertTestResult('Sending…');
+    try {
+      const res = await adminService.testFinalStateAlert(sessionData.session_token);
+      const detail = (res.notifications || [])
+        .map(n => `${n.channel}: ${n.ok ? 'OK' : 'FAILED'} (${n.detail})`)
+        .join(' · ');
+      setAlertTestResult(detail || res.message);
+    } catch (err) {
+      setAlertTestResult(err.response?.data?.message || 'Test alert failed');
     }
   };
 
@@ -322,6 +349,52 @@ function AdminPanel({ sessionData }) {
             {terminalLocked && (
               <div className="terminal-locked-banner">
                 ⚠ TERMINAL LOCKED — visitors are being turned away. Admin IDs still have access.
+              </div>
+            )}
+
+            {finalState && (
+              <div className={`final-state-watch${finalState.is_final ? ' reached' : ''}`}>
+                <div className="final-state-watch-header">
+                  <span className="final-state-watch-title">FINAL STATE WATCH</span>
+                  <span className="final-state-watch-count">
+                    {finalState.locked_universes} / {finalState.total_universes} LOCKED
+                    {' · '}PHASE {finalState.phase_number}
+                  </span>
+                </div>
+
+                <div className="final-state-watch-line">
+                  {finalState.is_final
+                    ? 'Every universe is locked. The network has reached its final state.'
+                    : 'Alert fires automatically the moment every universe reaches TRANSCENDED or QUARANTINED.'}
+                </div>
+
+                <div className="final-state-watch-line">
+                  Channels:{' '}
+                  <span className={finalState.channels_configured.email ? 'ok' : 'off'}>
+                    email {finalState.channels_configured.email ? 'ON' : 'not configured'}
+                  </span>
+                  {' · '}
+                  <span className={finalState.channels_configured.webhook ? 'ok' : 'off'}>
+                    webhook {finalState.channels_configured.webhook ? 'ON' : 'not configured'}
+                  </span>
+                </div>
+
+                {finalState.last_event && (
+                  <div className="final-state-watch-line">
+                    Last recorded: phase {finalState.last_event.phase_number} on{' '}
+                    {formatDate(finalState.last_event.detected_at)}
+                    {finalState.last_event.notifications?.length
+                      ? ` — ${finalState.last_event.notifications.map(n => `${n.channel} ${n.ok ? 'OK' : 'FAILED'}`).join(', ')}`
+                      : ''}
+                  </div>
+                )}
+
+                <button onClick={handleTestAlert} className="admin-action-button">
+                  Send Test Alert
+                </button>
+                {alertTestResult && (
+                  <div className="final-state-watch-line result">{alertTestResult}</div>
+                )}
               </div>
             )}
           </div>

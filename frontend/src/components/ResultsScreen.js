@@ -1,8 +1,10 @@
 import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
-import { sessionService } from '../services/api';
+import { sessionService, emailService } from '../services/api';
 import UniverseNetworkVisualization from './UniverseNetworkVisualization';
+import UniverseImpactChart from './UniverseImpactChart';
 import EmailField from './EmailField';
 import useSteppedCountUp from '../hooks/useSteppedCountUp';
+import { colorsFor } from './universeStatusColors';
 import './ResultsScreen.css';
 
 const FIRST_IDLE_TIMEOUT = 30;
@@ -11,16 +13,13 @@ const SECOND_IDLE_TIMEOUT = 60;
 const STEPPED_COUNT_STEPS = 5;       // 5 intermediate ticks between from and to
 const STEPPED_COUNT_DURATION_MS = 670; // (steps + 1) * duration ≈ 4s total
 
-const STATUS_COLORS = {
-  TRANSCENDED:  { primary: '#9575cd', secondary: '#5e35b1', textColor: '#f0eeeb' },
-  PRESERVED:    { primary: '#4a90d9', secondary: '#2a5a8a', textColor: '#f0eeeb' },
-  COMPROMISED:  { primary: '#7ec88b', secondary: '#4a8a54', textColor: '#0a0a0a' },
-  LIBERATED:    { primary: '#d4a032', secondary: '#8a6a1a', textColor: '#0a0a0a' },
-  QUARANTINED:  { primary: '#c94040', secondary: '#7b1a1a', textColor: '#f0eeeb' },
-};
+const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
+const NEWS_OPTIN_COPY =
+  'Yes, send me Future Hooman news and events — new releases, shows, and dimensional broadcasts. Unsubscribe any time.';
 
 function UniverseCard({ universe, idx, numbersVisible, isFheels }) {
-  const colors = STATUS_COLORS[universe.status] || STATUS_COLORS.COMPROMISED;
+  const colors = colorsFor(universe.status);
   const startVal = universe.current_cases - universe.change;
   const animatedCases = useSteppedCountUp(
     startVal,
@@ -85,6 +84,11 @@ function ResultsScreen({ resultsData, sessionData, onReset }) {
   const [email, setEmail] = useState(sessionData?.email || '');
   const [emailSaved, setEmailSaved] = useState(false);
   const [emailError, setEmailError] = useState('');
+  const [newsOptIn, setNewsOptIn] = useState(false);
+  const [sending, setSending] = useState(false);
+  // 'none' | 'sent' | 'failed' — whether the impact report itself went out, as
+  // distinct from whether the address was stored.
+  const [reportStatus, setReportStatus] = useState('none');
   const [multiverseReady, setMultiverseReady] = useState(false);
   const [numbersVisible, setNumbersVisible]   = useState(false);
   const [countdown, setCountdown] = useState(FIRST_IDLE_TIMEOUT);
@@ -199,26 +203,63 @@ function ResultsScreen({ resultsData, sessionData, onReset }) {
     recordActivity();
   }, [recordActivity]);
 
+  // The address finalize already delivered this report to, because it was on
+  // file before the transmission. Null when nothing went out — no address yet,
+  // or the send failed — which is exactly when the form below has to ask.
+  const autoSentTo = resultsData.report_email_sent_to || null;
+  const [editingEmail, setEditingEmail] = useState(!autoSentTo);
+
   const handleSaveEmail = useCallback(async () => {
     setEmailError('');
 
-    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-    if (!email || !emailRegex.test(email)) {
+    if (!email || !EMAIL_REGEX.test(email)) {
       setEmailError('Please enter a valid email address');
       return;
     }
 
+    setSending(true);
     try {
-      const response = await sessionService.saveEmail(sessionData.session_token, email);
-      if (response.success) {
-        setEmailSaved(true);
-      } else {
+      const response = await sessionService.saveEmail(sessionData.session_token, email, newsOptIn);
+      if (!response.success) {
         setEmailError(response.message || 'Error saving email');
+        return;
+      }
+      setEmailSaved(true);
+
+      // Progress is safe at this point regardless of what the mail server
+      // does next, so a delivery failure downgrades the message rather than
+      // failing the whole action.
+      if (autoSentTo && autoSentTo === email.toLowerCase().trim()) {
+        setReportStatus('sent'); // finalize already delivered to this exact address
+        return;
+      }
+      try {
+        await emailService.send(sessionData.session_token, email, newsOptIn);
+        setReportStatus('sent');
+      } catch (sendErr) {
+        console.error('Impact report send failed:', sendErr);
+        setReportStatus('failed');
       }
     } catch (err) {
       setEmailError('Error saving email. Please try again.');
+    } finally {
+      setSending(false);
     }
-  }, [email, sessionData.session_token]);
+  }, [email, newsOptIn, autoSentTo, sessionData.session_token]);
+
+  // Consent can be given (or withdrawn) after the address is already stored —
+  // re-save so a late click isn't dropped.
+  const handleOptInToggle = useCallback(async (checked) => {
+    setNewsOptIn(checked);
+    recordActivity();
+    const address = (emailSaved ? email : autoSentTo) || '';
+    if (!address) return;
+    try {
+      await sessionService.saveEmail(sessionData.session_token, address, checked);
+    } catch (err) {
+      setEmailError('Could not update your subscription preference. Try again.');
+    }
+  }, [emailSaved, email, autoSentTo, sessionData.session_token, recordActivity]);
 
   // No global keydown listener — the email field is a real input and handles
   // physical typing and Enter itself.
@@ -229,6 +270,16 @@ function ResultsScreen({ resultsData, sessionData, onReset }) {
         <div className="alert-icon">⚠️</div>
         <div className="alert-text">{resultsData.phax_alert}</div>
       </div>
+
+      {resultsData.final_state && (
+        <div className="final-state-banner">
+          <div className="final-state-title">◆ NETWORK FINAL STATE REACHED ◆</div>
+          <div className="final-state-text">
+            Every universe is now locked in a permanent status. The dimensional
+            network has settled into its ending.
+          </div>
+        </div>
+      )}
 
       <div className="results-overview-viz">
         {/* Mirrors the original/primary topology view (interactive mode,
@@ -247,6 +298,14 @@ function ResultsScreen({ resultsData, sessionData, onReset }) {
       </div>
 
       <div className="universe-map">
+        {/* The change, stated plainly: nine bars on one 0–100% scale, moving
+            from where each universe was to where this transmission left it.
+            The cards below still carry the exact per-universe detail. */}
+        <UniverseImpactChart
+          universes={resultsData.universes}
+          animate={numbersVisible}
+        />
+
         <div className="universes-grid">
           {[...resultsData.universes].sort((a, b) => Math.abs(b.change) - Math.abs(a.change)).map((universe, idx) => (
             <UniverseCard
@@ -318,36 +377,91 @@ function ResultsScreen({ resultsData, sessionData, onReset }) {
       </div>
 
       <div className="email-section">
-        {!emailSaved ? (
+        {emailSaved || (autoSentTo && !editingEmail) ? (
+          <div className="email-success">
+            {emailSaved ? (
+              <>
+                <span>✓ Progress saved for {email}</span>
+                {reportStatus === 'sent' && (
+                  <span className="email-success-sub">Your impact report has been sent.</span>
+                )}
+                {reportStatus === 'failed' && (
+                  <span className="email-success-warn">
+                    Your progress is saved, but the report email couldn't be sent right now.
+                  </span>
+                )}
+              </>
+            ) : (
+              <>
+                <span>✓ Impact report sent to {autoSentTo}</span>
+                <span className="email-success-sub">Your progress is saved to this address.</span>
+              </>
+            )}
+
+            <label className="news-optin">
+              <input
+                type="checkbox"
+                checked={newsOptIn}
+                onChange={(e) => handleOptInToggle(e.target.checked)}
+              />
+              <span>{NEWS_OPTIN_COPY}</span>
+            </label>
+
+            {emailError && <div className="error-message">{emailError}</div>}
+
+            <div className="action-buttons">
+              {!emailSaved && (
+                <button
+                  onClick={() => { setEditingEmail(true); recordActivity(); }}
+                  className="reset-button"
+                >
+                  USE A DIFFERENT ADDRESS
+                </button>
+              )}
+              <button onClick={onReset} className="reset-button">
+                RETURN TO HOME
+              </button>
+            </div>
+          </div>
+        ) : (
           <>
             <label htmlFor="results-email" className="email-section-label">
               {sessionData?.email
-                ? 'Confirm the email on file to save your progress'
-                : 'Enter your email to save your progress'}
+                ? 'Confirm the email on file to get your impact report'
+                : 'Enter your email to get your impact report'}
             </label>
+            <ul className="email-section-benefits">
+              <li>Your full impact report, emailed to you</li>
+              <li>Your progress restored the next time you log in</li>
+            </ul>
             <EmailField
               id="results-email"
               value={email}
               onChange={handleEmailChange}
               onEnter={handleSaveEmail}
             />
+            <label className="news-optin">
+              <input
+                type="checkbox"
+                checked={newsOptIn}
+                onChange={(e) => handleOptInToggle(e.target.checked)}
+              />
+              <span>{NEWS_OPTIN_COPY}</span>
+            </label>
             {emailError && <div className="error-message">{emailError}</div>}
             <div className="action-buttons">
-              <button onClick={handleSaveEmail} className="send-button" disabled={email.length === 0}>
-                SAVE MY PROGRESS
+              <button
+                onClick={handleSaveEmail}
+                className="send-button"
+                disabled={email.length === 0 || sending}
+              >
+                {sending ? 'SENDING...' : 'SEND MY IMPACT REPORT'}
               </button>
               <button onClick={onReset} className="reset-button">
                 RETURN TO HOME
               </button>
             </div>
           </>
-        ) : (
-          <div className="email-success">
-            ✓ Progress saved for {email}
-            <button onClick={onReset} className="reset-button">
-              RETURN TO HOME
-            </button>
-          </div>
         )}
       </div>
 

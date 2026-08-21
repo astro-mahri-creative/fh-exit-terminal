@@ -1,30 +1,35 @@
-import React, { useState, useCallback, useRef } from 'react';
+import React, { useState, useCallback, useRef, useEffect } from 'react';
 import { codeService, sessionService } from '../services/api';
 import AdminPanel from './AdminPanel';
 import SegmentedInput from './SegmentedInput';
 import OnScreenKeyboard from './OnScreenKeyboard';
 import EmailField from './EmailField';
+import TerminalNotice from './TerminalNotice';
+import {
+  PHAX_MESSAGES,
+  INVALID_CODE_MESSAGES,
+  INVALID_CODE_HEADLINES,
+  DUPLICATE_CODE_HEADLINES,
+  pickMessage,
+} from './terminalMessages';
 import { isKiosk } from '../kiosk';
 import './CodeEntryScreen.css';
 
 const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
+// How long a freshly activated code stays highlighted in the list. Outlasts
+// the 1800ms activation overlay by enough that the user still sees the glow
+// land on the list once the overlay clears — that's the whole point of it.
+const HIGHLIGHT_MS = 4200;
+
+// Idle time, with at least one code banked, before the screen starts actively
+// nagging about transmitting. Visitors were walking away from the terminal
+// with codes activated but never sent.
+const TRANSMIT_NUDGE_MS = 15000;
+
 // Codes are four uppercase alphanumerics.
 const normalizeCode = (raw) =>
   raw.toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 4);
-
-const PHAX_MESSAGES = [
-  'Plz don\'t make it weird.',
-  'Not today (and probably not tomorrow).',
-  'PHAX says hi 👋',
-  'Access DENIED. jkjk',
-  'You wish it was that easy 😏',
-  'Ha! Good one.',
-  'Don\'t worry, you\'re not the only one who tried it.',
-  'That\'s classified 🤫',
-  'Absolutely not lol',
-  'Caught you 👀',
-];
 
 function CodeEntryScreen({ sessionData, onPreview, onLogout, onEmailCaptured }) {
   const [currentCode, setCurrentCode] = useState('');
@@ -39,7 +44,22 @@ function CodeEntryScreen({ sessionData, onPreview, onLogout, onEmailCaptured }) 
   const [showActivation, setShowActivation] = useState(false);
   const [adminPanelOpen, setAdminPanelOpen] = useState(false);
   const [showTransmitConfirm, setShowTransmitConfirm] = useState(false);
-  const [phaxMessage, setPhaxMessage] = useState('');
+
+  // The one modal channel for both interruptions — a rejected code and the
+  // PHAX easter egg. `null` when nothing is being shown.
+  const [notice, setNotice] = useState(null);
+  const lastPhaxRef = useRef(null);
+  const lastInvalidRef = useRef(null);
+
+  // Which code just landed, so the list can flash it. Held as a token
+  // (code + counter) rather than a bare string so re-entering the same code
+  // after an admin duplicate override still retriggers the animation.
+  const [highlight, setHighlight] = useState(null);
+  const highlightSeq = useRef(0);
+  const codesSectionRef = useRef(null);
+
+  // Escalating transmit reminder — see TRANSMIT_NUDGE_MS.
+  const [nudge, setNudge] = useState(false);
 
   // ── Save Progress gate ──
   // Required for any visitor who has no email on file. They must answer YES or
@@ -58,12 +78,14 @@ function CodeEntryScreen({ sessionData, onPreview, onLogout, onEmailCaptured }) 
   const [email, setEmail] = useState('');
   const [emailSaved, setEmailSaved] = useState(false);
   const [emailError, setEmailError] = useState('');
+  const [newsOptIn, setNewsOptIn] = useState(false);
   const [saveGateError, setSaveGateError] = useState('');
   const [gateFlash, setGateFlash] = useState(false);
   const saveGateRef = useRef(null);
   const codeRef = useRef(null);
 
   const isAdmin = sessionData.is_admin;
+  const hasCodes = activatedCodes.length > 0;
 
   const handleCodeChange = useCallback((raw) => {
     setCurrentCode(normalizeCode(raw));
@@ -75,6 +97,16 @@ function CodeEntryScreen({ sessionData, onPreview, onLogout, onEmailCaptured }) 
     setEmailError('');
   }, []);
 
+  const saveEmailWithOptIn = useCallback(async (address, optIn) => {
+    const response = await sessionService.saveEmail(
+      sessionData.session_token,
+      address,
+      optIn,
+    );
+    if (!response.success) throw new Error(response.message || 'Error saving email');
+    return response;
+  }, [sessionData.session_token]);
+
   const handleConfirmEmail = useCallback(async () => {
     if (!EMAIL_REGEX.test(email)) {
       setEmailError('Please enter a valid email address');
@@ -82,19 +114,27 @@ function CodeEntryScreen({ sessionData, onPreview, onLogout, onEmailCaptured }) 
     }
     setEmailError('');
     try {
-      const response = await sessionService.saveEmail(sessionData.session_token, email);
-      if (response.success) {
-        setEmailSaved(true);
-        setSaveGateError('');
-        // Lift it to App so the impact report can pre-populate its email field.
-        if (onEmailCaptured) onEmailCaptured(email.toLowerCase());
-      } else {
-        setEmailError(response.message || 'Error saving email');
-      }
+      await saveEmailWithOptIn(email, newsOptIn);
+      setEmailSaved(true);
+      setSaveGateError('');
+      // Lift it to App so the impact report can pre-populate its email field.
+      if (onEmailCaptured) onEmailCaptured(email.toLowerCase());
     } catch (err) {
-      setEmailError(err.response?.data?.message || 'Error saving email. Please try again.');
+      setEmailError(err.response?.data?.message || err.message || 'Error saving email. Please try again.');
     }
-  }, [email, sessionData.session_token, onEmailCaptured]);
+  }, [email, newsOptIn, saveEmailWithOptIn, onEmailCaptured]);
+
+  // Toggling after the address is already confirmed re-saves it, so the choice
+  // isn't silently lost by arriving a beat late.
+  const handleOptInToggle = useCallback(async (checked) => {
+    setNewsOptIn(checked);
+    if (!emailSaved) return;
+    try {
+      await saveEmailWithOptIn(email, checked);
+    } catch (err) {
+      setEmailError('Could not update your subscription preference. Try again.');
+    }
+  }, [emailSaved, email, saveEmailWithOptIn]);
 
   const handleSaveChoice = (choice) => {
     setSaveChoice(choice);
@@ -111,6 +151,20 @@ function CodeEntryScreen({ sessionData, onPreview, onLogout, onEmailCaptured }) 
     setTimeout(() => setGateFlash(false), 1600);
   }, []);
 
+  const showInvalidCodeNotice = useCallback((reason, errorCode) => {
+    const message = pickMessage(INVALID_CODE_MESSAGES, lastInvalidRef.current);
+    lastInvalidRef.current = message;
+    const isDuplicate =
+      errorCode === 'CODE_ALREADY_ENTERED' || errorCode === 'CODE_PREVIOUSLY_ENTERED';
+    setNotice({
+      tone: 'error',
+      headline: pickMessage(isDuplicate ? DUPLICATE_CODE_HEADLINES : INVALID_CODE_HEADLINES),
+      message,
+      detail: reason,
+      dismissLabel: 'TRY ANOTHER CODE',
+    });
+  }, []);
+
   const handleActivateCode = useCallback(async () => {
     if (currentCode.length !== 4) {
       setError('Code must be exactly 4 characters');
@@ -119,7 +173,9 @@ function CodeEntryScreen({ sessionData, onPreview, onLogout, onEmailCaptured }) 
 
     // Easter egg: PHAX triggers a random jokey warning instead of validation
     if (currentCode.toUpperCase() === 'PHAX') {
-      setPhaxMessage(PHAX_MESSAGES[Math.floor(Math.random() * PHAX_MESSAGES.length)]);
+      const message = pickMessage(PHAX_MESSAGES, lastPhaxRef.current);
+      lastPhaxRef.current = message;
+      setNotice({ tone: 'phax', message, dismissLabel: 'DISMISS' });
       setCurrentCode('');
       setError('');
       return;
@@ -141,17 +197,56 @@ function CodeEntryScreen({ sessionData, onPreview, onLogout, onEmailCaptured }) 
           tier: response.code_tier
         }]);
 
+        highlightSeq.current += 1;
+        setHighlight({ code: response.code, seq: highlightSeq.current });
         setCurrentCode('');
       } else {
-        setError(response.message || 'Invalid code');
+        showInvalidCodeNotice(response.message || 'Code not recognized', response.error);
       }
     } catch (err) {
-      const errorMessage = err.response?.data?.message || 'Error validating code';
-      setError(errorMessage);
+      // Every rejection the server can hand back — unrecognized, already used
+      // this session, used in a previous one — is a "that didn't work" moment
+      // and gets the same loud treatment. The specific reason rides along as
+      // the dialog's detail line.
+      const status = err.response?.status;
+      const reason = err.response?.data?.message;
+      if (status === 400 && reason) {
+        showInvalidCodeNotice(reason, err.response?.data?.error);
+      } else {
+        setError(reason || 'Error validating code');
+      }
     } finally {
       setLoading(false);
     }
-  }, [currentCode, sessionData.session_token]);
+  }, [currentCode, sessionData.session_token, showInvalidCodeNotice]);
+
+  // Clear the highlight once it has had its moment.
+  useEffect(() => {
+    if (!highlight) return undefined;
+    const timer = setTimeout(() => setHighlight(null), HIGHLIGHT_MS);
+    return () => clearTimeout(timer);
+  }, [highlight]);
+
+  // Bring the list into view when a code lands. `block: 'nearest'` is a no-op
+  // when it's already on screen, so this only fires on the small viewports
+  // where the list has been pushed below the fold.
+  useEffect(() => {
+    if (!highlight) return;
+    codesSectionRef.current?.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+  }, [highlight]);
+
+  // Start (or restart) the transmit reminder countdown. Any activity that
+  // suggests the user is still working — typing, activating, opening a dialog
+  // — resets it; going quiet with codes banked brings it back.
+  useEffect(() => {
+    if (!hasCodes || showTransmitConfirm) {
+      setNudge(false);
+      return undefined;
+    }
+    setNudge(false);
+    const timer = setTimeout(() => setNudge(true), TRANSMIT_NUDGE_MS);
+    return () => clearTimeout(timer);
+  }, [hasCodes, activatedCodes.length, currentCode, showTransmitConfirm, notice]);
 
   // No global keydown listener: each field is a real input, so a physical
   // keystroke lands in whichever one the user focused, and Enter is handled by
@@ -255,22 +350,26 @@ function CodeEntryScreen({ sessionData, onPreview, onLogout, onEmailCaptured }) 
           {error && <div className="error-message">{error}</div>}
         </div>
 
-        <button
-          onClick={handleTransmitClick}
-          className="proceed-button"
-          disabled={loading || activatedCodes.length === 0}
+        {/* Order matters here: keyboard → the list the code just landed in →
+            TRANSMIT. The list sitting between the two buttons is what turns
+            "I activated a code" into "I have N codes waiting to be sent",
+            and keeps the send action within a glance of the keyboard. */}
+        <div
+          ref={codesSectionRef}
+          className={`activated-codes-section${hasCodes ? ' has-codes' : ''}${highlight ? ' just-received' : ''}`}
         >
-          {loading ? 'PROCESSING...' : 'TRANSMIT CODES'}
-        </button>
-
-        <div className="activated-codes-section">
           <h3>ACTIVATED CODES</h3>
           <div className="codes-list">
             {activatedCodes.length === 0 ? (
               <p className="no-codes">No codes activated yet</p>
             ) : (
               activatedCodes.map((code, index) => (
-                <div key={index} className="activated-code-item">
+                <div
+                  key={index}
+                  className={`activated-code-item${
+                    highlight && index === activatedCodes.length - 1 ? ' just-added' : ''
+                  }`}
+                >
                   <span className="code-value">{code.code}</span>
                   <span className="code-tier">Tier {code.tier}</span>
                 </div>
@@ -281,6 +380,24 @@ function CodeEntryScreen({ sessionData, onPreview, onLogout, onEmailCaptured }) 
             Codes activated: {activatedCodes.length}
           </div>
         </div>
+
+        {nudge && (
+          <div className="transmit-nudge" role="status">
+            <span className="transmit-nudge-icon">▲</span>
+            <span className="transmit-nudge-text">
+              {activatedCodes.length} code{activatedCodes.length !== 1 ? 's' : ''} activated but
+              {' '}<strong>not yet transmitted</strong>. Your codes only count once you transmit.
+            </span>
+          </div>
+        )}
+
+        <button
+          onClick={handleTransmitClick}
+          className={`proceed-button${hasCodes ? ' ready' : ''}${nudge ? ' urgent' : ''}`}
+          disabled={loading || activatedCodes.length === 0}
+        >
+          {loading ? 'PROCESSING...' : 'TRANSMIT CODES'}
+        </button>
 
         {needsSaveProgress && (
           <div
@@ -312,6 +429,10 @@ function CodeEntryScreen({ sessionData, onPreview, onLogout, onEmailCaptured }) 
                 <label htmlFor="save-progress-email" className="save-progress-email-label">
                   Enter your email to attach it to User ID <strong>{sessionData.user_id}</strong>
                 </label>
+                <ul className="save-progress-benefits">
+                  <li>Your impact report, emailed to you after you transmit</li>
+                  <li>Your progress restored the next time you log in</li>
+                </ul>
                 <EmailField
                   id="save-progress-email"
                   value={email}
@@ -328,14 +449,42 @@ function CodeEntryScreen({ sessionData, onPreview, onLogout, onEmailCaptured }) 
                     </button>
                   )}
                 />
+                <label className="news-optin">
+                  <input
+                    type="checkbox"
+                    checked={newsOptIn}
+                    onChange={(e) => handleOptInToggle(e.target.checked)}
+                  />
+                  <span>
+                    Yes, send me Future Hooman news and events — new releases, shows, and
+                    dimensional broadcasts. Unsubscribe any time.
+                  </span>
+                </label>
                 {emailError && <div className="error-message">{emailError}</div>}
               </div>
             )}
 
             {saveChoice === 'yes' && emailSaved && (
-              <div className="save-progress-confirmed">
-                ✓ Progress will be saved to {email}
-              </div>
+              <>
+                <div className="save-progress-confirmed">
+                  ✓ Progress will be saved to {email}
+                  <span className="save-progress-confirmed-sub">
+                    Your impact report will be sent here after you transmit.
+                  </span>
+                </div>
+                <label className="news-optin">
+                  <input
+                    type="checkbox"
+                    checked={newsOptIn}
+                    onChange={(e) => handleOptInToggle(e.target.checked)}
+                  />
+                  <span>
+                    Yes, send me Future Hooman news and events — new releases, shows, and
+                    dimensional broadcasts. Unsubscribe any time.
+                  </span>
+                </label>
+                {emailError && <div className="error-message">{emailError}</div>}
+              </>
             )}
 
             {saveChoice === 'no' && (
@@ -386,18 +535,19 @@ function CodeEntryScreen({ sessionData, onPreview, onLogout, onEmailCaptured }) 
         </div>
       )}
 
-      {phaxMessage && (
-        <div className="phax-warning-overlay" onClick={() => setPhaxMessage('')}>
-          <div className="phax-warning-dialog" onClick={(e) => e.stopPropagation()}>
-            <p className="phax-warning-text">{phaxMessage}</p>
-            <button
-              className="phax-warning-dismiss"
-              onClick={() => setPhaxMessage('')}
-            >
-              DISMISS
-            </button>
-          </div>
-        </div>
+      {notice && (
+        <TerminalNotice
+          tone={notice.tone}
+          headline={notice.headline}
+          message={notice.message}
+          detail={notice.detail}
+          dismissLabel={notice.dismissLabel}
+          onDismiss={() => {
+            setNotice(null);
+            setCurrentCode('');
+            codeRef.current?.focus();
+          }}
+        />
       )}
     </div>
   );

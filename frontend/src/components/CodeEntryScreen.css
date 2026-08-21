@@ -233,14 +233,83 @@
   color: var(--bg-base);
   font-size: 1.15rem;
   padding: 18px;
+  border: 2px solid transparent;
   border-radius: var(--radius-md);
   letter-spacing: 0.18em;
   box-shadow: 0 0 10px rgba(212, 137, 10, 0.15);
-  transition: box-shadow 0.2s;
+  transition: box-shadow 0.2s, border-color 0.2s;
 }
 
 .proceed-button:hover:not(:disabled) {
   box-shadow: 0 0 18px rgba(212, 137, 10, 0.35);
+}
+
+/* Once there's something to send, the button stops being a passive control
+   and starts advertising itself — a standing glow while the user is still
+   working, escalating to a pulse if they go quiet (see .urgent). */
+.proceed-button.ready {
+  border-color: #ffb238;
+  font-size: 1.28rem;
+  padding: 22px 18px;
+  box-shadow: 0 0 22px rgba(212, 137, 10, 0.4);
+}
+
+.proceed-button.urgent {
+  animation: transmitPulse 1.6s ease-in-out infinite;
+}
+
+@keyframes transmitPulse {
+  0%, 100% {
+    box-shadow: 0 0 18px rgba(212, 137, 10, 0.35);
+    border-color: #ffb238;
+  }
+  50% {
+    box-shadow: 0 0 40px rgba(255, 178, 56, 0.75);
+    border-color: #ffd27a;
+  }
+}
+
+/* ── Transmit reminder ──
+   Appears above the button after the visitor has been idle with codes banked.
+   Points at the button it's talking about. */
+.transmit-nudge {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 14px 16px;
+  margin-bottom: -8px;
+  background: rgba(212, 137, 10, 0.1);
+  border: 1px dashed var(--color-warning);
+  border-radius: var(--radius-md);
+  animation: nudgeIn 0.35s ease-out both;
+}
+
+@keyframes nudgeIn {
+  from { opacity: 0; transform: translateY(-6px); }
+  to   { opacity: 1; transform: none; }
+}
+
+.transmit-nudge-icon {
+  font-size: 0.9rem;
+  color: var(--color-warning);
+  animation: nudgeArrow 1.6s ease-in-out infinite;
+  flex-shrink: 0;
+}
+
+@keyframes nudgeArrow {
+  0%, 100% { transform: translateY(0); opacity: 1; }
+  50%      { transform: translateY(3px); opacity: 0.5; }
+}
+
+.transmit-nudge-text {
+  font-family: var(--font-sans);
+  font-size: 0.92rem;
+  line-height: 1.5;
+  color: var(--text-primary);
+}
+
+.transmit-nudge-text strong {
+  color: var(--color-warning);
 }
 
 .activate-button:disabled,
@@ -257,6 +326,33 @@
   padding: 20px;
   height: fit-content;
   position: relative;
+  scroll-margin: 24px;
+  transition: border-color 0.3s ease, box-shadow 0.3s ease;
+}
+
+/* Empty, this panel is furniture. With codes in it, it's the receipt — the
+   thing the visitor needs to recognize as "mine" before TRANSMIT means
+   anything. It gets a solid, lit border to say so. */
+.activated-codes-section.has-codes {
+  border: 1px solid rgba(68, 119, 238, 0.55);
+  box-shadow: 0 0 22px rgba(68, 119, 238, 0.18), inset 0 0 24px rgba(68, 119, 238, 0.04);
+}
+
+/* Fires for the few seconds after a code lands, so the eye is pulled here
+   from the keyboard above. */
+.activated-codes-section.just-received {
+  animation: codesPanelFlash 0.7s ease-out 3;
+}
+
+@keyframes codesPanelFlash {
+  0%, 100% {
+    border-color: rgba(68, 119, 238, 0.55);
+    box-shadow: 0 0 22px rgba(68, 119, 238, 0.18);
+  }
+  40% {
+    border-color: var(--fheels-light);
+    box-shadow: 0 0 34px rgba(143, 204, 136, 0.45);
+  }
 }
 
 /* Corner brackets on codes panel */
@@ -312,12 +408,12 @@
   display: flex;
   justify-content: space-between;
   align-items: center;
-  padding: 10px 12px;
+  padding: 14px 16px;
   background: var(--bg-raised);
   border: 1px solid var(--border-faint);
   border-left: 2px solid rgba(68, 119, 238, 0.2);
   border-radius: var(--radius-md);
-  margin-bottom: 6px;
+  margin-bottom: 8px;
   transition: border-left-color 0.2s, background 0.2s;
 }
 
@@ -326,12 +422,42 @@
   background: rgba(68, 119, 238, 0.03);
 }
 
+/* The code that just landed. Sweeps in from the keyboard's direction and
+   holds a green wash long enough to be unmistakable. */
+.activated-code-item.just-added {
+  animation: codeItemLand 0.45s cubic-bezier(0.16, 1, 0.3, 1) both,
+             codeItemGlow 1.1s ease-out 3;
+  border-left-color: var(--fheels-light);
+}
+
+@keyframes codeItemLand {
+  from { opacity: 0; transform: translateY(-10px); }
+  to   { opacity: 1; transform: none; }
+}
+
+@keyframes codeItemGlow {
+  0%, 100% {
+    background: var(--bg-raised);
+    box-shadow: none;
+  }
+  30% {
+    background: rgba(143, 204, 136, 0.14);
+    box-shadow: 0 0 18px rgba(143, 204, 136, 0.3);
+  }
+}
+
 .code-value {
   font-family: var(--font-mono);
-  font-size: 1.1rem;
+  font-size: 1.65rem;
   font-weight: 700;
   color: var(--phax-light);
-  letter-spacing: 0.15em;
+  letter-spacing: 0.22em;
+  text-shadow: 0 0 8px rgba(68, 119, 238, 0.25);
+}
+
+.activated-code-item.just-added .code-value {
+  color: var(--fheels-light);
+  text-shadow: 0 0 10px rgba(143, 204, 136, 0.4);
 }
 
 .code-tier {
@@ -346,12 +472,20 @@
 .code-count {
   text-align: center;
   font-family: var(--font-mono);
-  font-size: 0.82rem;
+  font-size: 0.95rem;
+  font-weight: 700;
   color: var(--phax-light);
-  padding: 10px;
+  padding: 12px;
   background: var(--bg-raised);
   border-radius: var(--radius-md);
-  letter-spacing: 0.1em;
+  letter-spacing: 0.12em;
+}
+
+/* Panel heading reads larger once the list is live, matching the bigger
+   code type below it. */
+.activated-codes-section.has-codes h3 {
+  font-size: 0.95rem;
+  color: var(--text-primary);
 }
 
 /* ── Save Progress gate ──
@@ -464,6 +598,78 @@
   letter-spacing: 0.12em;
 }
 
+/* What the address actually buys them. Two lines, both concrete — the
+   impact report is the reason worth reading. */
+.save-progress-benefits {
+  list-style: none;
+  margin: 0 0 14px;
+  padding: 0;
+  display: inline-flex;
+  flex-direction: column;
+  gap: 6px;
+  text-align: left;
+}
+
+.save-progress-benefits li {
+  font-family: var(--font-sans);
+  font-size: 0.85rem;
+  color: var(--text-primary);
+  line-height: 1.5;
+  padding-left: 20px;
+  position: relative;
+}
+
+.save-progress-benefits li::before {
+  content: '›';
+  position: absolute;
+  left: 4px;
+  color: var(--phax-light);
+  font-family: var(--font-mono);
+  font-weight: 700;
+}
+
+/* ── News & events opt-in ──
+   Unchecked by default and worded as a separate ask: saving progress and
+   joining the mailing list are two different consents. */
+.news-optin {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  max-width: 560px;
+  margin: 16px auto 0;
+  padding: 12px 14px;
+  background: var(--bg-raised);
+  border: 1px dashed rgba(68, 119, 238, 0.18);
+  border-radius: var(--radius-md);
+  font-family: var(--font-sans);
+  font-size: 0.82rem;
+  line-height: 1.5;
+  color: var(--text-secondary);
+  text-align: left;
+  cursor: pointer;
+  transition: border-color 0.2s, color 0.2s;
+}
+
+.news-optin:hover {
+  border-color: rgba(68, 119, 238, 0.4);
+  color: var(--text-primary);
+}
+
+.news-optin input[type="checkbox"] {
+  flex-shrink: 0;
+  margin-top: 1px;
+  width: 20px;
+  height: 20px;
+  accent-color: var(--phax-blue);
+  cursor: pointer;
+}
+
+.news-optin:has(input:checked) {
+  border-style: solid;
+  border-color: var(--phax-blue);
+  color: var(--text-primary);
+}
+
 .email-confirm-button {
   min-height: 48px;
   padding: 14px 28px;
@@ -484,6 +690,15 @@
   background: rgba(58, 143, 84, 0.08);
   border: 1px dashed var(--color-success);
   border-radius: var(--radius-md);
+}
+
+.save-progress-confirmed-sub {
+  display: block;
+  margin-top: 6px;
+  font-family: var(--font-sans);
+  font-size: 0.78rem;
+  color: var(--text-secondary);
+  letter-spacing: 0.02em;
 }
 
 .save-progress-declined {
@@ -632,58 +847,6 @@
   box-shadow: 0 0 10px rgba(212, 137, 10, 0.2);
 }
 
-/* ── PHAX Easter-Egg Warning ── */
-.phax-warning-overlay {
-  position: fixed;
-  inset: 0;
-  background: rgba(0, 0, 0, 0.9);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  z-index: 1100;
-  animation: fadeIn 0.2s ease;
-}
-
-.phax-warning-dialog {
-  background: var(--bg-surface);
-  border: 1px solid var(--color-warning);
-  border-radius: var(--radius-lg);
-  padding: 32px 36px;
-  max-width: 460px;
-  width: 90%;
-  text-align: center;
-  box-shadow: 0 0 30px rgba(212, 137, 10, 0.15);
-  position: relative;
-  animation: pulse 0.5s ease-in-out;
-}
-
-.phax-warning-text {
-  font-family: var(--font-mono);
-  font-size: 1.6rem;
-  font-weight: 700;
-  color: var(--color-warning);
-  letter-spacing: 0.06em;
-  margin-bottom: 24px;
-  line-height: 1.4;
-  text-shadow: 0 0 6px rgba(212, 137, 10, 0.3);
-}
-
-.phax-warning-dismiss {
-  margin-top: 8px;
-  padding: 14px 28px;
-  border-radius: var(--radius-md);
-  font-family: var(--font-mono);
-  font-size: 0.95rem;
-  font-weight: 700;
-  letter-spacing: 0.14em;
-  cursor: pointer;
-  min-height: 44px;
-  background: var(--color-warning);
-  border: none;
-  color: var(--bg-base);
-  box-shadow: 0 0 10px rgba(212, 137, 10, 0.2);
-}
-
 /* ── Responsive ── */
 @media (max-width: 1024px) {
   .main-content {
@@ -771,10 +934,6 @@
     margin-bottom: 10px;
   }
 
-  .activated-code-item {
-    padding: 8px 10px;
-  }
-
   .save-progress-label {
     font-size: 0.88rem;
     letter-spacing: 0.12em;
@@ -807,8 +966,7 @@
     padding: 0 24px;
   }
 
-  .transmit-confirm-dialog,
-  .phax-warning-dialog {
+  .transmit-confirm-dialog {
     padding: 22px 18px;
   }
 
@@ -816,7 +974,25 @@
     flex-direction: column;
   }
 
-  .phax-warning-text {
-    font-size: 1.25rem;
+  .code-value {
+    font-size: 1.35rem;
+    letter-spacing: 0.16em;
+  }
+
+  .activated-code-item {
+    padding: 12px 12px;
+  }
+
+  .transmit-nudge {
+    padding: 12px;
+  }
+
+  .transmit-nudge-text {
+    font-size: 0.85rem;
+  }
+
+  .proceed-button.ready {
+    font-size: 1.12rem;
+    padding: 18px 14px;
   }
 }

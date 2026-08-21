@@ -21,6 +21,7 @@ function buildImpactReportEmail({
   codes = '',
   alignmentScore = 0,
   totalCodesEntered = 0,
+  totalCodes = null,
   universes = [],
   optIn = false,
 } = {}) {
@@ -30,13 +31,33 @@ function buildImpactReportEmail({
 
   const subject = `Your Exit Terminal Impact Report — Score: ${scoreSign}${alignmentScore}`;
 
+  // Share of each universe's own capacity, so a 19k-case universe and a
+  // 2.5M-case one are readable side by side — the same 0–100% scale the
+  // impact chart on the results screen uses.
+  const saturation = (u) => {
+    const init = Number(u.initializationCases) || 0;
+    if (!init) return 0;
+    return Math.max(0, Math.min(100, Math.round((Number(u.currentCases) / init) * 100)));
+  };
+
   const universeRows = universes
     .map((u) => {
       const statusColor = STATUS_TONE[u.status] || '#9e9e9e';
+      const pct = saturation(u);
+      // Two-cell table instead of a styled div: it's the only bar that
+      // renders reliably in Outlook and Gmail alike.
+      const bar = `
+        <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="border-collapse:collapse;">
+          <tr>
+            <td width="${pct}%" style="background:${statusColor};height:6px;line-height:6px;font-size:0;">&nbsp;</td>
+            <td width="${100 - pct}%" style="background:#242424;height:6px;line-height:6px;font-size:0;">&nbsp;</td>
+          </tr>
+        </table>`;
       return `
         <tr>
           <td style="padding:10px 14px;border-bottom:1px solid #2a2a2a;color:#f0eeeb;font-family:'Courier New',monospace;font-size:13px;">${escapeHtml(u.name)}</td>
           <td style="padding:10px 14px;border-bottom:1px solid #2a2a2a;color:#f0eeeb;text-align:right;font-family:'Courier New',monospace;font-size:13px;">${formatNumber(u.currentCases)}</td>
+          <td width="120" style="padding:10px 14px;border-bottom:1px solid #2a2a2a;">${bar}</td>
           <td style="padding:10px 14px;border-bottom:1px solid #2a2a2a;color:${statusColor};text-align:center;font-family:'Courier New',monospace;font-size:11px;letter-spacing:0.12em;">${escapeHtml(u.status || '')}</td>
         </tr>`;
     })
@@ -95,8 +116,8 @@ function buildImpactReportEmail({
                   <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="background:#0f0f0f;border:1px solid #2a2a2a;border-radius:4px;">
                     <tr>
                       <td align="center" style="padding:18px;">
-                        <p style="margin:0 0 6px;font-size:10px;color:#777;letter-spacing:0.12em;font-family:'Courier New',monospace;">CODES ENTERED</p>
-                        <p style="margin:0;font-size:28px;font-weight:bold;color:#f0eeeb;font-family:'Courier New',monospace;">${formatNumber(totalCodesEntered)}</p>
+                        <p style="margin:0 0 6px;font-size:10px;color:#777;letter-spacing:0.12em;font-family:'Courier New',monospace;">CODES ACTIVATED</p>
+                        <p style="margin:0;font-size:28px;font-weight:bold;color:#f0eeeb;font-family:'Courier New',monospace;">${formatNumber(totalCodesEntered)}${totalCodes ? `<span style="font-size:16px;color:#777;font-weight:normal;"> of ${formatNumber(totalCodes)}</span>` : ''}</p>
                       </td>
                     </tr>
                   </table>
@@ -146,6 +167,7 @@ function buildImpactReportEmail({
                       <tr style="border-bottom:1px solid #3d3d3d;">
                         <th align="left" style="padding:8px 14px;font-size:10px;color:#444;letter-spacing:0.1em;font-family:'Courier New',monospace;">UNIVERSE</th>
                         <th align="right" style="padding:8px 14px;font-size:10px;color:#444;letter-spacing:0.1em;font-family:'Courier New',monospace;">CASES</th>
+                        <th align="left" width="120" style="padding:8px 14px;font-size:10px;color:#444;letter-spacing:0.1em;font-family:'Courier New',monospace;">SATURATION</th>
                         <th align="center" style="padding:8px 14px;font-size:10px;color:#444;letter-spacing:0.1em;font-family:'Courier New',monospace;">STATUS</th>
                       </tr>
                     </thead>
@@ -178,7 +200,7 @@ function buildImpactReportEmail({
 </html>`;
 
   const universeLines = universes
-    .map((u) => `  ${u.name} — ${formatNumber(u.currentCases)} cases — ${u.status || ''}`)
+    .map((u) => `  ${u.name} — ${formatNumber(u.currentCases)} cases (${saturation(u)}%) — ${u.status || ''}`)
     .join('\n');
 
   const optInTextFooter = optIn
@@ -191,7 +213,7 @@ FUTURE HOOMAN EXIT TERMINAL
 ALIGNMENT NARRATIVE
 ${alignmentNarrative}
 
-CODES ENTERED:    ${formatNumber(totalCodesEntered)}
+CODES ACTIVATED:  ${formatNumber(totalCodesEntered)}${totalCodes ? ` of ${formatNumber(totalCodes)}` : ''}
 ALIGNMENT SCORE:  ${scoreSign}${alignmentScore}
 
 YOUR CODES
