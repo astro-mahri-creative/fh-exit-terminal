@@ -293,22 +293,22 @@ async function initDatabase() {
       },
 
       // ─── Added post-launch (not part of the original catalog import) ───
-      // Tier 1: SIGSEV — Amplify
+      // Tier 1: SIGSEV — Targeting (polarizing)
       {
         code: 'WVFM',
         tier: 1,
         name: 'Wavefront Modulation',
         alignment: 'SIGSEV',
-        effectType: 'Amplify'
+        effectType: 'Target Nearest Goal'
       },
 
-      // Tier 2: SIGSEV — Amplify
+      // Tier 2: SIGSEV — Targeting (equalizing)
       {
         code: 'DSGF',
         tier: 2,
         name: 'Dead Signal Feedback',
         alignment: 'SIGSEV',
-        effectType: 'Amplify'
+        effectType: 'Target Furthest Goal'
       },
 
       // Tier 2: FHEELS — Spread
@@ -373,11 +373,20 @@ async function initDatabase() {
       // CURE effects (Tier 5 — Break Liberated)
       { code: 'CURE', effect: 0, effectType: 'break_liberated' },
 
-      // WVFM effects (Tier 1 — Amplify 1.15x, applies to all universes)
-      { code: 'WVFM', effect: 1.15, effectType: 'amplify', targetMode: 'all' },
+      // WVFM effects (Tier 1 — nearest_goal, polarizing). Symmetric pair:
+      // the sign routes an effect to a bucket, so one negative and one
+      // positive row of equal magnitude let a faction-neutral SIGSEV code act
+      // on whichever option the player picks without favoring either.
+      // Flavor: SIGSEV sharpening the outcome the player chose.
+      { code: 'WVFM', effect: -250, effectType: 'standard', targetMode: 'nearest_goal' },
+      { code: 'WVFM', effect: 250, effectType: 'standard', targetMode: 'nearest_goal' },
 
-      // DSGF effects (Tier 2 — Amplify 1.4x, applies to all universes)
-      { code: 'DSGF', effect: 1.4, effectType: 'amplify', targetMode: 'all' },
+      // DSGF effects (Tier 2 — furthest_goal, equalizing). Same symmetric
+      // shape. Flavor: SIGSEV smearing the board and prolonging the conflict.
+      // Paired against WVFM so the two forces counteract each other at the
+      // board level rather than one dictating the long-run attractor.
+      { code: 'DSGF', effect: -500, effectType: 'standard', targetMode: 'furthest_goal' },
+      { code: 'DSGF', effect: 500, effectType: 'standard', targetMode: 'furthest_goal' },
 
       // BXRJ effects (Tier 2 — Spread)
       { code: 'BXRJ', effect: 700, effectType: 'standard' },
