@@ -471,7 +471,7 @@ function ResultsScreen({ resultsData, sessionData, onReset }) {
           message={
             reportEmailEnabled
               ? 'Want your impact report emailed to you, and your progress waiting the next time you log in?'
-              : 'Want your progress waiting for you the next time you log in?'
+              : 'Want to continue your progress the next time you log in?'
           }
           actions={[
             { label: 'YES', onClick: handleSavePromptYes },
