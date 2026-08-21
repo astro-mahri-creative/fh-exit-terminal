@@ -27,6 +27,15 @@ function AdminPanel({ sessionData }) {
   const [analytics, setAnalytics] = useState(null);
   const [userSort, setUserSort] = useState('logins'); // 'logins' | 'codes'
   const [terminalLocked, setTerminalLocked] = useState(false);
+  // Master switch for visitor impact report email, and whether the server has
+  // any mail transport at all — an "ON" toggle means nothing if the provider
+  // credentials are missing or dead.
+  const [reportEmailEnabled, setReportEmailEnabled] = useState(true);
+  const [emailConfigured, setEmailConfigured] = useState(true);
+  // Final-state watch: how many universes are locked, which alert channels are
+  // configured, and what happened the last time the network ended.
+  const [finalState, setFinalState] = useState(null);
+  const [alertTestResult, setAlertTestResult] = useState('');
   // Which reset-to-reset window the analytics tab is reporting on: a phase
   // number as a string, or 'all'. Empty until the first response tells us
   // which phase is current.
@@ -140,6 +149,25 @@ function AdminPanel({ sessionData }) {
     return `${p.label}${p.is_current ? ' (CURRENT)' : ''} · ${start} → ${end}`;
   };
 
+  // Switching OFF stops every outbound report, so it asks first. Switching
+  // back ON is harmless and doesn't.
+  const handleToggleReportEmail = async () => {
+    if (
+      reportEmailEnabled &&
+      !window.confirm(
+        'STOP impact report email? No reports will go out — automatically or on request — and the results screen will stop offering them. Addresses are still collected and progress is still saved.'
+      )
+    ) {
+      return;
+    }
+    try {
+      const response = await adminService.toggleReportEmail(sessionData.session_token);
+      if (response.success) setReportEmailEnabled(response.impactReportEmailEnabled);
+    } catch (err) {
+      alert('Error updating impact report email setting');
+    }
+  };
+
   const handleToggleTerminalLock = async () => {
     const locking = !terminalLocked;
     const warning = locking
@@ -159,9 +187,23 @@ function AdminPanel({ sessionData }) {
       if (res.success) {
         if (res.analytics.effectScale !== undefined) setEffectScale(res.analytics.effectScale);
         setTerminalLocked(!!res.analytics.terminalLocked);
+        if (res.analytics.impactReportEmailEnabled !== undefined) {
+          setReportEmailEnabled(!!res.analytics.impactReportEmailEnabled);
+        }
+        if (res.analytics.emailConfigured !== undefined) {
+          setEmailConfigured(!!res.analytics.emailConfigured);
+        }
       }
     }).catch(() => {});
   }, [sessionData.session_token]);
+
+  const loadFinalState = useCallback(() => {
+    adminService.getFinalState(sessionData.session_token)
+      .then(res => { if (res.success) setFinalState(res); })
+      .catch(() => {});
+  }, [sessionData.session_token]);
+
+  useEffect(() => { loadFinalState(); }, [loadFinalState]);
 
   useEffect(() => {
     if (activeTab === 'users' && users.length === 0) {
@@ -206,10 +248,25 @@ function AdminPanel({ sessionData }) {
         const response = await adminService.resetUniverses(sessionData.session_token);
         if (response.success) {
           alert('Dimension statistics reset complete');
+          // The reset opens a new phase, which re-arms final-state detection.
+          loadFinalState();
         }
       } catch (err) {
         alert('Error resetting dimensions');
       }
+    }
+  };
+
+  const handleTestAlert = async () => {
+    setAlertTestResult('Sending…');
+    try {
+      const res = await adminService.testFinalStateAlert(sessionData.session_token);
+      const detail = (res.notifications || [])
+        .map(n => `${n.channel}: ${n.ok ? 'OK' : 'FAILED'} (${n.detail})`)
+        .join(' · ');
+      setAlertTestResult(detail || res.message);
+    } catch (err) {
+      setAlertTestResult(err.response?.data?.message || 'Test alert failed');
     }
   };
 
@@ -286,6 +343,19 @@ function AdminPanel({ sessionData }) {
             >
               TERMINAL: {terminalLocked ? '[ LOCKED ]' : '[ UNLOCKED ]'}
             </button>
+            <button
+              onClick={handleToggleReportEmail}
+              className={`admin-action-button${reportEmailEnabled ? '' : ' muted'}`}
+            >
+              IMPACT REPORT EMAIL: {reportEmailEnabled ? '[ ON ]' : '[ STOPPED ]'}
+            </button>
+            <div className="admin-action-note">
+              {!emailConfigured
+                ? '⚠ No mail transport configured on the server — nothing can send either way.'
+                : reportEmailEnabled
+                  ? 'Reports send automatically to visitors with an email on file, and on request from the results screen.'
+                  : 'All report email is stopped. The results screen hides its send button; addresses are still collected and progress is still saved.'}
+            </div>
             <button onClick={handleResetUniverses} className="admin-action-button danger">
               Reset Dimension Statistics
             </button>
@@ -322,6 +392,52 @@ function AdminPanel({ sessionData }) {
             {terminalLocked && (
               <div className="terminal-locked-banner">
                 ⚠ TERMINAL LOCKED — visitors are being turned away. Admin IDs still have access.
+              </div>
+            )}
+
+            {finalState && (
+              <div className={`final-state-watch${finalState.is_final ? ' reached' : ''}`}>
+                <div className="final-state-watch-header">
+                  <span className="final-state-watch-title">FINAL STATE WATCH</span>
+                  <span className="final-state-watch-count">
+                    {finalState.locked_universes} / {finalState.total_universes} LOCKED
+                    {' · '}PHASE {finalState.phase_number}
+                  </span>
+                </div>
+
+                <div className="final-state-watch-line">
+                  {finalState.is_final
+                    ? 'Every universe is locked. The network has reached its final state.'
+                    : 'Alert fires automatically the moment every universe reaches TRANSCENDED or QUARANTINED.'}
+                </div>
+
+                <div className="final-state-watch-line">
+                  Channels:{' '}
+                  <span className={finalState.channels_configured.email ? 'ok' : 'off'}>
+                    email {finalState.channels_configured.email ? 'ON' : 'not configured'}
+                  </span>
+                  {' · '}
+                  <span className={finalState.channels_configured.webhook ? 'ok' : 'off'}>
+                    webhook {finalState.channels_configured.webhook ? 'ON' : 'not configured'}
+                  </span>
+                </div>
+
+                {finalState.last_event && (
+                  <div className="final-state-watch-line">
+                    Last recorded: phase {finalState.last_event.phase_number} on{' '}
+                    {formatDate(finalState.last_event.detected_at)}
+                    {finalState.last_event.notifications?.length
+                      ? ` — ${finalState.last_event.notifications.map(n => `${n.channel} ${n.ok ? 'OK' : 'FAILED'}`).join(', ')}`
+                      : ''}
+                  </div>
+                )}
+
+                <button onClick={handleTestAlert} className="admin-action-button">
+                  Send Test Alert
+                </button>
+                {alertTestResult && (
+                  <div className="final-state-watch-line result">{alertTestResult}</div>
+                )}
               </div>
             )}
           </div>

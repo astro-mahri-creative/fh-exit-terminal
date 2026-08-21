@@ -193,16 +193,54 @@ Upgrade when you have:
 
 ---
 
-## 📧 Email Setup (Optional)
+## 📧 Email Setup
 
-To enable email reports:
+Impact reports are emailed automatically at the end of a transmission to any
+visitor who has an address on file, and on demand from the button on the
+results screen. Both go through the same transport, configured with **one** of
+these sets of Render environment variables:
 
-1. Sign up for SendGrid (free tier: 100 emails/day)
-2. Get API key
-3. Add to Render environment variables:
-   - `SENDGRID_API_KEY`: Your API key
-   - `EMAIL_FROM`: Your verified sender email
-4. Implement email sending in `backend/server.js`
+| Provider | Variables |
+| --- | --- |
+| SendGrid | `SENDGRID_API_KEY`, `EMAIL_FROM` (a **verified sender**) |
+| Any SMTP host | `EMAIL_HOST`, `EMAIL_PORT`, `EMAIL_SECURE`, `EMAIL_USER`, `EMAIL_PASSWORD`, `EMAIL_FROM` |
+| Gmail app password | `GMAIL_USER`, `GMAIL_APP_PASSWORD` |
+
+With none of them set, the server logs a warning at boot and every send path
+returns a 503 instead of silently dropping mail.
+
+**IMPACT REPORT EMAIL** in the admin ACTIONS tab is a master switch over both
+sends. Stopped, no report goes out by any route — the results screen hides its
+send button and the Save Progress gate stops promising a report. Addresses are
+still collected and progress is still saved either way. Operator alerts
+(below) are deliberately unaffected.
+
+To check a key without sending anything:
+
+```bash
+node -e "require('dotenv').config();const n=require('nodemailer');n.createTransport({host:'smtp.sendgrid.net',port:587,auth:{user:'apikey',pass:process.env.SENDGRID_API_KEY}}).verify().then(()=>console.log('OK')).catch(e=>console.log('FAILED',e.message))"
+```
+
+---
+
+## 🔔 Final-State Alerts
+
+The moment every universe locks into a permanent status (TRANSCENDED or
+QUARANTINED), the server records a `FinalStateEvent` and notifies every
+configured channel — once per phase, so resetting dimension statistics re-arms
+it. Both channels are optional; set neither and detection still happens and is
+logged, it just doesn't page anyone.
+
+- `FINAL_STATE_ALERT_EMAIL` — comma-separated operator addresses. Uses the same
+  mail transport as the impact report, so it needs one of the provider blocks
+  above.
+- `FINAL_STATE_WEBHOOK_URL` — any endpoint that accepts a JSON POST (Slack or
+  Discord incoming webhook, Zapier, Make, your own service).
+
+The admin panel's ACTIONS tab shows how many universes are locked, which
+channels are live, and what happened the last time the network ended, plus a
+**Send Test Alert** button that fires a real notification through every
+configured channel without recording an event.
 
 ---
 

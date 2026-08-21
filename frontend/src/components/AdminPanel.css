@@ -127,6 +127,90 @@
   color: #e07070;
 }
 
+/* A toggle whose "off" state is a legitimate operating mode, not a fault —
+   dimmed rather than coloured like the destructive actions. */
+.admin-action-button.muted {
+  background: var(--bg-raised);
+  border: 1px solid var(--border-mid);
+  color: var(--text-secondary);
+}
+
+/* One line of consequence under a toggle, so the operator doesn't have to
+   remember what "off" does. */
+.admin-action-note {
+  margin-top: -4px;
+  padding: 0 2px;
+  font-family: var(--font-mono);
+  font-size: 0.64rem;
+  line-height: 1.6;
+  letter-spacing: 0.04em;
+  color: var(--text-secondary);
+}
+
+/* ── Final State Watch ──
+   Standing readout of how close the network is to ending, which alert
+   channels are live, and what happened last time — plus a dry run, because
+   the real alert only fires once and there's no second chance to find out
+   the webhook URL was wrong. */
+.final-state-watch {
+  width: 100%;
+  margin-top: 6px;
+  padding: 12px 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  background: rgba(68, 119, 238, 0.05);
+  border: 1px dashed rgba(68, 119, 238, 0.3);
+  border-radius: var(--radius-md);
+}
+
+.final-state-watch.reached {
+  background: rgba(149, 117, 205, 0.1);
+  border: 1px solid var(--status-transcendent);
+}
+
+.final-state-watch-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.final-state-watch-title {
+  font-family: var(--font-mono);
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.2em;
+  color: var(--phax-light);
+}
+
+.final-state-watch-count {
+  font-family: var(--font-mono);
+  font-size: 0.68rem;
+  letter-spacing: 0.1em;
+  color: var(--text-secondary);
+}
+
+.final-state-watch-line {
+  font-family: var(--font-mono);
+  font-size: 0.66rem;
+  line-height: 1.6;
+  letter-spacing: 0.04em;
+  color: var(--text-secondary);
+}
+
+.final-state-watch-line .ok  { color: var(--color-success); }
+.final-state-watch-line .off { color: var(--text-dim); }
+
+.final-state-watch-line.result {
+  color: var(--text-primary);
+  padding: 8px 10px;
+  background: var(--bg-base);
+  border-radius: var(--radius-sm);
+  word-break: break-word;
+}
+
 .new-id-label {
   font-size: 0.72rem;
   color: var(--text-secondary);

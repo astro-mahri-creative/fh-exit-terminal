@@ -20,10 +20,13 @@ export const sessionService = {
     return response.data;
   },
 
-  saveEmail: async (sessionToken, email) => {
+  // optIn is consent to Future Hooman news/events mail — separate from saving
+  // progress, which happens either way.
+  saveEmail: async (sessionToken, email, optIn = false) => {
     const response = await api.post('/session/save-email', {
       session_token: sessionToken,
       email,
+      opt_in: optIn,
     });
     return response.data;
   }
@@ -138,6 +141,32 @@ export const adminService = {
 
   toggleTerminalLock: async (sessionToken) => {
     const response = await api.post('/admin/settings/toggle-lock', {
+      session_token: sessionToken
+    });
+    return response.data;
+  },
+
+  // Master switch for visitor impact report email — the automatic send at
+  // finalize and the on-demand send alike. Operator alerts are unaffected.
+  toggleReportEmail: async (sessionToken) => {
+    const response = await api.post('/admin/settings/toggle-report-email', {
+      session_token: sessionToken
+    });
+    return response.data;
+  },
+
+  getFinalState: async (sessionToken) => {
+    const response = await api.get('/admin/final-state', {
+      params: { session_token: sessionToken }
+    });
+    return response.data;
+  },
+
+  // Fires the final-state alert through every configured channel using the
+  // current board, without recording an event — a dry run of the one
+  // notification that has to work first time.
+  testFinalStateAlert: async (sessionToken) => {
+    const response = await api.post('/admin/final-state/test', {
       session_token: sessionToken
     });
     return response.data;

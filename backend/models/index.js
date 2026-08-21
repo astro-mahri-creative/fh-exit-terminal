@@ -104,6 +104,12 @@ const userIdSchema = new mongoose.Schema({
   // Lives here (rather than only on Session) so it survives across sessions and
   // can pre-populate the impact report on the user's next visit.
   emailAddress: { type: String },
+  // Consent to receive Future Hooman news/events mail, captured beside the
+  // email at the same gate. Mirrored onto Session for per-visit auditing;
+  // this copy is the one a mailing-list export should read, since it survives
+  // across sessions with the address it belongs to.
+  optInMessaging: { type: Boolean, default: false },
+  optInAt: { type: Date },
   lastUsedDate: { type: Date },
   usageCount: { type: Number, default: 0 }
 }, { timestamps: true });
@@ -146,6 +152,44 @@ const cureStatusSchema = new mongoose.Schema({
   phaseId: { type: mongoose.Schema.Types.ObjectId, ref: 'Phase' }
 });
 
+// Final State Event Schema
+//
+// One row per time the network reaches its terminal configuration: every
+// universe locked into a permanent status (TRANSCENDED at zero cases or
+// QUARANTINED at full saturation — the two statuses that clear canSpread and
+// that ordinary random-target codes can no longer reach, since target
+// selection only ever considers COMPROMISED universes).
+//
+// Written at most once per phase. The unique index on phaseNumber is what
+// makes alert dispatch idempotent: a later transmission that leaves the board
+// still-final cannot fire a second round of notifications. Resetting dimension
+// statistics opens a new phase, which re-arms detection.
+const finalStateEventSchema = new mongoose.Schema({
+  phaseNumber: { type: Number, required: true },
+  detectedAt: { type: Date, default: Date.now },
+  sessionId: { type: mongoose.Schema.Types.ObjectId, ref: 'Session' },
+  userId: { type: String },
+  // Snapshot of the board at the moment it locked, so the alert — and any
+  // later forensics — doesn't depend on the universes still being untouched.
+  snapshot: [{
+    _id: false,
+    name: String,
+    status: String,
+    currentCases: Number,
+    initializationCases: Number
+  }],
+  // Per-channel dispatch outcome, one entry per configured channel.
+  notifications: [{
+    _id: false,
+    channel: String,
+    ok: Boolean,
+    detail: String,
+    at: { type: Date, default: Date.now }
+  }],
+  dispatched: { type: Boolean, default: false }
+}, { timestamps: true });
+finalStateEventSchema.index({ phaseNumber: 1 }, { unique: true });
+
 // Analytics Log Schema
 const analyticsLogSchema = new mongoose.Schema({
   eventType: { type: String, required: true },
@@ -161,7 +205,19 @@ const adminSettingsSchema = new mongoose.Schema({
   effectScale: { type: Number, default: 1, min: 1, max: 99 },
   // When true, non-admin users can neither log in nor mint a new user ID.
   // Toggled by hand from the admin panel; admins are always exempt.
-  terminalLocked: { type: Boolean, default: false }
+  terminalLocked: { type: Boolean, default: false },
+  // Master switch for visitor-facing impact report email. Off stops every
+  // outbound report — the automatic send at finalize AND the results screen's
+  // own send button, which the UI hides entirely rather than offering
+  // something that will be refused.
+  //
+  // Deliberately does not gate operator alerts (final-state notifications):
+  // silencing your own paging from a visitor-experience toggle would be a
+  // surprise at exactly the wrong moment.
+  //
+  // Addresses are still collected and progress is still saved while off — the
+  // stop is on sending, not on capture.
+  impactReportEmailEnabled: { type: Boolean, default: true }
 });
 adminSettingsSchema.statics.getSettings = async function () {
   let doc = await this.findOne();
@@ -182,6 +238,7 @@ const MetaGameRule = mongoose.model('MetaGameRule', metaGameRuleSchema);
 const PhaxAlertMessage = mongoose.model('PhaxAlertMessage', phaxAlertMessageSchema);
 const CureStatus = mongoose.model('CureStatus', cureStatusSchema);
 const AnalyticsLog = mongoose.model('AnalyticsLog', analyticsLogSchema);
+const FinalStateEvent = mongoose.model('FinalStateEvent', finalStateEventSchema);
 const AdminSettings = mongoose.model('AdminSettings', adminSettingsSchema);
 
 module.exports = {
@@ -197,5 +254,6 @@ module.exports = {
   PhaxAlertMessage,
   CureStatus,
   AnalyticsLog,
-  AdminSettings
+  AdminSettings,
+  FinalStateEvent
 };

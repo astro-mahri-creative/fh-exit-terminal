@@ -1,82 +1,25 @@
 import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
-import { sessionService } from '../services/api';
+import { sessionService, emailService } from '../services/api';
 import UniverseNetworkVisualization from './UniverseNetworkVisualization';
+import UniverseImpactChart from './UniverseImpactChart';
 import EmailField from './EmailField';
-import useSteppedCountUp from '../hooks/useSteppedCountUp';
+import TerminalNotice from './TerminalNotice';
 import './ResultsScreen.css';
 
 const FIRST_IDLE_TIMEOUT = 30;
 const SECOND_IDLE_TIMEOUT = 60;
 
-const STEPPED_COUNT_STEPS = 5;       // 5 intermediate ticks between from and to
-const STEPPED_COUNT_DURATION_MS = 670; // (steps + 1) * duration ≈ 4s total
+// How long the impact report gets to itself before a visitor with no address
+// on file is asked to save. Fires once per visit; answering either way retires
+// it. Set past the count-up reveal — numbers appear ~4s in and settle ~4s
+// later — so the prompt lands on a finished report rather than interrupting
+// the animation that gives it something to be worth saving.
+const SAVE_PROMPT_DELAY_MS = 10000;
 
-const STATUS_COLORS = {
-  TRANSCENDED:  { primary: '#9575cd', secondary: '#5e35b1', textColor: '#f0eeeb' },
-  PRESERVED:    { primary: '#4a90d9', secondary: '#2a5a8a', textColor: '#f0eeeb' },
-  COMPROMISED:  { primary: '#7ec88b', secondary: '#4a8a54', textColor: '#0a0a0a' },
-  LIBERATED:    { primary: '#d4a032', secondary: '#8a6a1a', textColor: '#0a0a0a' },
-  QUARANTINED:  { primary: '#c94040', secondary: '#7b1a1a', textColor: '#f0eeeb' },
-};
+const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
-function UniverseCard({ universe, idx, numbersVisible, isFheels }) {
-  const colors = STATUS_COLORS[universe.status] || STATUS_COLORS.COMPROMISED;
-  const startVal = universe.current_cases - universe.change;
-  const animatedCases = useSteppedCountUp(
-    startVal,
-    universe.current_cases,
-    STEPPED_COUNT_STEPS,
-    STEPPED_COUNT_DURATION_MS,
-    numbersVisible,
-    idx * 40,
-  );
-  const numClass = numbersVisible
-    ? (isFheels ? 'numbers-fheels-reveal' : 'numbers-animate')
-    : 'numbers-hidden';
-  const cardDelay = `${idx * 40}ms`;
-
-  return (
-    <div
-      className="universe-card"
-      style={{
-        borderColor: colors.primary + '66',
-        background: `linear-gradient(160deg, ${colors.primary}12, ${colors.secondary}08)`
-      }}
-    >
-      <div className="universe-name">{universe.name}</div>
-      <div className="universe-cases">
-        <div className="cases-label">iFLU Cases:</div>
-        {/* Always visible: shows the original (pre-event) value in white before
-            the count-up triggers. When numbersVisible flips, the directional
-            class is added — CSS transition smoothly fades white → green/red,
-            and that color is what persists once the count-up settles. */}
-        <div
-          className={`cases-value ${
-            numbersVisible
-              ? (universe.change > 0 ? 'cases-up' : universe.change < 0 ? 'cases-down' : '')
-              : ''
-          }`}
-        >
-          {animatedCases.toLocaleString()}
-        </div>
-        {universe.change !== 0 && (
-          <div
-            className={`cases-change ${universe.change > 0 ? 'increase' : 'decrease'} ${numClass}`}
-            style={{ animationDelay: cardDelay }}
-          >
-            {universe.change > 0 ? '+' : ''}{universe.change.toLocaleString()}
-          </div>
-        )}
-      </div>
-      <div
-        className="universe-status"
-        style={{ backgroundColor: colors.primary, color: colors.textColor }}
-      >
-        {universe.status}
-      </div>
-    </div>
-  );
-}
+const NEWS_OPTIN_COPY =
+  'Yes, send me Future Hooman news and events — new releases, shows, and dimensional broadcasts. Unsubscribe any time.';
 
 function ResultsScreen({ resultsData, sessionData, onReset }) {
   // Pre-populated when this user already has an email attached to their User ID
@@ -85,6 +28,11 @@ function ResultsScreen({ resultsData, sessionData, onReset }) {
   const [email, setEmail] = useState(sessionData?.email || '');
   const [emailSaved, setEmailSaved] = useState(false);
   const [emailError, setEmailError] = useState('');
+  const [newsOptIn, setNewsOptIn] = useState(false);
+  const [sending, setSending] = useState(false);
+  // 'none' | 'sent' | 'failed' — whether the impact report itself went out, as
+  // distinct from whether the address was stored.
+  const [reportStatus, setReportStatus] = useState('none');
   const [multiverseReady, setMultiverseReady] = useState(false);
   const [numbersVisible, setNumbersVisible]   = useState(false);
   const [countdown, setCountdown] = useState(FIRST_IDLE_TIMEOUT);
@@ -199,36 +147,133 @@ function ResultsScreen({ resultsData, sessionData, onReset }) {
     recordActivity();
   }, [recordActivity]);
 
+  // The address finalize already delivered this report to, because it was on
+  // file before the transmission. Null when nothing went out — no address yet,
+  // or the send failed — which is exactly when the form below has to ask.
+  const autoSentTo = resultsData.report_email_sent_to || null;
+  const [editingEmail, setEditingEmail] = useState(!autoSentTo);
+
+  // Admin master switch (or a server with no mail transport at all). While
+  // this is off the screen never mentions, offers, or attempts a send — the
+  // panel goes back to being purely about saving progress.
+  const reportEmailEnabled = resultsData.report_email_enabled !== false;
+
   const handleSaveEmail = useCallback(async () => {
     setEmailError('');
 
-    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-    if (!email || !emailRegex.test(email)) {
+    if (!email || !EMAIL_REGEX.test(email)) {
       setEmailError('Please enter a valid email address');
       return;
     }
 
+    setSending(true);
     try {
-      const response = await sessionService.saveEmail(sessionData.session_token, email);
-      if (response.success) {
-        setEmailSaved(true);
-      } else {
+      const response = await sessionService.saveEmail(sessionData.session_token, email, newsOptIn);
+      if (!response.success) {
         setEmailError(response.message || 'Error saving email');
+        return;
+      }
+      setEmailSaved(true);
+
+      // Nothing to send, and nothing to promise — the address is stored and
+      // that's the whole transaction.
+      if (!reportEmailEnabled) return;
+
+      // Progress is safe at this point regardless of what the mail server
+      // does next, so a delivery failure downgrades the message rather than
+      // failing the whole action.
+      if (autoSentTo && autoSentTo === email.toLowerCase().trim()) {
+        setReportStatus('sent'); // finalize already delivered to this exact address
+        return;
+      }
+      try {
+        await emailService.send(sessionData.session_token, email, newsOptIn);
+        setReportStatus('sent');
+      } catch (sendErr) {
+        console.error('Impact report send failed:', sendErr);
+        setReportStatus('failed');
       }
     } catch (err) {
       setEmailError('Error saving email. Please try again.');
+    } finally {
+      setSending(false);
     }
-  }, [email, sessionData.session_token]);
+  }, [email, newsOptIn, autoSentTo, reportEmailEnabled, sessionData.session_token]);
+
+  // Consent can be given (or withdrawn) after the address is already stored —
+  // re-save so a late click isn't dropped.
+  const handleOptInToggle = useCallback(async (checked) => {
+    setNewsOptIn(checked);
+    recordActivity();
+    const address = (emailSaved ? email : autoSentTo) || '';
+    if (!address) return;
+    try {
+      await sessionService.saveEmail(sessionData.session_token, address, checked);
+    } catch (err) {
+      setEmailError('Could not update your subscription preference. Try again.');
+    }
+  }, [emailSaved, email, autoSentTo, sessionData.session_token, recordActivity]);
 
   // No global keydown listener — the email field is a real input and handles
   // physical typing and Enter itself.
 
+  const hasStatusMessages =
+    Array.isArray(resultsData.status_messages) && resultsData.status_messages.length > 0;
+
+  // ── Delayed save-progress prompt ──
+  // A visitor reaches this screen without an address only by having declined
+  // the gate on the way in. Now that they can see what they did, ask once more
+  // — the email panel is at the bottom of a long screen and is easy to miss.
+  const emailPanelRef = useRef(null);
+  const [savePrompt, setSavePrompt] = useState(false);
+  const savePromptShown = useRef(false);
+  const needsSavePrompt = !sessionData?.email && !autoSentTo && !emailSaved;
+
+  useEffect(() => {
+    if (!needsSavePrompt || savePromptShown.current) return undefined;
+    const timer = setTimeout(() => {
+      savePromptShown.current = true;
+      setSavePrompt(true);
+    }, SAVE_PROMPT_DELAY_MS);
+    return () => clearTimeout(timer);
+  }, [needsSavePrompt]);
+
+  // YES hands them straight to the field: scroll the panel into view, then
+  // focus once the smooth scroll has had time to land. Focusing first would
+  // make the browser jump there instantly and undo the animation.
+  const handleSavePromptYes = useCallback(() => {
+    setSavePrompt(false);
+    recordActivity();
+    setEditingEmail(true);
+    emailPanelRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    setTimeout(() => document.getElementById('results-email')?.focus(), 600);
+  }, [recordActivity]);
+
+  const handleSavePromptNo = useCallback(() => {
+    setSavePrompt(false);
+    recordActivity();
+  }, [recordActivity]);
+
   return (
     <div className="results-screen" onClick={recordActivity} onKeyDown={recordActivity}>
-      <div className="phax-alert">
-        <div className="alert-icon">⚠️</div>
-        <div className="alert-text">{resultsData.phax_alert}</div>
-      </div>
+      {resultsData.final_state && (
+        <div className="final-state-banner">
+          <div className="final-state-title">◆ NETWORK FINAL STATE REACHED ◆</div>
+          <div className="final-state-text">
+            Every universe is now locked in a permanent status. The dimensional
+            network has settled into its ending.
+          </div>
+        </div>
+      )}
+
+      {/* The change, stated plainly, and the first thing on the screen: nine
+          bars on one 0–100% scale, moving from where each universe was to
+          where this transmission left it. It carries the per-universe numbers
+          outright, which is why the old card grid is gone. */}
+      <UniverseImpactChart
+        universes={resultsData.universes}
+        animate={numbersVisible}
+      />
 
       <div className="results-overview-viz">
         {/* Mirrors the original/primary topology view (interactive mode,
@@ -246,36 +291,33 @@ function ResultsScreen({ resultsData, sessionData, onReset }) {
         />
       </div>
 
-      <div className="universe-map">
-        <div className="universes-grid">
-          {[...resultsData.universes].sort((a, b) => Math.abs(b.change) - Math.abs(a.change)).map((universe, idx) => (
-            <UniverseCard
-              key={universe.id}
-              universe={universe}
-              idx={idx}
-              numbersVisible={numbersVisible}
-              isFheels={resultsData.alignment_score > 0}
-            />
-          ))}
-        </div>
-
-        {resultsData.cure_active && (
-          <div className="cure-indicator">
-            🧬 CURE PROTOCOL ACTIVE — iFLU cure discovered
-          </div>
-        )}
-
-        {resultsData.status_messages && resultsData.status_messages.length > 0 && (
-          <div className="status-messages">
-            {resultsData.status_messages.map((msg, i) => (
-              <div key={i} className={`status-message ${msg.message === 'NO IMPACT' ? 'no-impact' : 'status-change'}`}>
-                <span className="status-msg-code">[{msg.code}]</span>
-                <span className="status-msg-text">{msg.message}</span>
-              </div>
-            ))}
-          </div>
-        )}
+      {/* The PHAX advisory reads as commentary on what just happened, so it
+          sits under the picture of what just happened rather than above it. */}
+      <div className="phax-alert">
+        <div className="alert-icon">⚠️</div>
+        <div className="alert-text">{resultsData.phax_alert}</div>
       </div>
+
+      {(resultsData.cure_active || hasStatusMessages) && (
+        <div className="universe-map">
+          {resultsData.cure_active && (
+            <div className="cure-indicator">
+              🧬 CURE PROTOCOL ACTIVE — iFLU cure discovered
+            </div>
+          )}
+
+          {hasStatusMessages && (
+            <div className="status-messages">
+              {resultsData.status_messages.map((msg, i) => (
+                <div key={i} className={`status-message ${msg.message === 'NO IMPACT' ? 'no-impact' : 'status-change'}`}>
+                  <span className="status-msg-code">[{msg.code}]</span>
+                  <span className="status-msg-text">{msg.message}</span>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
 
       <div className="impact-summary">
         <h3>YOUR IMPACT</h3>
@@ -317,37 +359,100 @@ function ResultsScreen({ resultsData, sessionData, onReset }) {
         })()}
       </div>
 
-      <div className="email-section">
-        {!emailSaved ? (
+      <div className="email-section" ref={emailPanelRef}>
+        {emailSaved || (autoSentTo && !editingEmail) ? (
+          <div className="email-success">
+            {emailSaved ? (
+              <>
+                <span>✓ Progress saved for {email}</span>
+                {reportStatus === 'sent' && (
+                  <span className="email-success-sub">Your impact report has been sent.</span>
+                )}
+                {reportStatus === 'failed' && (
+                  <span className="email-success-warn">
+                    Your progress is saved, but the report email couldn't be sent right now.
+                  </span>
+                )}
+              </>
+            ) : (
+              <>
+                <span>✓ Impact report sent to {autoSentTo}</span>
+                <span className="email-success-sub">Your progress is saved to this address.</span>
+              </>
+            )}
+
+            <label className="news-optin">
+              <input
+                type="checkbox"
+                checked={newsOptIn}
+                onChange={(e) => handleOptInToggle(e.target.checked)}
+              />
+              <span>{NEWS_OPTIN_COPY}</span>
+            </label>
+
+            {emailError && <div className="error-message">{emailError}</div>}
+
+            <div className="action-buttons">
+              {!emailSaved && (
+                <button
+                  onClick={() => { setEditingEmail(true); recordActivity(); }}
+                  className="reset-button"
+                >
+                  USE A DIFFERENT ADDRESS
+                </button>
+              )}
+              <button onClick={onReset} className="reset-button">
+                RETURN TO HOME
+              </button>
+            </div>
+          </div>
+        ) : (
           <>
             <label htmlFor="results-email" className="email-section-label">
-              {sessionData?.email
-                ? 'Confirm the email on file to save your progress'
-                : 'Enter your email to save your progress'}
+              {reportEmailEnabled
+                ? (sessionData?.email
+                    ? 'Confirm the email on file to get your impact report'
+                    : 'Enter your email to get your impact report')
+                : (sessionData?.email
+                    ? 'Confirm the email on file to save your progress'
+                    : 'Enter your email to save your progress')}
             </label>
+            <ul className="email-section-benefits">
+              {reportEmailEnabled && <li>Your full impact report, emailed to you</li>}
+              <li>Your progress restored the next time you log in</li>
+            </ul>
             <EmailField
               id="results-email"
               value={email}
               onChange={handleEmailChange}
               onEnter={handleSaveEmail}
             />
+            <label className="news-optin">
+              <input
+                type="checkbox"
+                checked={newsOptIn}
+                onChange={(e) => handleOptInToggle(e.target.checked)}
+              />
+              <span>{NEWS_OPTIN_COPY}</span>
+            </label>
             {emailError && <div className="error-message">{emailError}</div>}
             <div className="action-buttons">
-              <button onClick={handleSaveEmail} className="send-button" disabled={email.length === 0}>
-                SAVE MY PROGRESS
+              {/* Same action either way — the address is stored — but with
+                  report email stopped it stops advertising a delivery. */}
+              <button
+                onClick={handleSaveEmail}
+                className="send-button"
+                disabled={email.length === 0 || sending}
+              >
+                {sending
+                  ? (reportEmailEnabled ? 'SENDING...' : 'SAVING...')
+                  : (reportEmailEnabled ? 'SEND MY IMPACT REPORT' : 'SAVE MY PROGRESS')}
               </button>
               <button onClick={onReset} className="reset-button">
                 RETURN TO HOME
               </button>
             </div>
           </>
-        ) : (
-          <div className="email-success">
-            ✓ Progress saved for {email}
-            <button onClick={onReset} className="reset-button">
-              RETURN TO HOME
-            </button>
-          </div>
         )}
       </div>
 
@@ -357,6 +462,23 @@ function ResultsScreen({ resultsData, sessionData, onReset }) {
             ? `Idle Time is: ${FIRST_IDLE_TIMEOUT - countdown}s`
             : `Screen Resets in: ${countdown}s`}
         </div>
+      )}
+
+      {savePrompt && (
+        <TerminalNotice
+          tone="prompt"
+          headline="SAVE YOUR PROGRESS?"
+          message={
+            reportEmailEnabled
+              ? 'Want your impact report emailed to you, and your progress waiting the next time you log in?'
+              : 'Want your progress waiting for you the next time you log in?'
+          }
+          actions={[
+            { label: 'YES', onClick: handleSavePromptYes },
+            { label: 'NO THANKS', onClick: handleSavePromptNo },
+          ]}
+          onDismiss={handleSavePromptNo}
+        />
       )}
     </div>
   );

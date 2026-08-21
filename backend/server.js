@@ -18,13 +18,25 @@ const buildImpactReportEmail = require('./templates/impactReport');
 //     EMAIL_HOST, EMAIL_PORT (default 587), EMAIL_SECURE (true/false),
 //     EMAIL_USER, EMAIL_PASSWORD, EMAIL_FROM (display + address)
 //
+//   SendGrid (API key only — host/user are fixed by the provider):
+//     SENDGRID_API_KEY, EMAIL_FROM (must be a verified sender)
+//
 //   Legacy Gmail App Password:
 //     GMAIL_USER, GMAIL_APP_PASSWORD
 //
-// If neither is set, transporter stays null and /api/email/send returns
+// If none is set, transporter stays null and every send path returns
 // a 503 with a provider-neutral error.
 let transporter = null;
 let emailFrom = process.env.EMAIL_FROM || null;
+
+// The impact-report send is awaited inside /api/codes/finalize, so an
+// unresponsive provider would otherwise hold a player's results screen open for
+// nodemailer's two-minute default. Bound it for every provider.
+const TRANSPORT_TIMEOUTS = {
+  connectionTimeout: 10000,
+  greetingTimeout: 10000,
+  socketTimeout: 15000,
+};
 
 if (process.env.EMAIL_HOST) {
   transporter = nodemailer.createTransport({
@@ -34,9 +46,25 @@ if (process.env.EMAIL_HOST) {
     auth: process.env.EMAIL_USER
       ? { user: process.env.EMAIL_USER, pass: process.env.EMAIL_PASSWORD }
       : undefined,
+    ...TRANSPORT_TIMEOUTS,
   });
   if (!emailFrom) emailFrom = process.env.EMAIL_USER || null;
   console.log('Email transporter initialized via SMTP (host:', process.env.EMAIL_HOST + ')');
+} else if (process.env.SENDGRID_API_KEY) {
+  // SendGrid's SMTP relay: the username is the literal string "apikey" and
+  // the password is the key itself. Kept as its own branch so deployments
+  // only have to supply SENDGRID_API_KEY + EMAIL_FROM.
+  transporter = nodemailer.createTransport({
+    host: 'smtp.sendgrid.net',
+    port: Number(process.env.EMAIL_PORT) || 587,
+    secure: process.env.EMAIL_SECURE === 'true',
+    auth: { user: 'apikey', pass: process.env.SENDGRID_API_KEY },
+    ...TRANSPORT_TIMEOUTS,
+  });
+  if (!emailFrom) {
+    console.warn('SENDGRID_API_KEY is set but EMAIL_FROM is not — SendGrid will reject sends without a verified from address.');
+  }
+  console.log('Email transporter initialized via SendGrid SMTP relay');
 } else if (process.env.GMAIL_USER && process.env.GMAIL_APP_PASSWORD) {
   transporter = nodemailer.createTransport({
     service: 'gmail',
@@ -44,11 +72,32 @@ if (process.env.EMAIL_HOST) {
       user: process.env.GMAIL_USER,
       pass: process.env.GMAIL_APP_PASSWORD,
     },
+    ...TRANSPORT_TIMEOUTS,
   });
   if (!emailFrom) emailFrom = process.env.GMAIL_USER;
   console.log('Email transporter initialized via Gmail App Password');
 } else {
-  console.warn('No email transporter configured. Set EMAIL_HOST + EMAIL_USER + EMAIL_PASSWORD (preferred) or GMAIL_USER + GMAIL_APP_PASSWORD. Email sends will return 503.');
+  console.warn('No email transporter configured. Set EMAIL_HOST + EMAIL_USER + EMAIL_PASSWORD (preferred), SENDGRID_API_KEY, or GMAIL_USER + GMAIL_APP_PASSWORD. Email sends will return 503.');
+}
+
+// Single send path for every outbound message (impact reports and operational
+// alerts alike) so the from-address formatting and the not-configured error
+// live in exactly one place.
+async function sendMail({ to, subject, html, text }) {
+  if (!transporter) {
+    const err = new Error('Email service is not configured on this server');
+    err.code = 'EMAIL_NOT_CONFIGURED';
+    throw err;
+  }
+  return transporter.sendMail({
+    from: emailFrom
+      ? `Future Hooman Exit Terminal <${emailFrom}>`
+      : 'Future Hooman Exit Terminal',
+    to,
+    subject,
+    html,
+    text,
+  });
 }
 
 const {
@@ -66,6 +115,7 @@ const {
   AnalyticsLog,
   AdminSettings
 } = require('./models');
+const { checkFinalState, getFinalStateStatus, sendTestAlert } = require('./services/finalStateAlert');
 
 const app = express();
 const PORT = process.env.PORT || 5000;
@@ -482,6 +532,66 @@ function generateAlignmentNarrative(alignmentScore, totalCodes) {
   return options[Math.floor(Math.random() * options.length)];
 }
 
+// Mirror an address and its news/events consent onto the UserId record.
+//
+// Consent is sticky in one direction only: a later visit that leaves the box
+// unchecked does not silently revoke an earlier opt-in (the visitor may simply
+// not have noticed the box), but it never fabricates one either. Explicit
+// withdrawal is an unsubscribe, handled out of band.
+async function persistUserEmailPreference(userId, email, optIn) {
+  const update = { $set: { emailAddress: email } };
+  if (optIn) {
+    update.$set.optInMessaging = true;
+    update.$set.optInAt = new Date();
+  }
+  await UserId.updateOne({ userId }, update);
+}
+
+// Build and send the impact report for a finalized session.
+//
+// Shared by the explicit "email me my report" request and by the automatic
+// send that fires at finalize for anyone who already gave us an address at
+// the Save Progress gate. Marks the session as sent only after the transport
+// resolves, so a provider failure never masquerades as a delivery.
+//
+// Throws on failure — callers decide whether that's fatal (the explicit
+// endpoint) or best-effort (the auto-send).
+async function sendImpactReport(session, email, optIn = false) {
+  const sessionCodes = await SessionCode.find({ sessionId: session._id })
+    .populate('codeId')
+    .sort({ sequenceOrder: 1 });
+
+  const codes = sessionCodes
+    .filter(sc => sc.codeId)
+    .map(sc => sc.codeId.code)
+    .join(', ');
+  const alignmentNarrative = generateAlignmentNarrative(session.alignmentScore, session.totalCodesEntered);
+  const universes = await Universe.find().sort({ displayOrder: 1 });
+  const totalAvailableCodes = await Code.countDocuments({ isActive: true });
+
+  const { subject, html, text } = buildImpactReportEmail({
+    alignmentNarrative,
+    codes,
+    alignmentScore: session.alignmentScore,
+    totalCodesEntered: session.totalCodesEntered,
+    totalCodes: totalAvailableCodes,
+    universes,
+    optIn,
+  });
+
+  const result = await sendMail({ to: email, subject, html, text });
+
+  session.emailAddress = email;
+  session.emailSent = true;
+  session.optInMessaging = !!optIn;
+  await session.save();
+
+  await logEvent('email_sent', session._id, session.userId, { email, optIn });
+  console.log('Impact report sent to:', email, '(message id:', result.messageId + ')');
+
+  return result;
+}
+
 // ==================== API ROUTES ====================
 
 // Health check
@@ -519,18 +629,21 @@ app.post('/api/session/start', async (req, res) => {
       });
     }
     
+    const adminSettings = await AdminSettings.getSettings();
+
     // Manual lockout — set from the admin panel. Admins are always exempt so
     // they can get in and unlock again.
-    if (!userIdRecord.isAdmin) {
-      const settings = await AdminSettings.getSettings();
-      if (settings.terminalLocked) {
-        return res.status(403).json({
-          success: false,
-          error: 'TERMINAL_LOCKED',
-          message: TERMINAL_LOCKED_MESSAGE
-        });
-      }
+    if (!userIdRecord.isAdmin && adminSettings.terminalLocked) {
+      return res.status(403).json({
+        success: false,
+        error: 'TERMINAL_LOCKED',
+        message: TERMINAL_LOCKED_MESSAGE
+      });
     }
+
+    // Told to the client up front so the Save Progress gate doesn't promise an
+    // impact report by email when nothing is going to send one.
+    const reportEmailEnabled = adminSettings.impactReportEmailEnabled !== false && !!transporter;
 
     // For non-admin users: check for an existing session since today's 4:00am ET
     if (!userIdRecord.isAdmin) {
@@ -542,9 +655,7 @@ app.post('/api/session/start', async (req, res) => {
       });
 
       if (existingSession) {
-        const settings = await AdminSettings.getSettings();
-
-        if (settings.sameDayReturnMode === 'block' && existingSession.isComplete) {
+        if (adminSettings.sameDayReturnMode === 'block' && existingSession.isComplete) {
           return res.status(403).json({
             success: false,
             error: 'SESSION_COMPLETE_TODAY',
@@ -577,6 +688,7 @@ app.post('/api/session/start', async (req, res) => {
           is_admin: userIdRecord.isAdmin,
           email: userIdRecord.emailAddress || existingSession.emailAddress || null,
           active_codes: activeCodes,
+          report_email_enabled: reportEmailEnabled,
           resumed: true,
           message: 'Session resumed'
         });
@@ -588,11 +700,16 @@ app.post('/api/session/start', async (req, res) => {
     userIdRecord.usageCount += 1;
     await userIdRecord.save();
 
-    // Create session
+    // Create session. An address saved on a previous visit rides onto the new
+    // session so this visit's impact report can be sent automatically at
+    // finalize — a returning visitor shouldn't have to re-enter the address
+    // they already gave us to get the same email a first-timer gets.
     const sessionToken = `sess_${uuidv4()}`;
     const session = await Session.create({
       userId: user_id.toLowerCase(),
-      sessionToken
+      sessionToken,
+      emailAddress: userIdRecord.emailAddress || undefined,
+      optInMessaging: !!userIdRecord.optInMessaging
     });
 
     await logEvent('session_start', session._id, user_id.toLowerCase());
@@ -607,6 +724,7 @@ app.post('/api/session/start', async (req, res) => {
       // code entry screen skip the "Save Progress?" prompt and the impact
       // report pre-populate its email field.
       email: userIdRecord.emailAddress || null,
+      report_email_enabled: reportEmailEnabled,
       message: 'Session started'
     });
 
@@ -658,7 +776,7 @@ app.post('/api/session/new-userid', async (req, res) => {
 // pre-filled on the impact report.
 app.post('/api/session/save-email', async (req, res) => {
   try {
-    const { session_token, email } = req.body;
+    const { session_token, email, opt_in } = req.body;
 
     if (!session_token || !email) {
       return res.status(400).json({ success: false, error: 'MISSING_FIELDS', message: 'session_token and email are required' });
@@ -674,19 +792,20 @@ app.post('/api/session/save-email', async (req, res) => {
       return res.status(404).json({ success: false, error: 'SESSION_NOT_FOUND', message: 'Session not found' });
     }
 
-    session.emailAddress = email.toLowerCase();
+    const normalizedEmail = email.toLowerCase().trim();
+    const optIn = !!opt_in;
+
+    session.emailAddress = normalizedEmail;
+    session.optInMessaging = optIn;
     await session.save();
 
-    await UserId.updateOne(
-      { userId: session.userId },
-      { $set: { emailAddress: email.toLowerCase() } }
-    );
+    await persistUserEmailPreference(session.userId, normalizedEmail, optIn);
 
-    await logEvent('email_registered', session._id, session.userId, { email: email.toLowerCase() });
+    await logEvent('email_registered', session._id, session.userId, { email: normalizedEmail, optIn });
 
-    console.log('Email registered for session:', session_token, '→', email.toLowerCase());
+    console.log('Email registered for session:', session_token, '→', normalizedEmail, optIn ? '(news opt-in)' : '');
 
-    res.json({ success: true, message: 'Email saved successfully' });
+    res.json({ success: true, message: 'Email saved successfully', opt_in: optIn });
   } catch (error) {
     console.error('Error saving email:', error);
     res.status(500).json({ success: false, error: 'SERVER_ERROR', message: 'Error saving email' });
@@ -1539,6 +1658,38 @@ app.post('/api/codes/finalize', async (req, res) => {
 
     const totalAvailableCodes = await Code.countDocuments({ isActive: true });
 
+    // Did this transmission end the game? Checked after the writes above so
+    // it sees the board the player just produced. Idempotent per phase, and
+    // it never throws — see services/finalStateAlert.js.
+    const finalState = await checkFinalState({
+      universes: updatedUniverses,
+      session,
+      sendMail,
+      logEvent,
+    });
+
+    // Auto-send the impact report to anyone who already has an address on file
+    // — from this session's Save Progress gate or a previous visit.
+    //
+    // Awaited rather than fired and forgotten, so the results screen can say
+    // "sent" only when it actually was. The transporter carries explicit
+    // socket timeouts (see its construction above) to bound how long a sulking
+    // mail provider can hold this response open; a failure here is logged and
+    // reported as "not sent", never as a failed transmission.
+    // Skipped entirely when an admin has stopped report email — the results
+    // screen then drops its send button too, so nothing offers a delivery the
+    // server would refuse.
+    const reportEmailEnabled = settings.impactReportEmailEnabled !== false;
+    let reportEmailSentTo = null;
+    if (session.emailAddress && transporter && reportEmailEnabled) {
+      try {
+        await sendImpactReport(session, session.emailAddress, session.optInMessaging);
+        reportEmailSentTo = session.emailAddress;
+      } catch (err) {
+        console.error('Auto impact-report send failed for', session.emailAddress + ':', err.message);
+      }
+    }
+
     res.json({
       success: true,
       universes: updatedUniverses.map(u => ({
@@ -1546,6 +1697,10 @@ app.post('/api/codes/finalize', async (req, res) => {
         name: u.name,
         current_cases: u.currentCases,
         previous_cases: universeChanges[u._id.toString()]?.previousCases || u.currentCases,
+        // The impact chart scales every bar against this, so a universe's
+        // share of its own capacity is comparable across universes whose raw
+        // counts differ by two orders of magnitude.
+        initialization_cases: u.initializationCases,
         status: u.status,
         change: universeChanges[u._id.toString()]?.change || 0
       })),
@@ -1555,7 +1710,13 @@ app.post('/api/codes/finalize', async (req, res) => {
       total_codes_entered: session.totalCodesEntered,
       total_codes: totalAvailableCodes,
       cure_active: isCureActive,
-      status_messages: statusMessages
+      status_messages: statusMessages,
+      final_state: !!finalState.isFinal,
+      report_email_sent_to: reportEmailSentTo,
+      // Lets the results screen hide its send button rather than offer a
+      // delivery this server will refuse. Also false when no mail transport is
+      // configured at all — from the visitor's side those are the same thing.
+      report_email_enabled: reportEmailEnabled && !!transporter
     });
 
   } catch (error) {
@@ -1593,34 +1754,29 @@ app.post('/api/email/send', async (req, res) => {
       });
     }
     
-    // Get session codes
-    const sessionCodes = await SessionCode.find({ sessionId: session._id })
-      .populate('codeId')
-      .sort({ sequenceOrder: 1 });
-    
-    const codes = sessionCodes.map(sc => sc.codeId.code).join(', ');
-    const alignmentNarrative = generateAlignmentNarrative(session.alignmentScore, session.totalCodesEntered);
-
-    // Get universe data for the report
-    const universes = await Universe.find().sort({ displayOrder: 1 });
-
     const optIn = !!opt_in;
+    const normalizedEmail = email.toLowerCase().trim();
 
-    const { subject, html, text } = buildImpactReportEmail({
-      alignmentNarrative,
-      codes,
-      alignmentScore: session.alignmentScore,
-      totalCodesEntered: session.totalCodesEntered,
-      universes,
-      optIn,
-    });
+    // Admin master switch. The UI hides the button that reaches here while
+    // this is off, so anything that still arrives is a stale client or a
+    // direct call — refuse it rather than let one path leak past the stop.
+    // The address itself is still worth keeping.
+    const emailSettings = await AdminSettings.getSettings();
+    if (emailSettings.impactReportEmailEnabled === false) {
+      await persistUserEmailPreference(session.userId, normalizedEmail, optIn);
+      return res.status(403).json({
+        success: false,
+        error: 'REPORT_EMAIL_DISABLED',
+        message: 'Impact report email is currently turned off'
+      });
+    }
 
     // Don't report success if no transporter is configured — that path
     // was silently dropping outbound mail while the client got a "sent"
     // toast. Surface a real error instead.
     if (!transporter) {
       console.error('Email send aborted: no email transporter configured. Email NOT delivered.');
-      console.error('Intended recipient:', email);
+      console.error('Intended recipient:', normalizedEmail);
       return res.status(503).json({
         success: false,
         error: 'EMAIL_NOT_CONFIGURED',
@@ -1628,17 +1784,8 @@ app.post('/api/email/send', async (req, res) => {
       });
     }
 
-    let result;
     try {
-      result = await transporter.sendMail({
-        from: emailFrom
-          ? `Future Hooman Exit Terminal <${emailFrom}>`
-          : 'Future Hooman Exit Terminal',
-        to: email,
-        subject,
-        html,
-        text,
-      });
+      await sendImpactReport(session, normalizedEmail, optIn);
     } catch (sendErr) {
       // Surface the actual provider-side failure to the client (and logs)
       // instead of pretending the send succeeded.
@@ -1650,15 +1797,11 @@ app.post('/api/email/send', async (req, res) => {
         detail: sendErr.message
       });
     }
-    console.log('Email sent to:', email, '(message id:', result.messageId + ')');
 
-    // Session state only flips after the transport actually resolved.
-    session.emailAddress = email;
-    session.emailSent = true;
-    session.optInMessaging = optIn;
-    await session.save();
-
-    await logEvent('email_sent', session._id, session.userId, { email, optIn });
+    // The address and its consent flag belong to the visitor, not just this
+    // visit — mirror both onto the UserId so the next session pre-populates
+    // and a mailing-list export sees the opt-in.
+    await persistUserEmailPreference(session.userId, normalizedEmail, optIn);
 
     res.json({
       success: true,
@@ -1811,6 +1954,32 @@ app.post('/api/admin/settings/toggle-lock', async (req, res) => {
   }
 });
 
+// POST /api/admin/settings/toggle-report-email - Master switch for visitor
+// impact report email: the automatic send at finalize and the on-demand send
+// alike. Operator alerts are unaffected.
+app.post('/api/admin/settings/toggle-report-email', async (req, res) => {
+  try {
+    const session = await requireAdmin(req, res);
+    if (!session) return;
+
+    const settings = await AdminSettings.getSettings();
+    settings.impactReportEmailEnabled = !settings.impactReportEmailEnabled;
+    await settings.save();
+
+    // Worth a record: this is the difference between a day where everyone who
+    // left an address got a report and a day where nobody did, which is not
+    // otherwise recoverable from the session rows.
+    await logEvent('report_email_toggled', session._id, session.userId, {
+      impactReportEmailEnabled: settings.impactReportEmailEnabled
+    });
+
+    res.json({ success: true, impactReportEmailEnabled: settings.impactReportEmailEnabled });
+  } catch (error) {
+    console.error('Error toggling impact report email:', error);
+    res.status(500).json({ success: false, error: 'SERVER_ERROR', message: 'Error updating settings' });
+  }
+});
+
 // POST /api/admin/reset-universes - Reset universe statistics (admin only)
 app.post('/api/admin/reset-universes', async (req, res) => {
   try {
@@ -1900,6 +2069,62 @@ app.post('/api/admin/reset-universes', async (req, res) => {
   }
 });
 
+// Shared admin guard: resolves the session and confirms the user is an admin.
+// Returns the session on success, or null after having already answered the
+// request with the appropriate 404/403.
+async function requireAdmin(req, res) {
+  const token = req.body?.session_token || req.query?.session_token;
+  const session = await Session.findOne({ sessionToken: token });
+  if (!session) {
+    res.status(404).json({ success: false, error: 'INVALID_SESSION', message: 'Session not found' });
+    return null;
+  }
+  const adminUser = await UserId.findOne({ userId: session.userId });
+  if (!adminUser || !adminUser.isAdmin) {
+    res.status(403).json({ success: false, error: 'UNAUTHORIZED', message: 'Admin access required' });
+    return null;
+  }
+  return session;
+}
+
+// GET /api/admin/final-state - Is the network locked, and did the alert go out?
+app.get('/api/admin/final-state', async (req, res) => {
+  try {
+    if (!(await requireAdmin(req, res))) return;
+    const status = await getFinalStateStatus();
+    res.json({ success: true, ...status });
+  } catch (error) {
+    console.error('Error reading final state:', error);
+    res.status(500).json({ success: false, error: 'SERVER_ERROR', message: 'Error reading final state' });
+  }
+});
+
+// POST /api/admin/final-state/test - Fire a test alert through every
+// configured channel without recording an event. Lets an operator confirm the
+// webhook and mailbox work before the one moment they need to.
+app.post('/api/admin/final-state/test', async (req, res) => {
+  try {
+    const session = await requireAdmin(req, res);
+    if (!session) return;
+
+    const result = await sendTestAlert({ sendMail, userId: session.userId });
+    await logEvent('final_state_alert_test', session._id, session.userId, {
+      channels: result.notifications.map(n => ({ channel: n.channel, ok: n.ok })),
+    });
+
+    res.json({
+      success: true,
+      message: result.dispatched
+        ? 'Test alert dispatched'
+        : 'No alert channels are configured (set FINAL_STATE_ALERT_EMAIL and/or FINAL_STATE_WEBHOOK_URL)',
+      ...result,
+    });
+  } catch (error) {
+    console.error('Error sending test final-state alert:', error);
+    res.status(500).json({ success: false, error: 'SERVER_ERROR', message: 'Error sending test alert' });
+  }
+});
+
 // GET /api/admin/analytics - Get system analytics (admin only)
 app.get('/api/admin/analytics', async (req, res) => {
   try {
@@ -1960,7 +2185,12 @@ app.get('/api/admin/analytics', async (req, res) => {
         alignmentDistribution,
         sameDayReturnMode: settings.sameDayReturnMode,
         effectScale: settings.effectScale,
-        terminalLocked: settings.terminalLocked
+        terminalLocked: settings.terminalLocked,
+        impactReportEmailEnabled: settings.impactReportEmailEnabled !== false,
+        // Whether a mail transport exists at all. Lets the admin panel
+        // distinguish "reports are switched off" from "reports are on but this
+        // server cannot send mail", which otherwise look identical.
+        emailConfigured: !!transporter
       }
     });
     

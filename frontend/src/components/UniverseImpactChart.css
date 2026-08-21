@@ -1,0 +1,336 @@
+/* ── Universe Impact Chart ──
+   The headline graphic of the impact report: nine vertical bars, each scaled
+   0–100% against its own universe's capacity, animating from the level before
+   the transmission to the level after it. */
+
+/* Lead element of the impact report — it carries the per-universe case counts
+   outright, which is why the old card grid underneath it is gone. */
+.universe-impact-chart {
+  background: var(--bg-surface);
+  border: 1px dashed rgba(68, 119, 238, 0.15);
+  border-radius: var(--radius-lg);
+  padding: 24px 22px 20px;
+  margin-bottom: 24px;
+}
+
+.impact-chart-header {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+  margin-bottom: 18px;
+}
+
+.impact-chart-title {
+  font-family: var(--font-mono);
+  font-size: 0.78rem;
+  font-weight: 700;
+  color: var(--text-secondary);
+  letter-spacing: 0.28em;
+  text-transform: uppercase;
+  margin: 0;
+}
+
+.impact-chart-net {
+  font-family: var(--font-mono);
+  font-size: 0.82rem;
+  font-weight: 700;
+  letter-spacing: 0.16em;
+  color: var(--text-secondary);
+}
+
+.impact-chart-net.up   { color: var(--status-quarantined); }
+.impact-chart-net.down { color: #4a90d9; }
+
+.impact-chart-body {
+  display: flex;
+  gap: 10px;
+}
+
+/* ── Y axis ── */
+.impact-chart-axis {
+  position: relative;
+  width: 30px;
+  height: 340px;
+  flex-shrink: 0;
+}
+
+.impact-axis-tick {
+  position: absolute;
+  right: 0;
+  /* bottom comes from the tick's own percentage; the half-height shift puts
+     the text's centre on the line it names. */
+  transform: translateY(50%);
+  font-family: var(--font-mono);
+  font-size: 0.62rem;
+  color: var(--text-dim);
+  letter-spacing: 0.08em;
+  line-height: 1;
+  white-space: nowrap;
+}
+
+/* ── Plot area ── */
+.impact-chart-plot {
+  position: relative;
+  flex: 1;
+  height: 340px;
+  /* Room for the name/status stack, which hangs below the axis. */
+  margin-bottom: 40px;
+  border-left: 1px solid var(--border-dim);
+  border-bottom: 1px solid var(--border-dim);
+}
+
+.impact-gridline {
+  position: absolute;
+  left: 0;
+  right: 0;
+  height: 1px;
+  background: rgba(255, 255, 255, 0.05);
+  pointer-events: none;
+}
+
+.impact-threshold {
+  position: absolute;
+  left: 0;
+  right: 0;
+  border-top: 1px dashed;
+  pointer-events: none;
+}
+
+.impact-threshold-label {
+  position: absolute;
+  right: 2px;
+  top: -0.72rem;
+  font-family: var(--font-mono);
+  font-size: 0.55rem;
+  letter-spacing: 0.16em;
+  opacity: 0.75;
+}
+
+.impact-bars {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: flex-end;
+  gap: 2px;
+  padding: 0 4px;
+}
+
+/* The column spans the full plot height so a bar's percentage height is
+   measured against the same scale the y-axis labels describe. The name/status
+   stack hangs below the plot rather than sharing that space — otherwise every
+   bar would be silently scaled down by the height of its own label. */
+.impact-bar-column {
+  position: relative;
+  flex: 1;
+  min-width: 0;
+  height: 100%;
+}
+
+.impact-bar-track {
+  position: relative;
+  height: 100%;
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+}
+
+.impact-bar {
+  width: 62%;
+  max-width: 46px;
+  min-height: 2px;
+  border-radius: 2px 2px 0 0;
+  position: relative;
+  /* The whole point of the component: 3.8s matches the stepped count-up so
+     the bar and its number arrive together. */
+  transition: height 3.8s cubic-bezier(0.22, 0.61, 0.36, 1);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .impact-bar { transition: height 0.3s linear; }
+}
+
+.impact-bar-cap {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 2px;
+  border-radius: 2px 2px 0 0;
+  filter: brightness(1.5);
+}
+
+/* Dashed reference line at the pre-transmission level. */
+.impact-bar-origin {
+  position: absolute;
+  left: 10%;
+  right: 10%;
+  border-top: 1px dashed rgba(240, 238, 235, 0.35);
+  z-index: 2;
+  pointer-events: none;
+}
+
+.impact-bar-value {
+  position: absolute;
+  left: 50%;
+  transform: translateX(-50%);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  white-space: nowrap;
+  opacity: 0;
+  transition: opacity 0.5s ease, bottom 3.8s cubic-bezier(0.22, 0.61, 0.36, 1);
+  font-family: var(--font-mono);
+  /* These ARE the case counts now — the report has no other place showing a
+     universe's number, so they carry headline weight. Clamped against the
+     column width so nine of them still fit on one row. */
+  font-size: clamp(0.78rem, 1.35vw, 1.15rem);
+  font-weight: 700;
+  color: var(--text-primary);
+  text-shadow: 0 0 6px rgba(0, 0, 0, 0.9), 0 0 3px rgba(0, 0, 0, 0.9);
+  z-index: 3;
+}
+
+.impact-bar-value.visible { opacity: 1; }
+
+/* One of the two number formats is always hidden — full on desktop, compact
+   where a column is only a few dozen pixels wide. */
+.impact-value-compact { display: none; }
+
+.impact-bar-delta {
+  font-size: clamp(0.6rem, 0.95vw, 0.8rem);
+  font-weight: 700;
+  letter-spacing: 0.04em;
+}
+
+.impact-bar-delta.up   { color: #ff8080; }
+.impact-bar-delta.down { color: #7fb8ee; }
+
+.impact-bar-label {
+  position: absolute;
+  top: calc(100% + 8px);
+  left: 0;
+  right: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 3px;
+  min-width: 0;
+}
+
+.impact-bar-name {
+  font-family: var(--font-mono);
+  font-size: clamp(0.55rem, 1.05vw, 0.78rem);
+  color: var(--text-primary);
+  letter-spacing: 0.02em;
+  white-space: nowrap;
+}
+
+.impact-bar-status {
+  font-family: var(--font-mono);
+  font-size: clamp(0.46rem, 0.72vw, 0.58rem);
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  padding: 2px 4px;
+  border-radius: var(--radius-sm);
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.impact-chart-footnote {
+  font-family: var(--font-sans);
+  font-size: 0.72rem;
+  color: var(--text-secondary);
+  line-height: 1.5;
+  margin: 12px 0 0;
+  text-align: center;
+}
+
+@media (max-width: 900px) {
+  .impact-value-full    { display: none; }
+  .impact-value-compact { display: inline; }
+
+  .impact-bar-value { font-size: 0.8rem; }
+  .impact-bar-delta { font-size: 0.62rem; }
+}
+
+@media (max-width: 768px) {
+  .universe-impact-chart {
+    padding: 14px 10px 12px;
+    margin-bottom: 14px;
+  }
+
+  .impact-chart-axis,
+  .impact-chart-plot {
+    height: 260px;
+  }
+
+  .impact-chart-axis {
+    width: 24px;
+  }
+
+  .impact-axis-tick {
+    font-size: 0.55rem;
+  }
+
+  .impact-chart-title {
+    font-size: 0.66rem;
+    letter-spacing: 0.18em;
+  }
+
+  .impact-chart-net {
+    font-size: 0.7rem;
+  }
+
+  .impact-bars {
+    gap: 1px;
+    padding: 0 2px;
+  }
+
+  .impact-bar {
+    width: 72%;
+  }
+
+  /* Nine 7-character names will not fit across a phone. Stand them on end. */
+  .impact-bar-name {
+    writing-mode: vertical-rl;
+    transform: rotate(180deg);
+    font-size: 0.55rem;
+    letter-spacing: 0.04em;
+  }
+
+  /* Same problem one row up: a horizontal "816.7K" is wider than the 28px
+     column it belongs to and would collide with its neighbours. Standing the
+     count on end keeps every bar labelled with nothing overlapping. The
+     per-bar delta drops out here — the bar's movement carries the direction,
+     and the cards below still give the exact number. */
+  .impact-bar-value {
+    writing-mode: vertical-rl;
+    transform: translateX(-50%) rotate(180deg);
+    font-size: 0.68rem;
+    letter-spacing: 0.02em;
+  }
+
+  .impact-bar-delta {
+    display: none;
+  }
+
+  .impact-bar-status {
+    display: none;
+  }
+
+  .impact-chart-plot { margin-bottom: 62px; }
+
+  .impact-chart-footnote {
+    margin-top: 12px;
+    font-size: 0.66rem;
+  }
+
+  .impact-threshold-label {
+    font-size: 0.5rem;
+  }
+}
