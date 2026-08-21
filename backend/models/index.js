@@ -43,7 +43,15 @@ const codeSchema = new mongoose.Schema({
 const codeEffectSchema = new mongoose.Schema({
   codeId: { type: mongoose.Schema.Types.ObjectId, ref: 'Code', required: true },
   universeId: { type: mongoose.Schema.Types.ObjectId, ref: 'Universe', default: null },
-  targetMode: { type: String, enum: ['specific', 'random', 'all'], default: 'specific' },
+  // 'nearest_goal' / 'furthest_goal' resolve their target deterministically
+  // from the eligible pool by relative case count, sign-driven (see
+  // selectByGoalProximity in server.js). Meaningful only on 'standard'
+  // effects — 'amplify' rows never reach target resolution.
+  targetMode: {
+    type: String,
+    enum: ['specific', 'random', 'all', 'nearest_goal', 'furthest_goal'],
+    default: 'specific'
+  },
   effectValue: { type: Number, required: true },
   effectType: { type: String, default: 'standard' },
   conditionRule: { type: String },

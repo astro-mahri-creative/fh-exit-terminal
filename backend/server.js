@@ -308,6 +308,38 @@ function selectRandomCompromised(universes) {
   return eligible[Math.floor(Math.random() * eligible.length)];
 }
 
+// Select a universe deterministically by how close it is to the goal the
+// effect's sign pushes toward. Sign-driven, so one targetMode value serves
+// both factions:
+//
+//   mode             negative effect (containment)   positive effect (proliferation)
+//   furthest_goal    most infected  (highest %)      least infected (lowest %)
+//   nearest_goal     least infected (lowest %)       most infected (highest %)
+//
+// furthest_goal is equalizing (compresses the board toward the middle);
+// nearest_goal is polarizing (drives status flips). Pairing codes across
+// both modes keeps either force from dictating the long-run attractor.
+//
+// The eligible pool is the same one selectRandomCompromised uses — only
+// COMPROMISED universes with cases remaining, i.e. strictly 30-70%. The
+// true extremes have already left the pool, so "highest %" really means
+// "closest to the 70% LIBERATED line" and "lowest %" means "closest to
+// the 30% PRESERVED line".
+//
+// Sorting by displayOrder before the reduce makes ties resolve identically
+// in the preview and finalize paths, which is the point of the whole mode:
+// unlike 'random', preview and finalize agree on the target.
+function selectByGoalProximity(universes, effectValue, mode) {
+  const eligible = universes
+    .filter(u => u.currentCases > 0 && u.status === 'COMPROMISED')
+    .sort((a, b) => a.displayOrder - b.displayOrder);
+  if (eligible.length === 0) return null;
+  const ratio = u => u.currentCases / u.initializationCases;
+  const wantsHighest = mode === 'nearest_goal' ? effectValue > 0 : effectValue < 0;
+  return eligible.reduce((best, u) =>
+    (wantsHighest ? ratio(u) > ratio(best) : ratio(u) < ratio(best)) ? u : best);
+}
+
 // Select PHAX alert message
 async function selectPhaxAlertMessage() {
   const universes = await Universe.find();
@@ -843,6 +875,7 @@ app.post('/api/codes/preview', async (req, res) => {
     const simUniverses = universes.map(u => ({
       _id: u._id,
       name: u.name,
+      displayOrder: u.displayOrder,
       currentCases: u.currentCases,
       initializationCases: u.initializationCases,
       status: u.status
@@ -961,10 +994,19 @@ app.post('/api/codes/preview', async (req, res) => {
         const excluded = isNegative ? excludedA : excludedB;
         const bucket = isNegative ? negativeChanges : positiveChanges;
 
-        // Resolve random target (excluding RVLT/CURE universes)
+        // Resolve target (excluding RVLT/CURE universes).
+        // NOTE: this block is mirrored in the finalize path — keep the two
+        // in sync or the choice screen will misreport what finalize does.
         let targetUniverse;
         if (effect.targetMode === 'random') {
           targetUniverse = selectRandomCompromised(sim.filter(u => !excluded.has(u._id.toString())));
+          if (!targetUniverse) continue;
+        } else if (effect.targetMode === 'nearest_goal' || effect.targetMode === 'furthest_goal') {
+          targetUniverse = selectByGoalProximity(
+            sim.filter(u => !excluded.has(u._id.toString())),
+            effectValue,
+            effect.targetMode
+          );
           if (!targetUniverse) continue;
         } else {
           targetUniverse = sim.find(u => u._id.equals(effect.universeId));
@@ -1191,6 +1233,7 @@ app.post('/api/codes/finalize', async (req, res) => {
     const liveUniverses = universes.map(u => ({
       _id: u._id,
       name: u.name,
+      displayOrder: u.displayOrder,
       currentCases: u.currentCases,
       initializationCases: u.initializationCases,
       status: u.status
@@ -1280,10 +1323,19 @@ app.post('/api/codes/finalize', async (req, res) => {
         if (choice === 'a' && effectValue >= 0) continue;
         if (choice === 'b' && effectValue <= 0) continue;
 
-        // Resolve target universe (excluding RVLT/CURE universes)
+        // Resolve target universe (excluding RVLT/CURE universes).
+        // NOTE: this block is mirrored in the preview path — keep the two
+        // in sync or the choice screen will misreport what finalize does.
         let targetUniverse;
         if (effect.targetMode === 'random') {
           targetUniverse = selectRandomCompromised(liveUniverses.filter(u => !excludedUniverseIds.has(u._id.toString())));
+          if (!targetUniverse) continue;
+        } else if (effect.targetMode === 'nearest_goal' || effect.targetMode === 'furthest_goal') {
+          targetUniverse = selectByGoalProximity(
+            liveUniverses.filter(u => !excludedUniverseIds.has(u._id.toString())),
+            effectValue,
+            effect.targetMode
+          );
           if (!targetUniverse) continue;
         } else {
           targetUniverse = liveUniverses.find(u => u._id.equals(effect.universeId));
@@ -1631,8 +1683,18 @@ app.post('/api/admin/settings/toggle-return-mode', async (req, res) => {
     }
 
     const settings = await AdminSettings.getSettings();
+    const previousReturnMode = settings.sameDayReturnMode;
     settings.sameDayReturnMode = settings.sameDayReturnMode === 'resume' ? 'block' : 'resume';
     await settings.save();
+
+    // Same silent-mutation problem as effectScale, lower analytical stakes:
+    // this one changes whether a same-day return resumes or starts fresh,
+    // which shows up in the record as extra codes on one session vs a new
+    // session. Logged so that shape is explainable after the fact.
+    await logEvent('return_mode_changed', session._id, session.userId, {
+      from: previousReturnMode,
+      to: settings.sameDayReturnMode
+    });
 
     res.json({ success: true, sameDayReturnMode: settings.sameDayReturnMode });
   } catch (error) {
@@ -2321,8 +2383,22 @@ app.post('/api/admin/settings/effect-scale', async (req, res) => {
     }
 
     const settings = await AdminSettings.getSettings();
+    const previousScale = settings.effectScale;
     settings.effectScale = value;
     await settings.save();
+
+    // effectScale multiplies every standard effect at runtime, so it is the
+    // single largest determinant of how far a session moved the board. Without
+    // this event no historical alignmentScore can be interpreted after the
+    // fact. AnalyticsLog is never wiped by initDatabase.js or by the universe
+    // reset, so these rows are permanent history. The admin UI is a stepper
+    // and fires no-op writes, so only log an actual change.
+    if (previousScale !== value) {
+      await logEvent('effect_scale_changed', session._id, session.userId, {
+        from: previousScale,
+        to: value
+      });
+    }
 
     res.json({ success: true, effectScale: settings.effectScale });
   } catch (error) {
