@@ -11,10 +11,10 @@ const SECOND_IDLE_TIMEOUT = 60;
 
 // How long the impact report gets to itself before a visitor with no address
 // on file is asked to save. Fires once per visit; answering either way retires
-// it. Note this lands while the count-up reveal is still running (numbers
-// appear ~4s in and settle ~4s later) — raise it if the prompt should wait for
-// the numbers to finish.
-const SAVE_PROMPT_DELAY_MS = 5000;
+// it. Set past the count-up reveal — numbers appear ~4s in and settle ~4s
+// later — so the prompt lands on a finished report rather than interrupting
+// the animation that gives it something to be worth saving.
+const SAVE_PROMPT_DELAY_MS = 10000;
 
 const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
