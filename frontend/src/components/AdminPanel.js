@@ -1,8 +1,15 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { adminService, universeService } from '../services/api';
+import { STATUS_COLORS } from './universeStatusColors';
 import './AdminPanel.css';
 
 const TODAY = new Date().toISOString().slice(0, 10);
+
+// Every status in the shared palette has a matching badge and capacity-fill
+// rule in AdminPanel.css, so the class is just the lowercased status. Anything
+// the backend invents beyond the palette falls back to the default colour.
+const statusClassFor = (status) =>
+  (STATUS_COLORS[status] ? status : 'COMPROMISED').toLowerCase();
 
 // Drives both the desktop tab strip and the mobile <select> — one list so the
 // two renderings can never drift apart.
@@ -533,8 +540,7 @@ function AdminPanel({ sessionData }) {
                         const pct = u.initializationCases > 0
                           ? Math.round((u.currentCases / u.initializationCases) * 100)
                           : 0;
-                        const statusClass = u.status === 'LIBERATED' ? 'liberated'
-                          : u.status === 'PRESERVED' ? 'preserved' : 'compromised';
+                        const statusClass = statusClassFor(u.status);
                         return (
                           <tr key={u._id}>
                             <td className="universe-name-cell">{u.name}</td>
