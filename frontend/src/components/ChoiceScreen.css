@@ -581,11 +581,64 @@
 
 /* ── Responsive ── */
 /* Masked rows for CURE/RVLT — universe and magnitude obscured until finalize */
-.universe-name.masked,
-.universe-delta.masked {
-  letter-spacing: 0.3em;
-  opacity: 0.85;
-  font-style: italic;
+/* ── Masked (CURE/RVLT) rows ──
+   The universe and magnitude are hidden until finalize, but the row should
+   still read as the biggest thing on the screen, not as a blank. */
+.option-universe-row.masked-row {
+  border-left-color: currentColor;
+  flex-wrap: wrap;
+  row-gap: 4px;
+}
+
+.universe-name.masked {
+  letter-spacing: 0.08em;
+  font-weight: 700;
+}
+
+.net-change { gap: 12px; }
+.net-change .net-value { text-align: right; }
+
+.masked-sub {
+  flex-basis: 100%;
+  font-family: var(--font-mono);
+  font-size: 0.62rem;
+  letter-spacing: 0.06em;
+  color: var(--text-secondary);
+}
+
+.status-break-tag {
+  display: inline-block;
+  padding: 3px 9px;
+  border: 1px solid currentColor;
+  border-radius: var(--radius-sm);
+  font-size: 0.68rem;
+  letter-spacing: 0.16em;
+  white-space: nowrap;
+  animation: status-break-pulse 1.8s ease-in-out infinite;
+}
+
+.net-break {
+  font-size: 0.8rem;
+  letter-spacing: 0.16em;
+  white-space: nowrap;
+  animation: status-break-pulse 1.8s ease-in-out infinite;
+}
+
+.net-break-plus {
+  display: block;
+  font-size: 0.68rem;
+  margin-top: 2px;
+  text-align: right;
+}
+
+@keyframes status-break-pulse {
+  0%, 100% { opacity: 1; text-shadow: 0 0 0 transparent; }
+  50%      { opacity: 0.75; text-shadow: 0 0 10px currentColor; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .status-break-tag,
+  .net-break { animation: none; }
 }
 
 @media (max-width: 900px) {

@@ -50,19 +50,42 @@ function ChoiceScreen({ choiceData, sessionData, onChoiceConfirmed }) {
   const optionBDisabled = !hasOptionEffect(optionB);
   const selectedOption = selectedChoice === 'a' ? optionA : optionB;
 
-  // Net impact figure. CURE/RVLT rows are masked — their delta is hidden
-  // until finalize and deliberately left out of net_change — so a bare
-  // "0 cases" beside a "???" row reads as "this option does nothing".
-  // Fold the hidden part into the figure instead: "???" on its own when
-  // nothing else moves, "-3,234 − ???" when real changes sit alongside.
-  const formatNet = (opt, positive) => {
-    const hasMasked = opt.universes.some(u => u.masked);
-    const net = opt.net_change;
-    const figure = positive ? `+${net.toLocaleString()}` : net.toLocaleString();
-    if (!hasMasked) return figure;
-    if (net === 0) return positive ? '+???' : '???';
-    return `${figure} ${positive ? '+' : '−'} ???`;
+  // CURE/RVLT rows are masked — the universe and magnitude stay hidden
+  // until finalize and are deliberately left out of net_change. A bare
+  // "0 cases" beside such a row read as "this option does nothing", when
+  // in fact a break code is the single biggest swing in the game. Present
+  // it as a STATUS BREAK instead of a "???" so the visitor knows they are
+  // doing something major, without revealing where or how much.
+  const maskedCount = (opt) => opt.universes.filter(u => u.masked).length;
+  const formatFigure = (opt, positive) =>
+    positive ? `+${opt.net_change.toLocaleString()}` : opt.net_change.toLocaleString();
+  const breakLabel = (count) => (count > 1 ? `${count}× STATUS BREAK` : 'STATUS BREAK');
+
+  const renderNetValue = (opt, positive) => {
+    const breaks = maskedCount(opt);
+    if (breaks === 0) {
+      return <>{formatFigure(opt, positive)} <span className="unit-label">cases</span></>;
+    }
+    if (opt.net_change === 0) {
+      return <span className="net-break">{breakLabel(breaks)}</span>;
+    }
+    return (
+      <>
+        {formatFigure(opt, positive)} <span className="unit-label">cases</span>
+        <span className="net-break net-break-plus">+ {breakLabel(breaks)}</span>
+      </>
+    );
   };
+
+  const renderMaskedRow = (u, positive) => (
+    <div key={u.id} className="option-universe-row masked-row">
+      <span className="universe-name masked">UNDISCLOSED SECTOR</span>
+      <span className={`universe-delta ${positive ? 'positive' : 'negative'} masked`}>
+        <span className="status-break-tag">STATUS BREAK</span>
+      </span>
+      <span className="masked-sub">magnitude classified · beyond protocol range</span>
+    </div>
+  );
 
   return (
     <div className="choice-screen">
@@ -88,12 +111,14 @@ function ChoiceScreen({ choiceData, sessionData, onChoiceConfirmed }) {
 
           <div className="option-universes">
             {optionA.universes.filter(u => u.masked || u.change !== 0).map(u => (
-              <div key={u.id} className="option-universe-row">
-                <span className={`universe-name${u.masked ? ' masked' : ''}`}>{u.name}</span>
-                <span className={`universe-delta negative${u.masked ? ' masked' : ''}`}>
-                  {u.masked ? '???' : u.change.toLocaleString()} <span className="unit-label">cases</span>
-                </span>
-              </div>
+              u.masked ? renderMaskedRow(u, false) : (
+                <div key={u.id} className="option-universe-row">
+                  <span className="universe-name">{u.name}</span>
+                  <span className="universe-delta negative">
+                    {u.change.toLocaleString()} <span className="unit-label">cases</span>
+                  </span>
+                </div>
+              )
             ))}
             {!hasOptionEffect(optionA) && (
               <div className="no-effects">No iFLU containment effects detected</div>
@@ -102,9 +127,7 @@ function ChoiceScreen({ choiceData, sessionData, onChoiceConfirmed }) {
 
           <div className="net-change negative">
             <span className="net-label">NET iFLU IMPACT</span>
-            <span className="net-value">
-              {formatNet(optionA, false)} <span className="unit-label">cases</span>
-            </span>
+            <span className="net-value">{renderNetValue(optionA, false)}</span>
           </div>
 
           <button className="select-button select-a" disabled={loading || optionADisabled}>
@@ -128,12 +151,14 @@ function ChoiceScreen({ choiceData, sessionData, onChoiceConfirmed }) {
 
           <div className="option-universes">
             {optionB.universes.filter(u => u.masked || u.change !== 0).map(u => (
-              <div key={u.id} className="option-universe-row">
-                <span className={`universe-name${u.masked ? ' masked' : ''}`}>{u.name}</span>
-                <span className={`universe-delta positive${u.masked ? ' masked' : ''}`}>
-                  {u.masked ? '+???' : `+${u.change.toLocaleString()}`} <span className="unit-label">cases</span>
-                </span>
-              </div>
+              u.masked ? renderMaskedRow(u, true) : (
+                <div key={u.id} className="option-universe-row">
+                  <span className="universe-name">{u.name}</span>
+                  <span className="universe-delta positive">
+                    +{u.change.toLocaleString()} <span className="unit-label">cases</span>
+                  </span>
+                </div>
+              )
             ))}
             {!hasOptionEffect(optionB) && (
               <div className="no-effects">No iFLU proliferation effects detected</div>
@@ -142,9 +167,7 @@ function ChoiceScreen({ choiceData, sessionData, onChoiceConfirmed }) {
 
           <div className="net-change positive">
             <span className="net-label">NET iFLU IMPACT</span>
-            <span className="net-value">
-              {formatNet(optionB, true)} <span className="unit-label">cases</span>
-            </span>
+            <span className="net-value">{renderNetValue(optionB, true)}</span>
           </div>
 
           <button className="select-button select-b" disabled={loading || optionBDisabled}>
@@ -176,7 +199,17 @@ function ChoiceScreen({ choiceData, sessionData, onChoiceConfirmed }) {
               {selectedOption.label}
             </p>
             <p className="confirm-description">
-              Net impact: <strong>{formatNet(selectedOption, selectedChoice === 'b')}</strong> cases across XDIM network
+              Net impact:{' '}
+              {selectedOption.net_change !== 0 || maskedCount(selectedOption) === 0 ? (
+                <><strong>{formatFigure(selectedOption, selectedChoice === 'b')}</strong> cases</>
+              ) : null}
+              {maskedCount(selectedOption) > 0 && (
+                <>
+                  {selectedOption.net_change !== 0 ? ' + ' : ''}
+                  <strong>{maskedCount(selectedOption)} status break{maskedCount(selectedOption) > 1 ? 's' : ''}</strong>
+                </>
+              )}
+              {' '}across XDIM network
             </p>
             <div className="confirm-buttons">
               <button
