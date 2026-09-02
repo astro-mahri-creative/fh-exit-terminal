@@ -53,13 +53,24 @@ function ChoiceScreen({ choiceData, sessionData, onChoiceConfirmed }) {
   // CURE/RVLT rows are masked — the universe and magnitude stay hidden
   // until finalize and are deliberately left out of net_change. A bare
   // "0 cases" beside such a row read as "this option does nothing", when
-  // in fact a break code is the single biggest swing in the game. Present
-  // it as a STATUS BREAK instead of a "???" so the visitor knows they are
-  // doing something major, without revealing where or how much.
+  // in fact a break code is the single biggest swing in the game. Label it
+  // clinically instead of with a "???" so the visitor knows they are doing
+  // something major, without revealing where or how much. Containment
+  // breaks (CURE) pull a sector into remission; proliferation breaks (RVLT)
+  // relapse one. The visitor already knows the direction from which option
+  // the row sits under, so the label gives nothing extra away.
+  const BREAK_LABEL = { a: 'SECTOR REMISSION', b: 'SECTOR RELAPSE' };
+  const BREAK_NOUN = {
+    a: ['sector remission', 'sector remissions'],
+    b: ['sector relapse', 'sector relapses'],
+  };
   const maskedCount = (opt) => opt.universes.filter(u => u.masked).length;
   const formatFigure = (opt, positive) =>
     positive ? `+${opt.net_change.toLocaleString()}` : opt.net_change.toLocaleString();
-  const breakLabel = (count) => (count > 1 ? `${count}× STATUS BREAK` : 'STATUS BREAK');
+  const breakLabel = (count, positive) => {
+    const label = BREAK_LABEL[positive ? 'b' : 'a'];
+    return count > 1 ? `${count}× ${label}` : label;
+  };
 
   const renderNetValue = (opt, positive) => {
     const breaks = maskedCount(opt);
@@ -67,23 +78,25 @@ function ChoiceScreen({ choiceData, sessionData, onChoiceConfirmed }) {
       return <>{formatFigure(opt, positive)} <span className="unit-label">cases</span></>;
     }
     if (opt.net_change === 0) {
-      return <span className="net-break">{breakLabel(breaks)}</span>;
+      return <span className="net-break">{breakLabel(breaks, positive)}</span>;
     }
     return (
       <>
         {formatFigure(opt, positive)} <span className="unit-label">cases</span>
-        <span className="net-break net-break-plus">+ {breakLabel(breaks)}</span>
+        <span className="net-break net-break-plus">+ {breakLabel(breaks, positive)}</span>
       </>
     );
   };
 
+  // No caption line under the row on purpose — space is reserved for the
+  // label itself. The .masked-sub style is kept in the stylesheet should a
+  // caption come back.
   const renderMaskedRow = (u, positive) => (
     <div key={u.id} className="option-universe-row masked-row">
       <span className="universe-name masked">UNDISCLOSED SECTOR</span>
       <span className={`universe-delta ${positive ? 'positive' : 'negative'} masked`}>
-        <span className="status-break-tag">STATUS BREAK</span>
+        <span className="status-break-tag">{BREAK_LABEL[positive ? 'b' : 'a']}</span>
       </span>
-      <span className="masked-sub">magnitude classified · beyond protocol range</span>
     </div>
   );
 
@@ -206,7 +219,10 @@ function ChoiceScreen({ choiceData, sessionData, onChoiceConfirmed }) {
               {maskedCount(selectedOption) > 0 && (
                 <>
                   {selectedOption.net_change !== 0 ? ' + ' : ''}
-                  <strong>{maskedCount(selectedOption)} status break{maskedCount(selectedOption) > 1 ? 's' : ''}</strong>
+                  <strong>
+                    {maskedCount(selectedOption)}{' '}
+                    {BREAK_NOUN[selectedChoice][maskedCount(selectedOption) > 1 ? 1 : 0]}
+                  </strong>
                 </>
               )}
               {' '}across XDIM network
