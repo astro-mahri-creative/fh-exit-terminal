@@ -221,9 +221,9 @@ function ResultsScreen({ resultsData, sessionData, onReset }) {
     Array.isArray(resultsData.status_messages) && resultsData.status_messages.length > 0;
 
   // ── Delayed save-progress prompt ──
-  // A visitor reaches this screen without an address only by having declined
-  // the gate on the way in. Now that they can see what they did, ask once more
-  // — the email panel is at the bottom of a long screen and is easy to miss.
+  // This is the one place the terminal asks for an email. It waits until the
+  // visitor has had a moment to take in what they did, then asks once — the
+  // email panel is at the bottom of a long screen and is easy to miss.
   const emailPanelRef = useRef(null);
   const [savePrompt, setSavePrompt] = useState(false);
   const savePromptShown = useRef(false);

@@ -25,12 +25,6 @@ function App() {
     setScreen('codeEntry');
   };
 
-  // The email captured at the "Save Progress?" gate rides along on sessionData
-  // so the impact report can pre-populate its field instead of asking twice.
-  const handleEmailCaptured = (email) => {
-    setSessionData(prev => (prev ? { ...prev, email } : prev));
-  };
-
   const handlePreview = (data) => {
     setChoiceData(data);
     setScreen('choice');
@@ -63,7 +57,6 @@ function App() {
           sessionData={sessionData}
           onPreview={handlePreview}
           onLogout={handleReset}
-          onEmailCaptured={handleEmailCaptured}
         />
       )}
       {screen === 'choice' && choiceData && (

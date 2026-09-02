@@ -70,8 +70,8 @@
   justify-content: center;
   padding: 0 20px;
   font-family: var(--font-mono);
-  font-size: 0.85rem;
-  color: rgba(245, 166, 35, 0.3);
+  font-size: 1.05rem;
+  color: rgba(245, 166, 35, 0.8);
   letter-spacing: 0.15em;
 }
 
@@ -179,8 +179,8 @@
 
 .option-label {
   font-family: var(--font-mono);
-  font-size: 0.65rem;
-  color: rgba(245, 166, 35, 0.4);
+  font-size: 0.8rem;
+  color: rgba(245, 166, 35, 0.85);
   letter-spacing: 0.3em;
   margin-bottom: 8px;
   text-transform: uppercase;
@@ -276,8 +276,8 @@
 
 .net-label {
   font-family: var(--font-mono);
-  font-size: 0.7rem;
-  color: rgba(245, 166, 35, 0.45);
+  font-size: 0.85rem;
+  color: rgba(245, 166, 35, 0.85);
   letter-spacing: 0.15em;
 }
 
@@ -369,8 +369,8 @@
 .codes-summary {
   text-align: center;
   font-family: var(--font-mono);
-  font-size: 0.75rem;
-  color: rgba(245, 166, 35, 0.3);
+  font-size: 0.9rem;
+  color: rgba(245, 166, 35, 0.8);
   padding: 20px 24px;
   letter-spacing: 0.12em;
   border-top: 1px solid rgba(245, 166, 35, 0.08);
@@ -575,17 +575,83 @@
 }
 
 @keyframes dividerPulse {
-  0%, 100% { color: rgba(245, 166, 35, 0.2); }
-  50%      { color: rgba(245, 166, 35, 0.45); text-shadow: 0 0 4px rgba(245, 166, 35, 0.15); }
+  0%, 100% { color: rgba(245, 166, 35, 0.65); }
+  50%      { color: rgba(245, 166, 35, 0.95); text-shadow: 0 0 6px rgba(245, 166, 35, 0.3); }
 }
 
 /* ── Responsive ── */
 /* Masked rows for CURE/RVLT — universe and magnitude obscured until finalize */
-.universe-name.masked,
-.universe-delta.masked {
-  letter-spacing: 0.3em;
-  opacity: 0.85;
-  font-style: italic;
+/* ── Masked (CURE/RVLT) rows ──
+   The universe and magnitude are hidden until finalize, but the row should
+   still read as the biggest thing on the screen, not as a blank. */
+.option-universe-row.masked-row {
+  border-left-color: currentColor;
+  flex-wrap: wrap;
+  row-gap: 4px;
+}
+
+.universe-name.masked {
+  letter-spacing: 0.08em;
+  font-weight: 700;
+}
+
+.net-change { gap: 12px; }
+.net-change .net-value { text-align: right; }
+
+.masked-sub {
+  flex-basis: 100%;
+  font-family: var(--font-mono);
+  font-size: 0.62rem;
+  letter-spacing: 0.06em;
+  color: var(--text-secondary);
+}
+
+.status-break-tag {
+  display: inline-block;
+  padding: 3px 9px;
+  border: 1px solid currentColor;
+  border-radius: var(--radius-sm);
+  font-size: 0.68rem;
+  letter-spacing: 0.16em;
+  white-space: nowrap;
+  animation: status-break-pulse 1.8s ease-in-out infinite;
+}
+
+.net-break {
+  font-size: 0.8rem;
+  letter-spacing: 0.16em;
+  white-space: nowrap;
+  animation: status-break-pulse 1.8s ease-in-out infinite;
+}
+
+.net-break-plus {
+  display: block;
+  font-size: 0.68rem;
+  margin-top: 2px;
+  text-align: right;
+}
+
+@keyframes status-break-pulse {
+  0%, 100% { opacity: 1; text-shadow: 0 0 0 transparent; }
+  50%      { opacity: 0.75; text-shadow: 0 0 10px currentColor; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .status-break-tag,
+  .net-break { animation: none; }
+}
+
+/* On phones the net row's label and value fight for one line; stack them so
+   the label stays whole and the value keeps its size. */
+@media (max-width: 480px) {
+  .net-change {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 6px;
+  }
+  .net-change .net-value {
+    text-align: right;
+  }
 }
 
 @media (max-width: 900px) {

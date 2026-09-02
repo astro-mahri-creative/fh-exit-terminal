@@ -1,9 +1,8 @@
 import React, { useState, useCallback, useRef, useEffect } from 'react';
-import { codeService, sessionService } from '../services/api';
+import { codeService } from '../services/api';
 import AdminPanel from './AdminPanel';
 import SegmentedInput from './SegmentedInput';
 import OnScreenKeyboard from './OnScreenKeyboard';
-import EmailField from './EmailField';
 import TerminalNotice from './TerminalNotice';
 import {
   PHAX_MESSAGES,
@@ -14,8 +13,6 @@ import {
 } from './terminalMessages';
 import { isKiosk } from '../kiosk';
 import './CodeEntryScreen.css';
-
-const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
 // How long a freshly activated code stays highlighted in the list. Outlasts
 // the 1800ms activation overlay by enough that the user still sees the glow
@@ -31,7 +28,7 @@ const TRANSMIT_NUDGE_MS = 15000;
 const normalizeCode = (raw) =>
   raw.toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 4);
 
-function CodeEntryScreen({ sessionData, onPreview, onLogout, onEmailCaptured }) {
+function CodeEntryScreen({ sessionData, onPreview, onLogout }) {
   const [currentCode, setCurrentCode] = useState('');
   // Seed from the resumed session so a refresh or back-button restores the
   // list of codes already activated this round. Empty on a fresh (non-resumed)
@@ -61,98 +58,14 @@ function CodeEntryScreen({ sessionData, onPreview, onLogout, onEmailCaptured }) 
   // Escalating transmit reminder — see TRANSMIT_NUDGE_MS.
   const [nudge, setNudge] = useState(false);
 
-  // ── Save Progress gate ──
-  // Required for any visitor who has no email on file. They must answer YES or
-  // NO before codes can be transmitted; answering YES additionally requires a
-  // confirmed, valid email. Admins and returning users with a saved email skip
-  // the whole block.
-  //
-  // Frozen at mount on purpose. Confirming an email sets sessionData.email,
-  // which would otherwise flip this to false and unmount the gate mid-flow —
-  // the section would vanish out from under the user instead of showing them
-  // the "progress will be saved" confirmation they just earned.
-  const [needsSaveProgress] = useState(
-    () => !sessionData.is_admin && !sessionData.email
-  );
-  const [saveChoice, setSaveChoice] = useState(null); // null | 'yes' | 'no'
-  const [email, setEmail] = useState('');
-  const [emailSaved, setEmailSaved] = useState(false);
-  const [emailError, setEmailError] = useState('');
-  const [newsOptIn, setNewsOptIn] = useState(false);
-  const [saveGateError, setSaveGateError] = useState('');
-  const [gateFlash, setGateFlash] = useState(false);
-  const saveGateRef = useRef(null);
   const codeRef = useRef(null);
 
   const isAdmin = sessionData.is_admin;
   const hasCodes = activatedCodes.length > 0;
-  // False when an admin has stopped report email, or the server has no mail
-  // transport. The gate then sells saved progress and nothing else, rather
-  // than promising a report that isn't coming.
-  const reportEmailEnabled = sessionData.report_email_enabled !== false;
 
   const handleCodeChange = useCallback((raw) => {
     setCurrentCode(normalizeCode(raw));
     setError('');
-  }, []);
-
-  const handleEmailChange = useCallback((next) => {
-    setEmail(next);
-    setEmailError('');
-  }, []);
-
-  const saveEmailWithOptIn = useCallback(async (address, optIn) => {
-    const response = await sessionService.saveEmail(
-      sessionData.session_token,
-      address,
-      optIn,
-    );
-    if (!response.success) throw new Error(response.message || 'Error saving email');
-    return response;
-  }, [sessionData.session_token]);
-
-  const handleConfirmEmail = useCallback(async () => {
-    if (!EMAIL_REGEX.test(email)) {
-      setEmailError('Please enter a valid email address');
-      return;
-    }
-    setEmailError('');
-    try {
-      await saveEmailWithOptIn(email, newsOptIn);
-      setEmailSaved(true);
-      setSaveGateError('');
-      // Lift it to App so the impact report can pre-populate its email field.
-      if (onEmailCaptured) onEmailCaptured(email.toLowerCase());
-    } catch (err) {
-      setEmailError(err.response?.data?.message || err.message || 'Error saving email. Please try again.');
-    }
-  }, [email, newsOptIn, saveEmailWithOptIn, onEmailCaptured]);
-
-  // Toggling after the address is already confirmed re-saves it, so the choice
-  // isn't silently lost by arriving a beat late.
-  const handleOptInToggle = useCallback(async (checked) => {
-    setNewsOptIn(checked);
-    if (!emailSaved) return;
-    try {
-      await saveEmailWithOptIn(email, checked);
-    } catch (err) {
-      setEmailError('Could not update your subscription preference. Try again.');
-    }
-  }, [emailSaved, email, saveEmailWithOptIn]);
-
-  const handleSaveChoice = (choice) => {
-    setSaveChoice(choice);
-    setSaveGateError('');
-    setGateFlash(false);
-  };
-
-  // Pull the gate into view and flash it. Used when the user tries to transmit
-  // without having resolved it — the gate sits below the fold on short screens.
-  const summonSaveGate = useCallback((message) => {
-    setSaveGateError(message);
-    setGateFlash(true);
-    saveGateRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' });
-    setTimeout(() => setGateFlash(false), 1600);
   }, []);
 
   const showInvalidCodeNotice = useCallback((reason, errorCode) => {
@@ -256,18 +169,10 @@ function CodeEntryScreen({ sessionData, onPreview, onLogout, onEmailCaptured }) 
   // keystroke lands in whichever one the user focused, and Enter is handled by
   // that input's own onEnter.
 
-  // Guards the TRANSMIT button: the Save Progress question is not optional.
+  // TRANSMIT opens the "activated everything?" confirmation. Email capture
+  // lives on the impact report screen, after the visitor has seen what they
+  // did — it is not a precondition for transmitting.
   const handleTransmitClick = () => {
-    if (needsSaveProgress) {
-      if (saveChoice === null) {
-        summonSaveGate('Choose YES or NO to save your progress before transmitting.');
-        return;
-      }
-      if (saveChoice === 'yes' && !emailSaved) {
-        summonSaveGate('Confirm your email address, or choose NO, before transmitting.');
-        return;
-      }
-    }
     setShowTransmitConfirm(true);
   };
 
@@ -402,108 +307,6 @@ function CodeEntryScreen({ sessionData, onPreview, onLogout, onEmailCaptured }) 
         >
           {loading ? 'PROCESSING...' : 'TRANSMIT CODES'}
         </button>
-
-        {needsSaveProgress && (
-          <div
-            ref={saveGateRef}
-            className={`save-progress-section${gateFlash ? ' flash' : ''}${saveChoice === null ? ' unanswered' : ''}`}
-          >
-            <div className="save-progress-question">
-              <span className="save-progress-label">
-                SAVE PROGRESS? <span className="save-progress-required">REQUIRED</span>
-              </span>
-              <div className="save-progress-options">
-                <button
-                  className={`save-progress-btn yes${saveChoice === 'yes' ? ' selected' : ''}`}
-                  onClick={() => handleSaveChoice('yes')}
-                >
-                  YES
-                </button>
-                <button
-                  className={`save-progress-btn no${saveChoice === 'no' ? ' selected' : ''}`}
-                  onClick={() => handleSaveChoice('no')}
-                >
-                  NO
-                </button>
-              </div>
-            </div>
-
-            {saveChoice === 'yes' && !emailSaved && (
-              <div className="save-progress-email">
-                <label htmlFor="save-progress-email" className="save-progress-email-label">
-                  Enter your email to attach it to User ID <strong>{sessionData.user_id}</strong>
-                </label>
-                <ul className="save-progress-benefits">
-                  {reportEmailEnabled && (
-                    <li>Your impact report, emailed to you after you transmit</li>
-                  )}
-                  <li>Your progress restored the next time you log in</li>
-                </ul>
-                <EmailField
-                  id="save-progress-email"
-                  value={email}
-                  onChange={handleEmailChange}
-                  onEnter={handleConfirmEmail}
-                  autoFocus
-                  trailing={(
-                    <button
-                      className="email-confirm-button"
-                      onClick={handleConfirmEmail}
-                      disabled={email.length === 0}
-                    >
-                      CONFIRM
-                    </button>
-                  )}
-                />
-                <label className="news-optin">
-                  <input
-                    type="checkbox"
-                    checked={newsOptIn}
-                    onChange={(e) => handleOptInToggle(e.target.checked)}
-                  />
-                  <span>
-                    Yes, send me Future Hooman news and events — new releases, shows, and
-                    dimensional broadcasts. Unsubscribe any time.
-                  </span>
-                </label>
-                {emailError && <div className="error-message">{emailError}</div>}
-              </div>
-            )}
-
-            {saveChoice === 'yes' && emailSaved && (
-              <>
-                <div className="save-progress-confirmed">
-                  ✓ Progress will be saved to {email}
-                  {reportEmailEnabled && (
-                    <span className="save-progress-confirmed-sub">
-                      Your impact report will be sent here after you transmit.
-                    </span>
-                  )}
-                </div>
-                <label className="news-optin">
-                  <input
-                    type="checkbox"
-                    checked={newsOptIn}
-                    onChange={(e) => handleOptInToggle(e.target.checked)}
-                  />
-                  <span>
-                    Yes, send me Future Hooman news and events — new releases, shows, and
-                    dimensional broadcasts. Unsubscribe any time.
-                  </span>
-                </label>
-                {emailError && <div className="error-message">{emailError}</div>}
-              </>
-            )}
-
-            {saveChoice === 'no' && (
-              <div className="save-progress-declined">
-                Progress will not be saved. Your results will be shown once, then discarded.
-              </div>
-            )}
-
-            {saveGateError && <div className="error-message">{saveGateError}</div>}
-          </div>
-        )}
       </div>
 
       {showActivation && (
