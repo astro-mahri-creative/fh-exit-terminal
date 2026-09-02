@@ -2,12 +2,13 @@ const { Universe, Phase, FinalStateEvent } = require('../models');
 
 // The two statuses a universe cannot be pulled back out of by ordinary play:
 // TRANSCENDED (0 cases) and QUARANTINED (at or above its initialization
-// count). Both clear canSpread, and random / goal-relative target selection
-// only ever considers COMPROMISED universes, so once every universe holds one
-// of these the board can no longer move on its own. That is "final state".
+// count). Both clear canSpread, and standard target selection never lands on
+// them (see standardTargetPool in server.js), so once every universe holds
+// one of these the board can no longer move. That is "final state".
 //
 // PRESERVED and LIBERATED are deliberately NOT terminal — the CURE and RVLT
-// break codes exist precisely to knock universes out of them.
+// break codes exist precisely to knock universes out of them, and once no
+// COMPROMISED universe is left, standard codes erode them too.
 const TERMINAL_STATUSES = ['TRANSCENDED', 'QUARANTINED'];
 
 const WEBHOOK_TIMEOUT_MS = 8000;
@@ -286,6 +287,7 @@ async function sendTestAlert({ sendMail = null, userId = null } = {}) {
 module.exports = {
   TERMINAL_STATUSES,
   isFinalState,
+  TERMINAL_STATUSES,
   checkFinalState,
   getFinalStateStatus,
   sendTestAlert,

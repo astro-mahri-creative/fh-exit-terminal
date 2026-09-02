@@ -50,6 +50,20 @@ function ChoiceScreen({ choiceData, sessionData, onChoiceConfirmed }) {
   const optionBDisabled = !hasOptionEffect(optionB);
   const selectedOption = selectedChoice === 'a' ? optionA : optionB;
 
+  // Net impact figure. CURE/RVLT rows are masked — their delta is hidden
+  // until finalize and deliberately left out of net_change — so a bare
+  // "0 cases" beside a "???" row reads as "this option does nothing".
+  // Fold the hidden part into the figure instead: "???" on its own when
+  // nothing else moves, "-3,234 − ???" when real changes sit alongside.
+  const formatNet = (opt, positive) => {
+    const hasMasked = opt.universes.some(u => u.masked);
+    const net = opt.net_change;
+    const figure = positive ? `+${net.toLocaleString()}` : net.toLocaleString();
+    if (!hasMasked) return figure;
+    if (net === 0) return positive ? '+???' : '???';
+    return `${figure} ${positive ? '+' : '−'} ???`;
+  };
+
   return (
     <div className="choice-screen">
       <div className="choice-header">
@@ -89,7 +103,7 @@ function ChoiceScreen({ choiceData, sessionData, onChoiceConfirmed }) {
           <div className="net-change negative">
             <span className="net-label">NET iFLU IMPACT</span>
             <span className="net-value">
-              {optionA.net_change.toLocaleString()} <span className="unit-label">cases</span>
+              {formatNet(optionA, false)} <span className="unit-label">cases</span>
             </span>
           </div>
 
@@ -129,7 +143,7 @@ function ChoiceScreen({ choiceData, sessionData, onChoiceConfirmed }) {
           <div className="net-change positive">
             <span className="net-label">NET iFLU IMPACT</span>
             <span className="net-value">
-              +{optionB.net_change.toLocaleString()} <span className="unit-label">cases</span>
+              {formatNet(optionB, true)} <span className="unit-label">cases</span>
             </span>
           </div>
 
@@ -162,7 +176,7 @@ function ChoiceScreen({ choiceData, sessionData, onChoiceConfirmed }) {
               {selectedOption.label}
             </p>
             <p className="confirm-description">
-              Net impact: <strong>{selectedChoice === 'a' ? '' : '+'}{selectedOption.net_change.toLocaleString()}</strong> cases across XDIM network
+              Net impact: <strong>{formatNet(selectedOption, selectedChoice === 'b')}</strong> cases across XDIM network
             </p>
             <div className="confirm-buttons">
               <button

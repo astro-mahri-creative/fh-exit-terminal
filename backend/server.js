@@ -115,7 +115,7 @@ const {
   AnalyticsLog,
   AdminSettings
 } = require('./models');
-const { checkFinalState, getFinalStateStatus, sendTestAlert } = require('./services/finalStateAlert');
+const { checkFinalState, getFinalStateStatus, sendTestAlert, isFinalState, TERMINAL_STATUSES } = require('./services/finalStateAlert');
 
 const app = express();
 const PORT = process.env.PORT || 5000;
@@ -313,6 +313,11 @@ async function updateUniverseStatus(universeId) {
 async function ensureActionableCodes(sessionCodes, session, universes, codesQuery) {
   const hasLiberated = universes.some(u => u.status === 'LIBERATED');
   const hasPreserved = universes.some(u => u.status === 'PRESERVED');
+  // Standard effects land on any universe that isn't permanently locked
+  // (see standardTargetPool), so they are actionable unless the board is
+  // in its final state — and then CERT can't help either.
+  const hasLive = standardTargetPool(universes, -1).length > 0;
+  if (!hasLive) return sessionCodes;
 
   // A code is "actionable right now" if at least one of its effects can
   // produce a change given the current universe state.
@@ -351,9 +356,44 @@ async function ensureActionableCodes(sessionCodes, session, universes, codesQuer
   return await SessionCode.find(codesQuery).populate('codeId');
 }
 
-// Select a random universe with COMPROMISED status and >0 cases
-function selectRandomCompromised(universes) {
-  const eligible = universes.filter(u => u.currentCases > 0 && u.status === 'COMPROMISED');
+// The universes a standard (numeric) effect may land on. Shared by random
+// and goal-relative targeting so both agree on what is in play.
+//
+// Preferred pool: COMPROMISED universes with cases remaining — the
+// contested middle of the board (30–70%). LIBERATED and PRESERVED are win
+// states and are left alone while any contested universe exists.
+//
+// Fallback pool: once the contested middle is empty, standard codes keep
+// working instead of fizzling. A board of only win states and locked
+// states is not a final state (see services/finalStateAlert.js), yet with
+// COMPROMISED-only targeting every standard code produced nothing, the
+// preview reported "no actionable effect", and only the rare CURE/RVLT
+// break codes could move anything. In fallback an effect erodes the
+// opposing faction's win state first — containment pulls a LIBERATED
+// universe back toward COMPROMISED, proliferation pulls a PRESERVED one —
+// a weaker cousin of what CURE and RVLT do outright. Only when that state
+// is empty too does it push the same-side win state on toward its
+// permanent lock (PRESERVED → TRANSCENDED, LIBERATED → QUARANTINED), so
+// the board can still reach an ending.
+function standardTargetPool(universes, effectValue) {
+  const live = universes.filter(u => u.currentCases > 0 && !TERMINAL_STATUSES.includes(u.status));
+  const contested = live.filter(u => u.status === 'COMPROMISED');
+  if (contested.length > 0) return contested;
+  const opposing = effectValue < 0 ? 'LIBERATED' : 'PRESERVED';
+  const preferred = live.filter(u => u.status === opposing);
+  return preferred.length > 0 ? preferred : live;
+}
+
+// True while a contested universe is still available to act on — the
+// condition under which the win-state protection in the effect loops
+// applies (LIBERATED resists everything, PRESERVED resists proliferation).
+function hasContestedTarget(universes) {
+  return universes.some(u => u.currentCases > 0 && u.status === 'COMPROMISED');
+}
+
+// Select a random universe from the standard target pool
+function selectRandomTarget(universes, effectValue) {
+  const eligible = standardTargetPool(universes, effectValue);
   if (eligible.length === 0) return null;
   return eligible[Math.floor(Math.random() * eligible.length)];
 }
@@ -416,18 +456,18 @@ async function resolveOnce(resolved, sessionCode, effectId, pick) {
 // nearest_goal is polarizing (drives status flips). Pairing codes across
 // both modes keeps either force from dictating the long-run attractor.
 //
-// The eligible pool is the same one selectRandomCompromised uses — only
-// COMPROMISED universes with cases remaining, i.e. strictly 30-70%. The
-// true extremes have already left the pool, so "highest %" really means
-// "closest to the 70% LIBERATED line" and "lowest %" means "closest to
-// the 30% PRESERVED line".
+// The eligible pool is the same one selectRandomTarget uses — normally
+// only COMPROMISED universes with cases remaining, i.e. strictly 30-70%.
+// The true extremes have already left the pool, so "highest %" really
+// means "closest to the 70% LIBERATED line" and "lowest %" means "closest
+// to the 30% PRESERVED line". (In the fallback pool the same comparison
+// runs over the win-state universes instead — see standardTargetPool.)
 //
 // Sorting by displayOrder before the reduce makes ties resolve identically
 // in the preview and finalize paths, which is the point of the whole mode:
 // unlike 'random', preview and finalize agree on the target.
 function selectByGoalProximity(universes, effectValue, mode) {
-  const eligible = universes
-    .filter(u => u.currentCases > 0 && u.status === 'COMPROMISED')
+  const eligible = standardTargetPool(universes, effectValue)
     .sort((a, b) => a.displayOrder - b.displayOrder);
   if (eligible.length === 0) return null;
   const ratio = u => u.currentCases / u.initializationCases;
@@ -1174,19 +1214,15 @@ app.post('/api/codes/preview', async (req, res) => {
         // Resolve target (excluding RVLT/CURE universes).
         // NOTE: this block is mirrored in the finalize path — keep the two
         // in sync or the choice screen will misreport what finalize does.
+        const candidates = sim.filter(u => !excluded.has(u._id.toString()));
         let targetUniverse;
         if (effect.targetMode === 'random') {
-          const pool = sim.filter(u => !excluded.has(u._id.toString()));
           const pinnedId = await resolveOnce(resolvedTargets, sessionCode, effect._id,
-            selectRandomCompromised(pool));
-          targetUniverse = pinnedId ? pool.find(u => u._id.equals(pinnedId)) : null;
+            selectRandomTarget(candidates, effectValue));
+          targetUniverse = pinnedId ? candidates.find(u => u._id.equals(pinnedId)) : null;
           if (!targetUniverse) continue;
         } else if (effect.targetMode === 'nearest_goal' || effect.targetMode === 'furthest_goal') {
-          targetUniverse = selectByGoalProximity(
-            sim.filter(u => !excluded.has(u._id.toString())),
-            effectValue,
-            effect.targetMode
-          );
+          targetUniverse = selectByGoalProximity(candidates, effectValue, effect.targetMode);
           if (!targetUniverse) continue;
         } else {
           targetUniverse = sim.find(u => u._id.equals(effect.universeId));
@@ -1194,10 +1230,14 @@ app.post('/api/codes/preview', async (req, res) => {
         }
         if (!targetUniverse) continue;
 
-        // Status-based blocking
-        if (targetUniverse.status === 'QUARANTINED' || targetUniverse.status === 'TRANSCENDED') continue;
-        if (targetUniverse.status === 'LIBERATED') continue;
-        if (targetUniverse.status === 'PRESERVED' && effectValue > 0) continue;
+        // Status-based blocking. Locked universes never move. The win
+        // states resist standard effects only while a contested universe
+        // is still available instead — see standardTargetPool.
+        if (TERMINAL_STATUSES.includes(targetUniverse.status)) continue;
+        if (hasContestedTarget(candidates)) {
+          if (targetUniverse.status === 'LIBERATED') continue;
+          if (targetUniverse.status === 'PRESERVED' && effectValue > 0) continue;
+        }
 
         const universeId = targetUniverse._id.toString();
         if (bucket[universeId]) bucket[universeId].change += effectValue;
@@ -1255,12 +1295,22 @@ app.post('/api/codes/preview', async (req, res) => {
     // changes but produce nothing on their own.
     const hasOptionA = netNegative !== 0 || optionAMaskedRows.length > 0;
     const hasOptionB = netPositive !== 0 || optionBMaskedRows.length > 0;
-    // Safety net: with the CERT fallback in ensureActionableCodes this
-    // should be unreachable. It can only fire if CERT is missing from
-    // the codes collection or has been deactivated, which would be a
-    // deployment/admin issue worth surfacing rather than a silent UI
-    // dead-end.
     if (!hasOptionA && !hasOptionB) {
+      // Expected dead-end: every universe is permanently locked, so no
+      // code can move anything until an admin resets dimension statistics.
+      if (isFinalState(universes)) {
+        return res.status(409).json({
+          success: false,
+          error: 'NETWORK_LOCKED',
+          message: 'Every universe is locked in a permanent status. No code can move the network until an admin resets dimension statistics.'
+        });
+      }
+      // Safety net: with standard effects landing on any unlocked universe
+      // and the CERT fallback in ensureActionableCodes, this should be
+      // unreachable. It can only fire if CERT is missing from the codes
+      // collection or has been deactivated, which would be a
+      // deployment/admin issue worth surfacing rather than a silent UI
+      // dead-end.
       console.error('Preview empty even after CERT fallback — verify CERT exists and isActive in the codes collection.');
       return res.status(500).json({
         success: false,
@@ -1522,19 +1572,15 @@ app.post('/api/codes/finalize', async (req, res) => {
         // Resolve target universe (excluding RVLT/CURE universes).
         // NOTE: this block is mirrored in the preview path — keep the two
         // in sync or the choice screen will misreport what finalize does.
+        const candidates = liveUniverses.filter(u => !excludedUniverseIds.has(u._id.toString()));
         let targetUniverse;
         if (effect.targetMode === 'random') {
-          const pool = liveUniverses.filter(u => !excludedUniverseIds.has(u._id.toString()));
           const pinnedId = await resolveOnce(resolvedTargets, sessionCode, effect._id,
-            selectRandomCompromised(pool));
-          targetUniverse = pinnedId ? pool.find(u => u._id.equals(pinnedId)) : null;
+            selectRandomTarget(candidates, effectValue));
+          targetUniverse = pinnedId ? candidates.find(u => u._id.equals(pinnedId)) : null;
           if (!targetUniverse) continue;
         } else if (effect.targetMode === 'nearest_goal' || effect.targetMode === 'furthest_goal') {
-          targetUniverse = selectByGoalProximity(
-            liveUniverses.filter(u => !excludedUniverseIds.has(u._id.toString())),
-            effectValue,
-            effect.targetMode
-          );
+          targetUniverse = selectByGoalProximity(candidates, effectValue, effect.targetMode);
           if (!targetUniverse) continue;
         } else {
           targetUniverse = liveUniverses.find(u => u._id.equals(effect.universeId));
@@ -1542,10 +1588,14 @@ app.post('/api/codes/finalize', async (req, res) => {
         }
         if (!targetUniverse) continue;
 
-        // Status-based blocking
-        if (targetUniverse.status === 'QUARANTINED' || targetUniverse.status === 'TRANSCENDED') continue;
-        if (targetUniverse.status === 'LIBERATED') continue;
-        if (targetUniverse.status === 'PRESERVED' && effectValue > 0) continue;
+        // Status-based blocking. Locked universes never move. The win
+        // states resist standard effects only while a contested universe
+        // is still available instead — see standardTargetPool.
+        if (TERMINAL_STATUSES.includes(targetUniverse.status)) continue;
+        if (hasContestedTarget(candidates)) {
+          if (targetUniverse.status === 'LIBERATED') continue;
+          if (targetUniverse.status === 'PRESERVED' && effectValue > 0) continue;
+        }
 
         const universeId = targetUniverse._id.toString();
         if (universeChanges[universeId]) {

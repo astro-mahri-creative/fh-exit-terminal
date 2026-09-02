@@ -536,17 +536,6 @@
   color: var(--text-primary);
 }
 
-.save-progress-required {
-  margin-left: 8px;
-  font-size: 0.6rem;
-  letter-spacing: 0.14em;
-  color: var(--color-warning);
-  border: 1px solid var(--color-warning);
-  border-radius: var(--radius-sm);
-  padding: 2px 6px;
-  vertical-align: middle;
-}
-
 .save-progress-options {
   display: flex;
   gap: 10px;

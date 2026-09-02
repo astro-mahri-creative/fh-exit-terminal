@@ -409,9 +409,7 @@ function CodeEntryScreen({ sessionData, onPreview, onLogout, onEmailCaptured }) 
             className={`save-progress-section${gateFlash ? ' flash' : ''}${saveChoice === null ? ' unanswered' : ''}`}
           >
             <div className="save-progress-question">
-              <span className="save-progress-label">
-                SAVE PROGRESS? <span className="save-progress-required">REQUIRED</span>
-              </span>
+              <span className="save-progress-label">SAVE PROGRESS?</span>
               <div className="save-progress-options">
                 <button
                   className={`save-progress-btn yes${saveChoice === 'yes' ? ' selected' : ''}`}
